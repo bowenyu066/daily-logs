@@ -327,8 +327,6 @@ struct HomeView: View {
                                 }
                                 .padding(.horizontal, 18)
                                 .padding(.vertical, 16)
-                                .background(AppTheme.elevatedSurface)
-                                .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
                             }
                             .buttonStyle(.plain)
 
@@ -339,12 +337,14 @@ struct HomeView: View {
                                     .font(.system(size: 16, weight: .bold))
                                     .foregroundStyle(AppTheme.warning)
                                     .frame(width: 48, height: 48)
-                                    .background(AppTheme.elevatedSurface)
-                                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                             }
                             .buttonStyle(.plain)
                             .disabled(!appViewModel.canEditSelectedDate)
                         }
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 12)
+                        .background(AppTheme.elevatedSurface)
+                        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
                     }
                 }
             }

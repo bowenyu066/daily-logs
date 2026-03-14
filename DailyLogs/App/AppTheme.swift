@@ -57,6 +57,11 @@ enum AppTheme {
             ? UIColor(white: 0.0, alpha: 0.3)
             : UIColor(white: 0.0, alpha: 0.07)
     })
+    static let actionFill = Color(uiColor: UIColor { trait in
+        trait.userInterfaceStyle == .dark
+            ? UIColor(red: 0.23, green: 0.28, blue: 0.38, alpha: 1)
+            : UIColor(red: 0.14, green: 0.14, blue: 0.16, alpha: 1)
+    })
 }
 
 struct CardModifier: ViewModifier {

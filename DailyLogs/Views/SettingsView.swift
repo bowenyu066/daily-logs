@@ -61,15 +61,16 @@ struct SettingsView: View {
                 Spacer()
             }
 
-            Button("退出登录") {
+            Button(accountActionTitle) {
                 Task { await appViewModel.signOut() }
             }
             .font(.system(size: 15, weight: .bold, design: .rounded))
             .foregroundStyle(Color.white)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 14)
-            .background(AppTheme.primaryText)
+            .background(appViewModel.user?.isGuest == true ? AppTheme.secondaryText.opacity(0.35) : AppTheme.actionFill)
             .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .buttonStyle(.plain)
         }
         .padding(22)
         .appCardStyle()
@@ -176,6 +177,10 @@ struct SettingsView: View {
             return "游客模式，本地保存"
         }
         return appViewModel.user?.email ?? "Apple 登录"
+    }
+
+    private var accountActionTitle: String {
+        appViewModel.user?.isGuest == true ? "结束游客模式" : "退出登录"
     }
 }
 
