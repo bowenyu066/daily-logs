@@ -27,7 +27,7 @@ struct DefaultMealSlotsSheet: View {
                         .font(.system(size: 17, weight: .semibold, design: .rounded))
                         .padding(.horizontal, 16)
                         .padding(.vertical, 14)
-                        .background(Color.white)
+                        .background(AppTheme.surface)
                         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
                         .overlay(
                             RoundedRectangle(cornerRadius: 18, style: .continuous)
@@ -41,7 +41,7 @@ struct DefaultMealSlotsSheet: View {
                         title = ""
                     }
                     .font(.system(size: 16, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Color.white)
                     .padding(.horizontal, 18)
                     .padding(.vertical, 14)
                     .background(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? AppTheme.secondaryText.opacity(0.35) : AppTheme.accent)
@@ -87,7 +87,7 @@ private struct MealSlotChip: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 11)
-        .background(isLocked ? AppTheme.accentSoft : Color.white)
+        .background(isLocked ? AppTheme.accentSoft : AppTheme.surface)
         .clipShape(Capsule())
         .overlay(
             Capsule()

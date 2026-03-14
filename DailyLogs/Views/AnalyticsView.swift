@@ -165,8 +165,7 @@ private struct PlaceholderCard: View {
             .foregroundStyle(AppTheme.secondaryText)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(20)
-            .background(Color.white.opacity(0.7))
+            .background(AppTheme.elevatedSurface)
             .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
     }
 }
-

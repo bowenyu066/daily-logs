@@ -139,7 +139,7 @@ struct HomeView: View {
                         .font(.system(size: 18, weight: .semibold))
                         .foregroundStyle(AppTheme.secondaryText)
                         .frame(width: 42, height: 42)
-                        .background(Color.white.opacity(0.72))
+                        .background(AppTheme.elevatedSurface)
                         .clipShape(Circle())
                 }
                 .buttonStyle(.plain)
@@ -310,7 +310,7 @@ struct HomeView: View {
                         Spacer()
                     }
                     .padding(24)
-                    .background(Color.white.opacity(0.54))
+                    .background(AppTheme.elevatedSurface)
                     .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
                 } else {
                     ForEach(appViewModel.dailyRecord.showers) { shower in
@@ -327,7 +327,7 @@ struct HomeView: View {
                                 }
                                 .padding(.horizontal, 18)
                                 .padding(.vertical, 16)
-                                .background(Color.white.opacity(0.7))
+                                .background(AppTheme.elevatedSurface)
                                 .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
                             }
                             .buttonStyle(.plain)
@@ -339,7 +339,7 @@ struct HomeView: View {
                                     .font(.system(size: 16, weight: .bold))
                                     .foregroundStyle(AppTheme.warning)
                                     .frame(width: 48, height: 48)
-                                    .background(Color.white.opacity(0.7))
+                                    .background(AppTheme.elevatedSurface)
                                     .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                             }
                             .buttonStyle(.plain)
@@ -406,7 +406,7 @@ private struct SunMetricCard: View {
         }
         .padding(16)
         .frame(maxWidth: .infinity)
-        .background(Color.white.opacity(0.72))
+        .background(AppTheme.elevatedSurface)
         .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
     }
 }
@@ -433,13 +433,13 @@ private struct SleepMetricCard: View {
                     .foregroundStyle(AppTheme.secondaryText)
                     .frame(maxWidth: .infinity, minHeight: 42, alignment: .leading)
                     .padding(.horizontal, 12)
-                    .background(Color.black.opacity(0.05))
+                    .background(AppTheme.mutedFill)
                     .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(18)
-        .background(Color.white.opacity(0.72))
+        .background(AppTheme.elevatedSurface)
         .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
     }
 }
@@ -492,7 +492,7 @@ private struct MealCard: View {
                         .foregroundStyle(statusColor)
                         .padding(.horizontal, 14)
                         .padding(.vertical, 10)
-                        .background(Color.black.opacity(0.05))
+                        .background(AppTheme.mutedFill)
                         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                 }
             }
@@ -538,7 +538,7 @@ private struct MealCard: View {
 
     private var backgroundColor: Color {
         switch effectiveStatus {
-        case .empty: Color.white.opacity(0.84)
+        case .empty: AppTheme.surface
         case .logged: AppTheme.accentSoft.opacity(0.92)
         case .skipped: AppTheme.warning.opacity(0.12)
         }

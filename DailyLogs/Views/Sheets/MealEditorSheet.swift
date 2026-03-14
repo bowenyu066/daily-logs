@@ -138,7 +138,7 @@ struct MealEditorSheet: View {
                 }
                 .padding(18)
                 .frame(maxWidth: .infinity)
-                .background(Color.white.opacity(0.76))
+                .background(AppTheme.elevatedSurface)
                 .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
             } else {
                 Button {
@@ -157,7 +157,7 @@ struct MealEditorSheet: View {
                     }
                     .padding(.horizontal, 18)
                     .padding(.vertical, 16)
-                    .background(Color.white.opacity(0.76))
+                    .background(AppTheme.elevatedSurface)
                     .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
                 }
                 .buttonStyle(.plain)
@@ -199,7 +199,7 @@ struct MealEditorSheet: View {
                 .foregroundStyle(AppTheme.primaryText)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 15)
-                .background(Color.white.opacity(0.8))
+                .background(AppTheme.surface)
                 .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         }
         .buttonStyle(.plain)

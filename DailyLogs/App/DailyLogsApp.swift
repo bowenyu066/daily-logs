@@ -9,6 +9,7 @@ struct DailyLogsApp: App {
         WindowGroup {
             RootView()
                 .environmentObject(appViewModel)
+                .preferredColorScheme(appViewModel.preferredColorScheme)
         }
     }
 }

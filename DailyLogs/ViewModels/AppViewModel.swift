@@ -89,6 +89,17 @@ final class AppViewModel: ObservableObject {
         AnalyticsCalculator.build(records: allRecords, range: analyticsRange)
     }
 
+    var preferredColorScheme: ColorScheme? {
+        switch preferences.appearanceMode {
+        case .system:
+            nil
+        case .light:
+            .light
+        case .dark:
+            .dark
+        }
+    }
+
     func bootstrap() async {
         guard !isBootstrapped else { return }
         isBootstrapped = true
@@ -188,6 +199,12 @@ final class AppViewModel: ObservableObject {
         dailyRecord.sleepRecord.targetBedtime = schedule.target(for: selectedDate)
         persistPreferences()
         persistCurrentRecord()
+        await syncPreferencesToCloudIfNeeded()
+    }
+
+    func updateAppearanceMode(_ mode: AppearanceMode) async {
+        preferences.appearanceMode = mode
+        persistPreferences()
         await syncPreferencesToCloudIfNeeded()
     }
 

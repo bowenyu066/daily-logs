@@ -197,6 +197,22 @@ enum LocationPermissionState: String, Codable {
     case authorized
 }
 
+enum AppearanceMode: String, Codable, CaseIterable, Identifiable {
+    case system
+    case light
+    case dark
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .system: "跟随系统"
+        case .light: "浅色"
+        case .dark: "深色"
+        }
+    }
+}
+
 enum Weekday: Int, CaseIterable, Codable, Identifiable {
     case monday = 1
     case tuesday = 2
@@ -279,28 +295,33 @@ struct UserPreferences: Codable, Equatable {
     var defaultMealSlots: [MealSlot] = MealSlot.defaults
     var bedtimeSchedule: BedtimeSchedule = .default
     var locationPermissionState: LocationPermissionState = .notDetermined
+    var appearanceMode: AppearanceMode = .system
 
     enum CodingKeys: String, CodingKey {
         case defaultMealSlots
         case bedtimeSchedule
         case locationPermissionState
+        case appearanceMode
         case targetBedtime
     }
 
     init(
         defaultMealSlots: [MealSlot] = MealSlot.defaults,
         bedtimeSchedule: BedtimeSchedule = .default,
-        locationPermissionState: LocationPermissionState = .notDetermined
+        locationPermissionState: LocationPermissionState = .notDetermined,
+        appearanceMode: AppearanceMode = .system
     ) {
         self.defaultMealSlots = defaultMealSlots
         self.bedtimeSchedule = bedtimeSchedule
         self.locationPermissionState = locationPermissionState
+        self.appearanceMode = appearanceMode
     }
 
     init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         defaultMealSlots = try container.decodeIfPresent([MealSlot].self, forKey: .defaultMealSlots) ?? MealSlot.defaults
         locationPermissionState = try container.decodeIfPresent(LocationPermissionState.self, forKey: .locationPermissionState) ?? .notDetermined
+        appearanceMode = try container.decodeIfPresent(AppearanceMode.self, forKey: .appearanceMode) ?? .system
         if let bedtimeSchedule = try container.decodeIfPresent(BedtimeSchedule.self, forKey: .bedtimeSchedule) {
             self.bedtimeSchedule = bedtimeSchedule
         } else {
@@ -314,6 +335,7 @@ struct UserPreferences: Codable, Equatable {
         try container.encode(defaultMealSlots, forKey: .defaultMealSlots)
         try container.encode(bedtimeSchedule, forKey: .bedtimeSchedule)
         try container.encode(locationPermissionState, forKey: .locationPermissionState)
+        try container.encode(appearanceMode, forKey: .appearanceMode)
     }
 }
 

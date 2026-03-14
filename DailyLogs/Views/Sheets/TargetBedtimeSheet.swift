@@ -27,7 +27,7 @@ struct TargetBedtimeSheet: View {
                                 .foregroundStyle(selectedWeekday == weekday ? Color.white : AppTheme.primaryText)
                                 .frame(maxWidth: .infinity)
                                 .frame(height: 42)
-                                .background(selectedWeekday == weekday ? AppTheme.accent : Color.white.opacity(0.8))
+                                .background(selectedWeekday == weekday ? AppTheme.accent : AppTheme.surface)
                                 .clipShape(Circle())
                         }
                         .buttonStyle(.plain)
@@ -65,7 +65,7 @@ struct TargetBedtimeSheet: View {
                             }
                             .padding(.horizontal, 18)
                             .padding(.vertical, 14)
-                            .background(Color.white.opacity(0.78))
+                            .background(AppTheme.elevatedSurface)
                             .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
                         }
                         .buttonStyle(.plain)
@@ -105,7 +105,7 @@ struct TargetBedtimeSheet: View {
                 .font(.system(size: 18, weight: .bold))
                 .foregroundStyle(AppTheme.accent)
                 .frame(width: 48, height: 48)
-                .background(Color.white.opacity(0.86))
+                .background(AppTheme.surface)
                 .clipShape(Circle())
         }
         .buttonStyle(.plain)

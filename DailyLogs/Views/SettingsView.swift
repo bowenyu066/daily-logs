@@ -62,7 +62,7 @@ struct SettingsView: View {
                 Task { await appViewModel.signOut() }
             }
             .font(.system(size: 15, weight: .bold, design: .rounded))
-            .foregroundStyle(.white)
+            .foregroundStyle(Color.white)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 14)
             .background(AppTheme.primaryText)
@@ -75,6 +75,24 @@ struct SettingsView: View {
     private var preferenceCard: some View {
         VStack(alignment: .leading, spacing: 16) {
             SectionHeader(title: "偏好", subtitle: nil)
+            Menu {
+                ForEach(AppearanceMode.allCases) { mode in
+                    Button {
+                        Task { await appViewModel.updateAppearanceMode(mode) }
+                    } label: {
+                        HStack {
+                            Text(mode.title)
+                            if appViewModel.preferences.appearanceMode == mode {
+                                Image(systemName: "checkmark")
+                            }
+                        }
+                    }
+                }
+            } label: {
+                SettingsStaticRow(title: "外观", value: appViewModel.preferences.appearanceMode.title)
+            }
+            .buttonStyle(.plain)
+
             SettingsRow(title: "目标入睡", value: appViewModel.bedtimeScheduleSummary()) {
                 showingTargetBedtime = true
             }
@@ -109,7 +127,7 @@ struct SettingsView: View {
                                 .foregroundStyle(slot.isDefault ? AppTheme.accent : AppTheme.primaryText)
                                 .padding(.horizontal, 14)
                                 .padding(.vertical, 10)
-                                .background(slot.isDefault ? AppTheme.accentSoft : Color.white)
+                                .background(slot.isDefault ? AppTheme.accentSoft : AppTheme.surface)
                                 .clipShape(Capsule())
                                 .overlay(
                                     Capsule()
@@ -179,5 +197,26 @@ private struct SettingsRow: View {
             .padding(.vertical, 2)
         }
         .buttonStyle(.plain)
+    }
+}
+
+private struct SettingsStaticRow: View {
+    let title: String
+    let value: String
+
+    var body: some View {
+        HStack {
+            Text(title)
+                .font(.system(size: 16, weight: .semibold, design: .rounded))
+                .foregroundStyle(AppTheme.primaryText)
+            Spacer()
+            Text(value)
+                .font(.system(size: 15, weight: .medium, design: .rounded))
+                .foregroundStyle(AppTheme.secondaryText)
+            Image(systemName: "chevron.up.chevron.down")
+                .font(.system(size: 11, weight: .bold))
+                .foregroundStyle(AppTheme.secondaryText)
+        }
+        .padding(.vertical, 2)
     }
 }

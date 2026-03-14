@@ -49,7 +49,7 @@ struct AuthGateView: View {
                     .foregroundStyle(AppTheme.primaryText)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 16)
-                    .background(Color.white.opacity(0.84))
+                    .background(AppTheme.surface)
                     .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
                     .overlay(
                         RoundedRectangle(cornerRadius: 18, style: .continuous)
