@@ -1,4 +1,8 @@
 name: DailyLogs
+packages:
+  Firebase:
+    url: https://github.com/firebase/firebase-ios-sdk.git
+    from: 11.0.0
 options:
   bundleIdPrefix: com.flyfishyu
   deploymentTarget:
@@ -23,6 +27,13 @@ targets:
     platform: iOS
     sources:
       - path: DailyLogs
+    dependencies:
+      - package: Firebase
+        product: FirebaseCore
+      - package: Firebase
+        product: FirebaseFirestore
+      - package: Firebase
+        product: FirebaseStorage
     settings:
       base:
         PRODUCT_NAME: DailyLogs

@@ -196,6 +196,21 @@ final class LocalJSONStore {
         var recordsByUser: [String: [String: DailyRecord]] = [:]
         var preferencesByUser: [String: UserPreferences] = [:]
         var profilesByUser: [String: UserProfile] = [:]
+
+        enum CodingKeys: String, CodingKey {
+            case recordsByUser
+            case preferencesByUser
+            case profilesByUser
+        }
+
+        init() {}
+
+        init(from decoder: any Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            recordsByUser = try container.decodeIfPresent([String: [String: DailyRecord]].self, forKey: .recordsByUser) ?? [:]
+            preferencesByUser = try container.decodeIfPresent([String: UserPreferences].self, forKey: .preferencesByUser) ?? [:]
+            profilesByUser = try container.decodeIfPresent([String: UserProfile].self, forKey: .profilesByUser) ?? [:]
+        }
     }
 
     private let fileURL: URL

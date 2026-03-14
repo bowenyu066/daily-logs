@@ -2,6 +2,7 @@ import SwiftUI
 
 @main
 struct DailyLogsApp: App {
+    @UIApplicationDelegateAdaptor(FirebaseAppDelegate.self) private var appDelegate
     @StateObject private var appViewModel = AppViewModel.live()
 
     var body: some Scene {

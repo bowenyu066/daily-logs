@@ -4,6 +4,10 @@
 # Xcode
 DerivedData/
 build/
+.xcode-packages/
+Sources/
+GoogleService-Info.plist
+**/GoogleService-Info.plist
 *.pbxuser
 !default.pbxuser
 *.mode1v3

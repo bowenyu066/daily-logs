@@ -23,6 +23,7 @@ final class AppViewModel: ObservableObject {
     private let photoStorageService: PhotoStorageService
     private let sunTimesService: SunTimesService
     private let healthSyncAdapter: HealthSyncAdapter
+    private let cloudSyncService: CloudSyncService
 
     static func live() -> AppViewModel {
         let store = LocalJSONStore()
@@ -34,6 +35,7 @@ final class AppViewModel: ObservableObject {
             photoStorageService: LocalPhotoStorageService(),
             sunTimesService: AstronomySunTimesService(),
             healthSyncAdapter: PlaceholderHealthSyncAdapter(),
+            cloudSyncService: FirebaseCloudSyncService(),
             locationService: LocationService(),
             selectedDate: .now.startOfDay,
             dailyRecord: DailyRecord.empty(for: .now, preferences: preferences),
@@ -48,6 +50,7 @@ final class AppViewModel: ObservableObject {
         photoStorageService: PhotoStorageService,
         sunTimesService: SunTimesService,
         healthSyncAdapter: HealthSyncAdapter,
+        cloudSyncService: CloudSyncService,
         locationService: LocationService,
         selectedDate: Date,
         dailyRecord: DailyRecord,
@@ -59,6 +62,7 @@ final class AppViewModel: ObservableObject {
         self.photoStorageService = photoStorageService
         self.sunTimesService = sunTimesService
         self.healthSyncAdapter = healthSyncAdapter
+        self.cloudSyncService = cloudSyncService
         self.locationService = locationService
         self.selectedDate = selectedDate.startOfDay
         self.dailyRecord = dailyRecord
@@ -95,6 +99,7 @@ final class AppViewModel: ObservableObject {
                 selectedDate = max(selectedDate, user.createdAt.startOfDay)
                 try seedDemoDataIfNeeded(for: user.userID)
                 try loadAllRecords(for: user.userID)
+                await refreshFromCloudIfNeeded(for: user)
                 try loadSelectedRecord()
                 updateSunTimesIfPossible()
             }
@@ -110,6 +115,9 @@ final class AppViewModel: ObservableObject {
             selectedDate = max(Date().startOfDay, availableStartDate)
             try seedDemoDataIfNeeded(for: user?.userID ?? "")
             try loadAllRecords(for: user?.userID ?? "")
+            if let user {
+                await refreshFromCloudIfNeeded(for: user)
+            }
             try loadSelectedRecord()
         } catch {
             errorMessage = "登录失败：\(error.localizedDescription)"
@@ -123,6 +131,9 @@ final class AppViewModel: ObservableObject {
             selectedDate = max(Date().startOfDay, availableStartDate)
             try seedDemoDataIfNeeded(for: user?.userID ?? "")
             try loadAllRecords(for: user?.userID ?? "")
+            if let user {
+                await refreshFromCloudIfNeeded(for: user)
+            }
             try loadSelectedRecord()
         } catch {
             errorMessage = "进入游客模式失败：\(error.localizedDescription)"
@@ -163,6 +174,7 @@ final class AppViewModel: ObservableObject {
         dailyRecord.sleepRecord.targetBedtime = schedule.target(for: selectedDate)
         persistPreferences()
         persistCurrentRecord()
+        await syncPreferencesToCloudIfNeeded()
     }
 
     func saveMeal(_ entry: MealEntry, image: UIImage?) async {
@@ -188,6 +200,7 @@ final class AppViewModel: ObservableObject {
                 dailyRecord.meals.append(updatedEntry)
             }
             persistCurrentRecord()
+            await syncCurrentRecordToCloudIfNeeded()
         } catch {
             errorMessage = "保存餐食失败：\(error.localizedDescription)"
         }
@@ -201,6 +214,7 @@ final class AppViewModel: ObservableObject {
             }
             dailyRecord.meals.removeAll { $0.id == entry.id }
             persistCurrentRecord()
+            await syncCurrentRecordToCloudIfNeeded()
         } catch {
             errorMessage = "删除餐食失败：\(error.localizedDescription)"
         }
@@ -222,6 +236,7 @@ final class AppViewModel: ObservableObject {
                 dailyRecord.meals.append(updatedEntry)
             }
             persistCurrentRecord()
+            await syncCurrentRecordToCloudIfNeeded()
         } catch {
             errorMessage = "更新餐食失败：\(error.localizedDescription)"
         }
@@ -236,12 +251,14 @@ final class AppViewModel: ObservableObject {
             dailyRecord.showers.sort { $0.time < $1.time }
         }
         persistCurrentRecord()
+        await syncCurrentRecordToCloudIfNeeded()
     }
 
     func deleteShower(_ shower: ShowerEntry) async {
         guard canEditSelectedDate else { return }
         dailyRecord.showers.removeAll { $0.id == shower.id }
         persistCurrentRecord()
+        await syncCurrentRecordToCloudIfNeeded()
     }
 
     func addDefaultMealSlot(title: String) async {
@@ -254,6 +271,8 @@ final class AppViewModel: ObservableObject {
         mergeMealsWithPreferences()
         persistPreferences()
         persistCurrentRecord()
+        await syncPreferencesToCloudIfNeeded()
+        await syncCurrentRecordToCloudIfNeeded()
     }
 
     func deleteDefaultMealSlot(_ slot: MealSlot) async {
@@ -262,6 +281,8 @@ final class AppViewModel: ObservableObject {
         dailyRecord.meals.removeAll { $0.mealKind == .custom && $0.customTitle == slot.title && $0.status == .empty }
         persistPreferences()
         persistCurrentRecord()
+        await syncPreferencesToCloudIfNeeded()
+        await syncCurrentRecordToCloudIfNeeded()
     }
 
     func requestLocationAccess() {
@@ -278,6 +299,8 @@ final class AppViewModel: ObservableObject {
         updateSunTimesIfPossible()
         persistCurrentRecord()
         persistPreferences()
+        await syncCurrentRecordToCloudIfNeeded()
+        await syncPreferencesToCloudIfNeeded()
     }
 
     func formattedTargetBedtime() -> String {
@@ -451,5 +474,51 @@ final class AppViewModel: ObservableObject {
         }
         let timeZone = locationService.detectedTimeZone ?? TimeZone.autoupdatingCurrent
         dailyRecord.sunTimes = sunTimesService.sunTimes(for: selectedDate, coordinate: coordinate, timeZone: timeZone)
+    }
+
+    private func refreshFromCloudIfNeeded(for user: UserAccount) async {
+        guard !user.isGuest, cloudSyncService.isAvailable else { return }
+        do {
+            let payload = try await cloudSyncService.bootstrap(
+                user: user,
+                localPreferences: preferences,
+                localRecords: allRecords
+            )
+
+            if let remotePreferences = payload.preferences {
+                preferences = remotePreferences
+                try preferencesStore.savePreferences(remotePreferences, userID: user.userID)
+            }
+
+            if !payload.records.isEmpty {
+                let store = LocalJSONStore()
+                var database = try store.load()
+                database.recordsByUser[user.userID] = Dictionary(
+                    uniqueKeysWithValues: payload.records.map { ($0.date.storageKey(), $0) }
+                )
+                try store.save(database)
+                allRecords = payload.records
+            }
+        } catch {
+            errorMessage = "云端同步失败：\(error.localizedDescription)"
+        }
+    }
+
+    private func syncPreferencesToCloudIfNeeded() async {
+        guard let user, !user.isGuest, cloudSyncService.isAvailable else { return }
+        do {
+            try await cloudSyncService.pushPreferences(preferences, user: user)
+        } catch {
+            errorMessage = "云端偏好同步失败：\(error.localizedDescription)"
+        }
+    }
+
+    private func syncCurrentRecordToCloudIfNeeded() async {
+        guard let user, !user.isGuest, cloudSyncService.isAvailable else { return }
+        do {
+            try await cloudSyncService.pushRecord(dailyRecord, user: user)
+        } catch {
+            errorMessage = "云端记录同步失败：\(error.localizedDescription)"
+        }
     }
 }

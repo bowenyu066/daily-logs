@@ -44,6 +44,10 @@ extension Date {
         formatter.dateFormat = "HH:mm"
         return formatter.string(from: self)
     }
+
+    var displayISO8601: String {
+        ISO8601DateFormatter().string(from: self)
+    }
 }
 
 extension DateComponents {
