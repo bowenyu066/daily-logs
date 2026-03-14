@@ -15,7 +15,7 @@ struct HomeView: View {
     var body: some View {
         NavigationStack {
             GeometryReader { proxy in
-                ZStack {
+                ZStack(alignment: .top) {
                     AppTheme.background.ignoresSafeArea()
 
                     ScrollView(.vertical, showsIndicators: false) {
@@ -29,6 +29,8 @@ struct HomeView: View {
                         .padding(.top, topContentInset(for: proxy))
                         .padding(.bottom, 16)
                     }
+
+                    homeTopBar(for: proxy)
                 }
             }
             .navigationBarHidden(true)
@@ -157,6 +159,29 @@ struct HomeView: View {
         }
         .padding(22)
         .appCardStyle()
+    }
+
+    private func homeTopBar(for proxy: GeometryProxy) -> some View {
+        VStack(spacing: 0) {
+            HStack {
+                Spacer()
+                Text("主页")
+                    .font(.system(size: 20, weight: .bold, design: .rounded))
+                    .foregroundStyle(AppTheme.primaryText)
+                Spacer()
+            }
+            .frame(height: 44)
+            .padding(.horizontal, 18)
+            .padding(.top, proxy.safeAreaInsets.top)
+            .padding(.bottom, 8)
+        }
+        .frame(maxWidth: .infinity)
+        .background(.ultraThinMaterial)
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(AppTheme.border)
+                .frame(height: 1)
+        }
     }
 
     private var sleepSection: some View {
@@ -367,7 +392,7 @@ struct HomeView: View {
     }
 
     private func topContentInset(for proxy: GeometryProxy) -> CGFloat {
-        max(proxy.safeAreaInsets.top + 18, 36)
+        proxy.safeAreaInsets.top + 62
     }
 
     private func formattedSun(_ date: Date?) -> String {
