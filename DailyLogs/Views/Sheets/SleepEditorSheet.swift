@@ -28,6 +28,7 @@ struct SleepEditorSheet: View {
 
     let target: SleepEditorTarget
     let hasExistingValue: Bool
+    let baseDate: Date
     let onSave: (Date?) -> Void
 
     init(
@@ -38,6 +39,7 @@ struct SleepEditorSheet: View {
     ) {
         self.target = target
         self.hasExistingValue = currentValue != nil
+        self.baseDate = baseDate.startOfDay
         self.onSave = onSave
 
         let defaultValue: Date
@@ -101,12 +103,29 @@ struct SleepEditorSheet: View {
                 Spacer()
 
                 Button("保存") {
-                    onSave(selectedTime)
+                    onSave(normalizedTime)
                     dismiss()
                 }
                 .font(.system(size: 18, weight: .semibold, design: .rounded))
                 .foregroundStyle(AppTheme.accent)
             }
+        }
+    }
+
+    private var normalizedTime: Date {
+        let components = Calendar.current.dateComponents([.hour, .minute], from: selectedTime)
+        let hour = components.hour ?? 23
+        let minute = components.minute ?? 30
+
+        switch target {
+        case .bedtime:
+            if hour >= 12 {
+                return baseDate.adding(days: -1).settingTime(hour: hour, minute: minute)
+            } else {
+                return baseDate.settingTime(hour: hour, minute: minute)
+            }
+        case .wakeTime:
+            return baseDate.settingTime(hour: hour, minute: minute)
         }
     }
 }
