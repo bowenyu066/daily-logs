@@ -14,26 +14,22 @@ struct HomeView: View {
 
     var body: some View {
         NavigationStack {
-            GeometryReader { proxy in
-                ZStack(alignment: .top) {
-                    AppTheme.background.ignoresSafeArea()
+            ZStack {
+                AppTheme.background.ignoresSafeArea()
 
-                    ScrollView(.vertical, showsIndicators: false) {
-                        VStack(alignment: .leading, spacing: 18) {
-                            headerCard
-                            sleepSection
-                            mealSection
-                            showerSection
-                        }
-                        .padding(.horizontal, 18)
-                        .padding(.top, topContentInset(for: proxy))
-                        .padding(.bottom, 16)
+                ScrollView(.vertical, showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 18) {
+                        headerCard
+                        sleepSection
+                        mealSection
+                        showerSection
                     }
-
-                    homeTopBar(for: proxy)
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 16)
                 }
             }
-            .navigationBarHidden(true)
+            .navigationTitle("主页")
+            .navigationBarTitleDisplayMode(.inline)
             .sheet(isPresented: $showingDatePicker) {
                 DatePickerSheet(
                     selectedDate: appViewModel.selectedDate,
@@ -159,29 +155,6 @@ struct HomeView: View {
         }
         .padding(22)
         .appCardStyle()
-    }
-
-    private func homeTopBar(for proxy: GeometryProxy) -> some View {
-        VStack(spacing: 0) {
-            HStack {
-                Spacer()
-                Text("主页")
-                    .font(.system(size: 20, weight: .bold, design: .rounded))
-                    .foregroundStyle(AppTheme.primaryText)
-                Spacer()
-            }
-            .frame(height: 44)
-            .padding(.horizontal, 18)
-            .padding(.top, proxy.safeAreaInsets.top)
-            .padding(.bottom, 8)
-        }
-        .frame(maxWidth: .infinity)
-        .background(.ultraThinMaterial)
-        .overlay(alignment: .bottom) {
-            Rectangle()
-                .fill(AppTheme.border)
-                .frame(height: 1)
-        }
     }
 
     private var sleepSection: some View {
@@ -389,10 +362,6 @@ struct HomeView: View {
         let hours = Int(duration) / 3600
         let minutes = Int(duration) % 3600 / 60
         return "\(hours)小时\(minutes)分"
-    }
-
-    private func topContentInset(for proxy: GeometryProxy) -> CGFloat {
-        proxy.safeAreaInsets.top + 62
     }
 
     private func formattedSun(_ date: Date?) -> String {
