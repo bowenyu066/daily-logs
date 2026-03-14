@@ -1,11 +1,14 @@
+import Photos
 import SwiftUI
 import UIKit
-import Photos
 
 enum MealCaptureMode {
     case camera
     case photoLibrary
     case timeOnly
+    case editTime
+    case addPhoto
+    case editPhoto
 }
 
 struct MealEditorSheet: View {
@@ -15,7 +18,8 @@ struct MealEditorSheet: View {
     @State private var selectedImage: UIImage?
     @State private var pickerSource: UIImagePickerController.SourceType?
     @State private var showingImagePicker = false
-    @State private var didAutoPresentSource = false
+    @State private var didApplyInitialMode = false
+    @State private var showingTimePicker: Bool
 
     let baseDate: Date
     let preferredSource: MealCaptureMode
@@ -34,6 +38,7 @@ struct MealEditorSheet: View {
         onDelete: @escaping () -> Void
     ) {
         _draft = State(initialValue: entry)
+        _showingTimePicker = State(initialValue: preferredSource == .timeOnly || preferredSource == .editTime)
         self.baseDate = baseDate
         self.preferredSource = preferredSource
         self.canDelete = canDelete
@@ -45,10 +50,7 @@ struct MealEditorSheet: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    timePicker
-                    photoBlock
-
+                VStack(alignment: .leading, spacing: 22) {
                     if draft.mealKind == .custom {
                         TextField("名称", text: Binding(
                             get: { draft.customTitle ?? "" },
@@ -56,6 +58,12 @@ struct MealEditorSheet: View {
                         ))
                         .textFieldStyle(.roundedBorder)
                         .disabled(!isEditable)
+                    }
+
+                    timeSection
+
+                    if shouldShowPhotoSection {
+                        photoSection
                     }
                 }
                 .padding(24)
@@ -76,7 +84,7 @@ struct MealEditorSheet: View {
                 }
                 if canDelete {
                     ToolbarItem(placement: .bottomBar) {
-                        Button("删除", role: .destructive) {
+                        Button("删除餐次", role: .destructive) {
                             onDelete()
                             dismiss()
                         }
@@ -84,21 +92,7 @@ struct MealEditorSheet: View {
                 }
             }
             .onAppear {
-                guard !didAutoPresentSource else { return }
-                didAutoPresentSource = true
-                prepareDraftForLoggingIfNeeded()
-                switch preferredSource {
-                case .camera:
-                    if UIImagePickerController.isSourceTypeAvailable(.camera) {
-                        pickerSource = .camera
-                        showingImagePicker = true
-                    }
-                case .photoLibrary:
-                    pickerSource = .photoLibrary
-                    showingImagePicker = true
-                case .timeOnly:
-                    break
-                }
+                applyInitialModeIfNeeded()
             }
             .sheet(isPresented: $showingImagePicker) {
                 if let pickerSource {
@@ -107,6 +101,7 @@ struct MealEditorSheet: View {
                         if image != nil {
                             draft.status = .logged
                             draft.time = normalizedPickedDate(capturedAt) ?? draft.time ?? defaultLoggedTime
+                            showingTimePicker = false
                         }
                     }
                 }
@@ -114,71 +109,96 @@ struct MealEditorSheet: View {
         }
     }
 
-    private var timePicker: some View {
-        VStack(alignment: .leading, spacing: 10) {
+    private var timeSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
             Text("时间")
                 .font(.system(size: 16, weight: .semibold, design: .rounded))
                 .foregroundStyle(AppTheme.secondaryText)
 
-            DatePicker(
-                "时间",
-                selection: Binding(
-                    get: { draft.time ?? defaultLoggedTime },
-                    set: {
-                        draft.time = $0
-                        draft.status = .logged
+            if showingTimePicker {
+                VStack(spacing: 12) {
+                    Text((draft.time ?? defaultLoggedTime).displayClockTime)
+                        .font(.system(size: 34, weight: .bold, design: .rounded))
+                        .foregroundStyle(timeAccent)
+                        .monospacedDigit()
+
+                    DatePicker(
+                        "",
+                        selection: Binding(
+                            get: { draft.time ?? defaultLoggedTime },
+                            set: {
+                                draft.time = $0
+                                draft.status = .logged
+                            }
+                        ),
+                        displayedComponents: .hourAndMinute
+                    )
+                    .datePickerStyle(.wheel)
+                    .labelsHidden()
+                }
+                .padding(18)
+                .frame(maxWidth: .infinity)
+                .background(Color.white.opacity(0.76))
+                .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+            } else {
+                Button {
+                    guard isEditable else { return }
+                    showingTimePicker = true
+                } label: {
+                    HStack {
+                        Text("记录时间")
+                            .font(.system(size: 16, weight: .semibold, design: .rounded))
+                            .foregroundStyle(AppTheme.secondaryText)
+                        Spacer()
+                        Text((draft.time ?? defaultLoggedTime).displayClockTime)
+                            .font(.system(size: 22, weight: .bold, design: .rounded))
+                            .foregroundStyle(timeAccent)
+                            .monospacedDigit()
                     }
-                ),
-                displayedComponents: .hourAndMinute
-            )
-            .labelsHidden()
-            .datePickerStyle(.wheel)
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 16)
+                    .background(Color.white.opacity(0.76))
+                    .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .disabled(!isEditable)
+            }
         }
-        .disabled(!isEditable)
     }
 
-    private var photoBlock: some View {
-        VStack(spacing: 12) {
-            if let selectedImage {
-                previewImage(Image(uiImage: selectedImage))
-            } else if let photoURL = draft.photoURL, let uiImage = UIImage(contentsOfFile: photoURL) {
-                previewImage(Image(uiImage: uiImage))
-            } else {
-                RoundedRectangle(cornerRadius: 26, style: .continuous)
-                    .fill(Color.white.opacity(0.72))
-                    .frame(height: 180)
-                    .overlay(
-                        Image(systemName: "photo")
-                            .font(.system(size: 28, weight: .light))
-                            .foregroundStyle(AppTheme.secondaryText)
-                    )
+    private var photoSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            if let image = displayImage {
+                image
+                    .resizable()
+                    .scaledToFill()
+                    .frame(height: 220)
+                    .frame(maxWidth: .infinity)
+                    .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
             }
 
             HStack(spacing: 10) {
-                actionButton(icon: "camera") {
+                photoActionButton(title: "拍照", systemImage: "camera") {
                     guard UIImagePickerController.isSourceTypeAvailable(.camera) else { return }
                     pickerSource = .camera
                     showingImagePicker = true
                 }
-                actionButton(icon: "photo.on.rectangle") {
+
+                photoActionButton(title: "相册", systemImage: "photo.on.rectangle") {
                     pickerSource = .photoLibrary
                     showingImagePicker = true
-                }
-                actionButton(icon: "trash") {
-                    selectedImage = nil
-                    draft.photoURL = nil
                 }
             }
         }
     }
 
-    private func actionButton(icon: String, action: @escaping () -> Void) -> some View {
+    private func photoActionButton(title: String, systemImage: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Image(systemName: icon)
-                .font(.system(size: 17, weight: .semibold))
+            Label(title, systemImage: systemImage)
+                .font(.system(size: 16, weight: .semibold, design: .rounded))
                 .foregroundStyle(AppTheme.primaryText)
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, 14)
+                .padding(.vertical, 15)
                 .background(Color.white.opacity(0.8))
                 .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         }
@@ -186,32 +206,39 @@ struct MealEditorSheet: View {
         .disabled(!isEditable)
     }
 
-    private func previewImage(_ image: Image) -> some View {
-        image
-            .resizable()
-            .scaledToFill()
-            .frame(height: 220)
-            .frame(maxWidth: .infinity)
-            .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
+    private var displayImage: Image? {
+        if let selectedImage {
+            return Image(uiImage: selectedImage)
+        }
+        guard let photoURL = draft.photoURL, let uiImage = UIImage(contentsOfFile: photoURL) else {
+            return nil
+        }
+        return Image(uiImage: uiImage)
+    }
+
+    private var shouldShowPhotoSection: Bool {
+        switch preferredSource {
+        case .timeOnly, .editTime:
+            return selectedImage != nil || draft.photoURL != nil
+        case .camera, .photoLibrary, .addPhoto, .editPhoto:
+            return true
+        }
     }
 
     private var normalizedDraft: MealEntry {
         var entry = draft
-        if selectedImage != nil || entry.photoURL != nil {
-            entry.status = .logged
-        }
-        if entry.status == .logged && entry.time == nil {
-            entry.time = defaultLoggedTime
-        }
-        if entry.status != .logged {
-            entry.time = nil
-            if selectedImage == nil {
-                entry.photoURL = nil
-            }
-        }
+        let trimmed = entry.customTitle?.trimmingCharacters(in: .whitespacesAndNewlines)
         if entry.mealKind == .custom {
-            let trimmed = entry.customTitle?.trimmingCharacters(in: .whitespacesAndNewlines)
-            entry.customTitle = (trimmed?.isEmpty == false) ? trimmed : "加餐"
+            entry.customTitle = trimmed?.isEmpty == false ? trimmed : "加餐"
+        }
+
+        if selectedImage != nil || entry.photoURL != nil || entry.time != nil {
+            entry.status = .logged
+            entry.time = entry.time ?? defaultLoggedTime
+        } else {
+            entry.status = .empty
+            entry.time = nil
+            entry.photoURL = nil
         }
         return entry
     }
@@ -229,11 +256,39 @@ struct MealEditorSheet: View {
         }
     }
 
-    private func prepareDraftForLoggingIfNeeded() {
-        if draft.status != .logged || draft.time == nil {
+    private var timeAccent: Color {
+        switch draft.mealKind {
+        case .breakfast: AppTheme.wakeAccent
+        case .lunch: AppTheme.accent
+        case .dinner: AppTheme.sleepAccent
+        case .custom: AppTheme.sunriseAccent
+        }
+    }
+
+    private func applyInitialModeIfNeeded() {
+        guard !didApplyInitialMode else { return }
+        didApplyInitialMode = true
+
+        switch preferredSource {
+        case .timeOnly, .editTime:
             draft.status = .logged
             draft.time = draft.time ?? defaultLoggedTime
+        case .camera:
+            draft.status = .logged
+            openPicker(.camera)
+        case .photoLibrary:
+            draft.status = .logged
+            openPicker(.photoLibrary)
+        case .addPhoto, .editPhoto:
+            draft.status = .logged
         }
+    }
+
+    private func openPicker(_ source: UIImagePickerController.SourceType) {
+        guard isEditable else { return }
+        guard source != .camera || UIImagePickerController.isSourceTypeAvailable(.camera) else { return }
+        pickerSource = source
+        showingImagePicker = true
     }
 
     private func normalizedPickedDate(_ pickedDate: Date?) -> Date? {

@@ -80,26 +80,35 @@ struct TargetBedtimeSheet: View {
     }
 
     private var headerBar: some View {
-        HStack {
-            Button("取消") { dismiss() }
-                .font(.system(size: 18, weight: .semibold, design: .rounded))
-                .foregroundStyle(AppTheme.accent)
-
-            Spacer()
-
+        ZStack {
             Text("目标入睡")
                 .font(.system(size: 22, weight: .bold, design: .rounded))
                 .foregroundStyle(AppTheme.primaryText)
+            HStack {
+                headerIconButton(systemImage: "xmark") {
+                    dismiss()
+                }
 
-            Spacer()
+                Spacer()
 
-            Button("保存") {
-                onSave(schedule)
-                dismiss()
+                headerIconButton(systemImage: "checkmark") {
+                    onSave(schedule)
+                    dismiss()
+                }
             }
-            .font(.system(size: 18, weight: .semibold, design: .rounded))
-            .foregroundStyle(AppTheme.accent)
         }
+    }
+
+    private func headerIconButton(systemImage: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: systemImage)
+                .font(.system(size: 18, weight: .bold))
+                .foregroundStyle(AppTheme.accent)
+                .frame(width: 48, height: 48)
+                .background(Color.white.opacity(0.86))
+                .clipShape(Circle())
+        }
+        .buttonStyle(.plain)
     }
 
     private var selectedTime: DateComponents {

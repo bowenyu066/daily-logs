@@ -169,6 +169,20 @@ final class AppViewModel: ObservableObject {
         persistCurrentRecord()
     }
 
+    func updateBedtime(_ bedtime: Date?) async {
+        await updateSleep(
+            bedtime: bedtime,
+            wakeTime: dailyRecord.sleepRecord.wakeTimeCurrentDay
+        )
+    }
+
+    func updateWakeTime(_ wakeTime: Date?) async {
+        await updateSleep(
+            bedtime: dailyRecord.sleepRecord.bedtimePreviousNight,
+            wakeTime: wakeTime
+        )
+    }
+
     func updateBedtimeSchedule(_ schedule: BedtimeSchedule) async {
         preferences.bedtimeSchedule = schedule
         dailyRecord.sleepRecord.targetBedtime = schedule.target(for: selectedDate)
@@ -217,6 +231,49 @@ final class AppViewModel: ObservableObject {
             await syncCurrentRecordToCloudIfNeeded()
         } catch {
             errorMessage = "删除餐食失败：\(error.localizedDescription)"
+        }
+    }
+
+    func clearMealRecord(_ entry: MealEntry) async {
+        guard canEditSelectedDate else { return }
+        do {
+            if let photoURL = entry.photoURL {
+                try photoStorageService.deletePhoto(at: photoURL)
+            }
+            var updatedEntry = entry
+            updatedEntry.status = .empty
+            updatedEntry.time = nil
+            updatedEntry.photoURL = nil
+            if let index = dailyRecord.meals.firstIndex(where: { $0.id == updatedEntry.id }) {
+                dailyRecord.meals[index] = updatedEntry
+            } else {
+                dailyRecord.meals.append(updatedEntry)
+            }
+            persistCurrentRecord()
+            await syncCurrentRecordToCloudIfNeeded()
+        } catch {
+            errorMessage = "删除记录失败：\(error.localizedDescription)"
+        }
+    }
+
+    func removeMealPhoto(_ entry: MealEntry) async {
+        guard canEditSelectedDate else { return }
+        do {
+            if let photoURL = entry.photoURL {
+                try photoStorageService.deletePhoto(at: photoURL)
+            }
+            var updatedEntry = entry
+            updatedEntry.photoURL = nil
+            updatedEntry.status = updatedEntry.time == nil ? .empty : .logged
+            if let index = dailyRecord.meals.firstIndex(where: { $0.id == updatedEntry.id }) {
+                dailyRecord.meals[index] = updatedEntry
+            } else {
+                dailyRecord.meals.append(updatedEntry)
+            }
+            persistCurrentRecord()
+            await syncCurrentRecordToCloudIfNeeded()
+        } catch {
+            errorMessage = "删除照片失败：\(error.localizedDescription)"
         }
     }
 
