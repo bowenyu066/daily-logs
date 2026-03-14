@@ -7,6 +7,11 @@ struct AnalyticsView: View {
     @State private var isShowingCustomization = false
     @State private var isShowingCustomRange = false
     @State private var highlightedSleepDate: Date?
+    @State private var highlightedSleepIntervalDate: Date?
+    @State private var highlightedWakeDate: Date?
+    @State private var highlightedBedtimeDate: Date?
+    @State private var highlightedMealDate: Date?
+    @State private var highlightedShowerDate: Date?
 
     private let summaryColumns = Array(repeating: GridItem(.flexible(), spacing: 12), count: 3)
 
@@ -163,7 +168,7 @@ struct AnalyticsView: View {
             sleepTrendCard
         case .sleepDuration:
             AnalyticsCard(title: "睡眠时段") {
-                SleepIntervalChart(days: summary.days, selectedDate: .constant(nil), compact: true)
+                SleepIntervalChart(days: summary.days, selectedDate: $highlightedSleepIntervalDate, compact: true)
             }
         case .wakeTrend:
             AnalyticsCard(title: "起床变化") {
@@ -172,7 +177,9 @@ struct AnalyticsView: View {
                         point.wakeMinutes.map { ChartTimeValue(date: point.date, minutes: $0) }
                     },
                     averageMinutes: summary.averageWakeMinutes,
-                    tone: .orange
+                    tone: .orange,
+                    selectedDate: $highlightedWakeDate,
+                    compact: true
                 )
             }
         case .bedtimeTrend:
@@ -183,6 +190,8 @@ struct AnalyticsView: View {
                     },
                     averageMinutes: summary.averageBedtimeMinutes.map(wrapForNight),
                     tone: .indigo,
+                    selectedDate: $highlightedBedtimeDate,
+                    compact: true,
                     usesWrappedClock: true
                 )
             }
@@ -192,11 +201,11 @@ struct AnalyticsView: View {
             }
         case .mealTiming:
             AnalyticsCard(title: "进餐时间") {
-                MealTimingScatterChart(series: summary.mealSeries, selectedDate: .constant(nil), compact: true)
+                MealTimingScatterChart(series: summary.mealSeries, selectedDate: $highlightedMealDate, compact: true)
             }
         case .showerTiming:
             AnalyticsCard(title: "洗澡时间") {
-                ShowerScatterChart(points: summary.showerPoints, selectedDate: .constant(nil), compact: true)
+                ShowerScatterChart(points: summary.showerPoints, selectedDate: $highlightedShowerDate, compact: true)
             }
         }
     }
@@ -452,76 +461,128 @@ private struct SleepTrendChart: View {
         if days.compactMap(\.sleepHours).isEmpty {
             PlaceholderCard(text: "记录几天之后，这里会出现睡眠曲线。")
         } else {
-            Chart {
-                ForEach(days) { point in
-                    if let sleepHours = point.sleepHours {
-                        LineMark(
-                            x: .value("日期", point.date),
-                            y: .value("睡眠", sleepHours)
-                        )
-                        .interpolationMethod(.catmullRom)
-                        .foregroundStyle(AppTheme.accent)
+            VStack(alignment: .leading, spacing: 12) {
+                if let selectedPoint {
+                    fixedChartCallout {
+                        Text(durationText(selectedPoint.sleepHours))
+                            .font(.system(size: 26, weight: .bold, design: .rounded))
+                            .foregroundStyle(AppTheme.primaryText)
+                        Text(selectedPoint.date, format: .dateTime.month().day())
+                            .font(.system(size: 13, weight: .medium, design: .rounded))
+                            .foregroundStyle(AppTheme.secondaryText)
+                    }
+                }
 
-                        AreaMark(
-                            x: .value("日期", point.date),
-                            y: .value("睡眠", sleepHours)
-                        )
-                        .interpolationMethod(.catmullRom)
-                        .foregroundStyle(
-                            LinearGradient(
-                                colors: [AppTheme.accent.opacity(0.24), AppTheme.accent.opacity(0.04)],
-                                startPoint: .top,
-                                endPoint: .bottom
-                            )
-                        )
+                Chart {
+                    if let averageSleepHours {
+                        RuleMark(y: .value("平均", averageSleepHours))
+                            .foregroundStyle(AppTheme.accent.opacity(0.38))
+                            .lineStyle(.init(lineWidth: 1, dash: [5, 4]))
+                            .annotation(position: .leading, spacing: 8) {
+                                averageTag(durationText(averageSleepHours), tone: AppTheme.accent)
+                            }
+                    }
 
-                        if selectedDate.flatMap({ Calendar.current.isDate($0, inSameDayAs: point.date) ? point : nil }) != nil {
-                            RuleMark(x: .value("日期", point.date))
-                                .foregroundStyle(AppTheme.primaryText.opacity(0.18))
-                                .lineStyle(.init(lineWidth: 1, dash: [4, 4]))
-
-                            RuleMark(y: .value("睡眠", sleepHours))
-                                .foregroundStyle(AppTheme.primaryText.opacity(0.18))
-                                .lineStyle(.init(lineWidth: 1, dash: [4, 4]))
-
-                            PointMark(
+                    ForEach(days) { point in
+                        if let sleepHours = point.sleepHours {
+                            LineMark(
                                 x: .value("日期", point.date),
                                 y: .value("睡眠", sleepHours)
                             )
-                            .symbolSize(compact ? 58 : 72)
+                            .interpolationMethod(.catmullRom)
                             .foregroundStyle(AppTheme.accent)
-                            .annotation(position: .top, spacing: 10) {
-                                chartCallout(
-                                    date: point.date,
-                                    value: String(format: "%.1f 小时", sleepHours)
+
+                            AreaMark(
+                                x: .value("日期", point.date),
+                                y: .value("睡眠", sleepHours)
+                            )
+                            .interpolationMethod(.catmullRom)
+                            .foregroundStyle(
+                                LinearGradient(
+                                    colors: [AppTheme.accent.opacity(0.24), AppTheme.accent.opacity(0.04)],
+                                    startPoint: .top,
+                                    endPoint: .bottom
                                 )
+                            )
+
+                            if selectedDate.flatMap({ Calendar.current.isDate($0, inSameDayAs: point.date) ? point : nil }) != nil {
+                                RuleMark(x: .value("日期", point.date))
+                                    .foregroundStyle(AppTheme.primaryText.opacity(0.18))
+                                    .lineStyle(.init(lineWidth: 1, dash: [4, 4]))
+
+                                RuleMark(y: .value("睡眠", sleepHours))
+                                    .foregroundStyle(AppTheme.primaryText.opacity(0.18))
+                                    .lineStyle(.init(lineWidth: 1, dash: [4, 4]))
+
+                                PointMark(
+                                    x: .value("日期", point.date),
+                                    y: .value("睡眠", sleepHours)
+                                )
+                                .symbolSize(compact ? 58 : 72)
+                                .foregroundStyle(AppTheme.accent)
                             }
                         }
                     }
                 }
-            }
-            .frame(height: compact ? 240 : 300)
-            .chartYAxis {
-                AxisMarks(position: .leading)
-            }
-            .chartOverlay { proxy in
-                GeometryReader { geometry in
-                    Rectangle()
-                        .fill(.clear)
-                        .contentShape(Rectangle())
-                        .gesture(
-                            DragGesture(minimumDistance: 0)
-                                .onChanged { value in
-                                    guard let plotFrame = proxy.plotFrame else { return }
-                                    let origin = geometry[plotFrame].origin
-                                    let xPosition = value.location.x - origin.x
-                                    if let date: Date = proxy.value(atX: xPosition) {
-                                        selectedDate = nearestDate(to: date, in: days.map(\.date))
+                .frame(height: compact ? 240 : 300)
+                .chartYAxis {
+                    AxisMarks(position: .leading)
+                }
+                .chartOverlay { proxy in
+                    GeometryReader { geometry in
+                        Rectangle()
+                            .fill(.clear)
+                            .contentShape(Rectangle())
+                            .gesture(
+                                DragGesture(minimumDistance: 0)
+                                    .onChanged { value in
+                                        updateSelection(at: value.location, proxy: proxy, geometry: geometry)
                                     }
-                                }
-                        )
+                            )
+                            .simultaneousGesture(
+                                SpatialTapGesture()
+                                    .onEnded { value in
+                                        updateSelection(at: value.location, proxy: proxy, geometry: geometry)
+                                    }
+                            )
+                    }
                 }
             }
+        }
+    }
+
+    private var selectedPoint: AnalyticsDayPoint? {
+        guard let selectedDate else { return nil }
+        return days.first(where: { Calendar.current.isDate($0.date, inSameDayAs: selectedDate) })
+    }
+
+    private var averageSleepHours: Double? {
+        let values = days.compactMap(\.sleepHours)
+        guard !values.isEmpty else { return nil }
+        return values.reduce(0, +) / Double(values.count)
+    }
+
+    private func durationText(_ hours: Double?) -> String {
+        guard let hours else { return "--" }
+        let totalMinutes = Int((hours * 60).rounded())
+        return "\(totalMinutes / 60)小时\(totalMinutes % 60)分"
+    }
+
+    private func updateSelection(at location: CGPoint, proxy: ChartProxy, geometry: GeometryProxy) {
+        guard let plotFrame = proxy.plotFrame else {
+            selectedDate = nil
+            return
+        }
+        let plotRect = geometry[plotFrame]
+        guard plotRect.contains(location) else {
+            selectedDate = nil
+            return
+        }
+        let xPosition = location.x - plotRect.origin.x
+        if let date: Date = proxy.value(atX: xPosition) {
+            selectedDate = nearestDate(to: date, in: days.compactMap { $0.sleepHours == nil ? nil : $0.date })
+        } else {
+            selectedDate = nil
         }
     }
 }
@@ -554,11 +615,25 @@ private struct TimeLineChart: View {
             PlaceholderCard(text: "再多记录几天，这里会更有参考价值。")
         } else {
             VStack(alignment: .leading, spacing: 10) {
+                if let selectedPoint {
+                    fixedChartCallout {
+                        Text(formatClock(selectedPoint.minutes))
+                            .font(.system(size: 26, weight: .bold, design: .rounded))
+                            .foregroundStyle(AppTheme.primaryText)
+                        Text(selectedPoint.date, format: .dateTime.month().day())
+                            .font(.system(size: 13, weight: .medium, design: .rounded))
+                            .foregroundStyle(AppTheme.secondaryText)
+                    }
+                }
+
                 Chart {
                     if let averageMinutes {
                         RuleMark(y: .value("平均", averageMinutes))
-                            .foregroundStyle(AppTheme.secondaryText.opacity(0.35))
+                            .foregroundStyle(tone.opacity(0.38))
                             .lineStyle(.init(lineWidth: 1, dash: [5, 4]))
+                            .annotation(position: .leading, spacing: 8) {
+                                averageTag(formatClock(averageMinutes), tone: tone)
+                            }
                     }
 
                     ForEach(points) { point in
@@ -582,9 +657,6 @@ private struct TimeLineChart: View {
                             PointMark(x: .value("日期", point.date), y: .value("时间", point.minutes))
                                 .foregroundStyle(tone)
                                 .symbolSize(compact ? 54 : 70)
-                                .annotation(position: .top, spacing: 10) {
-                                    chartCallout(date: point.date, value: formatClock(point.minutes))
-                                }
                         }
                     }
                 }
@@ -608,18 +680,24 @@ private struct TimeLineChart: View {
                             .gesture(
                                 DragGesture(minimumDistance: 0)
                                     .onChanged { value in
-                                        guard let plotFrame = proxy.plotFrame else { return }
-                                        let origin = geometry[plotFrame].origin
-                                        let xPosition = value.location.x - origin.x
-                                        if let date: Date = proxy.value(atX: xPosition) {
-                                            selectedDate = nearestDate(to: date, in: points.map(\.date))
-                                        }
+                                        updateSelection(at: value.location, proxy: proxy, geometry: geometry)
+                                    }
+                            )
+                            .simultaneousGesture(
+                                SpatialTapGesture()
+                                    .onEnded { value in
+                                        updateSelection(at: value.location, proxy: proxy, geometry: geometry)
                                     }
                             )
                     }
                 }
             }
         }
+    }
+
+    private var selectedPoint: ChartTimeValue? {
+        guard let selectedDate else { return nil }
+        return points.first(where: { Calendar.current.isDate($0.date, inSameDayAs: selectedDate) })
     }
 
     private var adaptiveDomain: ClosedRange<Double> {
@@ -645,6 +723,24 @@ private struct TimeLineChart: View {
         let minute = total % 60
         return String(format: "%02d:%02d", hour, minute)
     }
+
+    private func updateSelection(at location: CGPoint, proxy: ChartProxy, geometry: GeometryProxy) {
+        guard let plotFrame = proxy.plotFrame else {
+            selectedDate = nil
+            return
+        }
+        let plotRect = geometry[plotFrame]
+        guard plotRect.contains(location) else {
+            selectedDate = nil
+            return
+        }
+        let xPosition = location.x - plotRect.origin.x
+        if let date: Date = proxy.value(atX: xPosition) {
+            selectedDate = nearestDate(to: date, in: points.map(\.date))
+        } else {
+            selectedDate = nil
+        }
+    }
 }
 
 private struct SleepIntervalChart: View {
@@ -657,6 +753,21 @@ private struct SleepIntervalChart: View {
             PlaceholderCard(text: "睡眠记录还不够。")
         } else {
             VStack(alignment: .leading, spacing: 10) {
+                if let selectedPoint {
+                    fixedChartCallout {
+                        Text(durationText(selectedPoint.sleepHours))
+                            .font(.system(size: 24, weight: .bold, design: .rounded))
+                            .foregroundStyle(AppTheme.primaryText)
+                        HStack(spacing: 18) {
+                            calloutMetric(label: "入睡", value: labelForSleepClock(selectedPoint.sleepStartMinutes))
+                            calloutMetric(label: "起床", value: labelForSleepClock(selectedPoint.sleepEndMinutes))
+                        }
+                        Text(selectedPoint.date, format: .dateTime.month().day())
+                            .font(.system(size: 13, weight: .medium, design: .rounded))
+                            .foregroundStyle(AppTheme.secondaryText)
+                    }
+                }
+
                 Chart {
                     ForEach(days) { point in
                         if let start = point.sleepStartMinutes, let end = point.sleepEndMinutes {
@@ -691,14 +802,14 @@ private struct SleepIntervalChart: View {
                                 )
                                 .foregroundStyle(AppTheme.accent)
                                 .symbolSize(compact ? 50 : 70)
-                                .annotation(position: .top, spacing: 10) {
-                                    chartCallout(date: point.date, value: durationText(point.sleepHours))
-                                }
                             }
                         }
                     }
                 }
                 .frame(height: compact ? 210 : 330)
+                .chartPlotStyle { plotArea in
+                    plotArea.padding(.top, compact ? 8 : 12)
+                }
                 .chartYScale(domain: adaptivePlotDomain)
                 .chartYAxis {
                     AxisMarks(position: .leading, values: axisValues) { value in
@@ -718,12 +829,13 @@ private struct SleepIntervalChart: View {
                             .gesture(
                                 DragGesture(minimumDistance: 0)
                                     .onChanged { value in
-                                        guard let plotFrame = proxy.plotFrame else { return }
-                                        let origin = geometry[plotFrame].origin
-                                        let xPosition = value.location.x - origin.x
-                                        if let date: Date = proxy.value(atX: xPosition) {
-                                            selectedDate = nearestDate(to: date, in: days.map(\.date))
-                                        }
+                                        updateSelection(at: value.location, proxy: proxy, geometry: geometry)
+                                    }
+                            )
+                            .simultaneousGesture(
+                                SpatialTapGesture()
+                                    .onEnded { value in
+                                        updateSelection(at: value.location, proxy: proxy, geometry: geometry)
                                     }
                             )
                     }
@@ -777,9 +889,28 @@ private struct SleepIntervalChart: View {
         (start + end) / 2
     }
 
-    private func labelForSleepClock(_ minutes: Double) -> String {
+    private func labelForSleepClock(_ minutes: Double?) -> String {
+        guard let minutes, minutes.isFinite else { return "--" }
         let wrapped = Int(minutes.rounded()) % (24 * 60)
         return String(format: "%02d:%02d", wrapped / 60, wrapped % 60)
+    }
+
+    private func updateSelection(at location: CGPoint, proxy: ChartProxy, geometry: GeometryProxy) {
+        guard let plotFrame = proxy.plotFrame else {
+            selectedDate = nil
+            return
+        }
+        let plotRect = geometry[plotFrame]
+        guard plotRect.contains(location) else {
+            selectedDate = nil
+            return
+        }
+        let xPosition = location.x - plotRect.origin.x
+        if let date: Date = proxy.value(atX: xPosition) {
+            selectedDate = nearestDate(to: date, in: days.compactMap { ($0.sleepStartMinutes != nil && $0.sleepEndMinutes != nil) ? $0.date : nil })
+        } else {
+            selectedDate = nil
+        }
     }
 }
 
@@ -830,11 +961,26 @@ private struct MealTimingScatterChart: View {
             PlaceholderCard(text: "再记录几餐，这里会看到你的进餐时间分布。")
         } else {
             VStack(alignment: .leading, spacing: 12) {
-                if !compact {
-                    if let selectedDate {
-                        selectedDateSummary(selectedDate)
-                    } else {
-                        averageLegend
+                if let selectedItems {
+                    fixedChartCallout {
+                        Text(selectedDate ?? .now, format: .dateTime.month().day())
+                            .font(.system(size: 13, weight: .medium, design: .rounded))
+                            .foregroundStyle(AppTheme.secondaryText)
+                        VStack(alignment: .leading, spacing: 8) {
+                            ForEach(Array(selectedItems.enumerated()), id: \.offset) { _, item in
+                                HStack(spacing: 8) {
+                                    Circle()
+                                        .fill(item.2)
+                                        .frame(width: 8, height: 8)
+                                    Text(item.0)
+                                        .foregroundStyle(AppTheme.secondaryText)
+                                    Spacer(minLength: 10)
+                                    Text(clockText(item.1))
+                                        .foregroundStyle(AppTheme.primaryText)
+                                }
+                                .font(.system(size: 14, weight: .semibold, design: .rounded))
+                            }
+                        }
                     }
                 }
 
@@ -863,16 +1009,16 @@ private struct MealTimingScatterChart: View {
                                 )
                                 .foregroundStyle(chartColor(for: item.key))
                                 .symbolSize(compact ? 52 : 64)
-                                .annotation(position: .top, spacing: 8) {
-                                    chartCallout(date: point.date, value: "\(item.title)  \(clockText(point.minutes))")
-                                }
                             }
                         }
 
-                        if let averageMinutes = item.averageMinutes, !compact {
+                        if let averageMinutes = item.averageMinutes {
                             RuleMark(y: .value(item.title, averageMinutes))
                                 .foregroundStyle(chartColor(for: item.key).opacity(0.35))
                                 .lineStyle(.init(lineWidth: 1, dash: [4, 4]))
+                                .annotation(position: .leading, spacing: 8) {
+                                    averageTag(clockText(averageMinutes), tone: chartColor(for: item.key))
+                                }
                         }
                     }
                 }
@@ -896,12 +1042,13 @@ private struct MealTimingScatterChart: View {
                             .gesture(
                                 DragGesture(minimumDistance: 0)
                                     .onChanged { value in
-                                        guard let plotFrame = proxy.plotFrame else { return }
-                                        let origin = geometry[plotFrame].origin
-                                        let xPosition = value.location.x - origin.x
-                                        if let date: Date = proxy.value(atX: xPosition) {
-                                            selectedDate = nearestDate(to: date, in: series.flatMap { $0.points.map(\.date) })
-                                        }
+                                        updateSelection(at: value.location, proxy: proxy, geometry: geometry)
+                                    }
+                            )
+                            .simultaneousGesture(
+                                SpatialTapGesture()
+                                    .onEnded { value in
+                                        updateSelection(at: value.location, proxy: proxy, geometry: geometry)
                                     }
                             )
                     }
@@ -910,65 +1057,13 @@ private struct MealTimingScatterChart: View {
         }
     }
 
-    private var averageLegend: some View {
-        FlowLayout(spacing: 10) {
-            ForEach(series) { item in
-                HStack(spacing: 8) {
-                    Circle()
-                        .fill(chartColor(for: item.key))
-                        .frame(width: 8, height: 8)
-                    Text(item.title)
-                        .foregroundStyle(AppTheme.secondaryText)
-                    if let averageMinutes = item.averageMinutes {
-                        Text(clockText(averageMinutes))
-                            .foregroundStyle(AppTheme.primaryText)
-                    }
-                }
-                .font(.system(size: 13, weight: .semibold, design: .rounded))
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(AppTheme.elevatedSurface)
-                .clipShape(Capsule())
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func selectedDateSummary(_ date: Date) -> some View {
+    private var selectedItems: [(String, Double, Color)]? {
+        guard let selectedDate else { return nil }
         let items = series.compactMap { item -> (String, Double, Color)? in
-            guard let point = item.points.first(where: { Calendar.current.isDate($0.date, inSameDayAs: date) }) else { return nil }
+            guard let point = item.points.first(where: { Calendar.current.isDate($0.date, inSameDayAs: selectedDate) }) else { return nil }
             return (item.title, point.minutes, chartColor(for: item.key))
         }
-
-        if items.isEmpty {
-            Text(date, format: .dateTime.month().day())
-                .font(.system(size: 13, weight: .medium, design: .rounded))
-                .foregroundStyle(AppTheme.secondaryText)
-        } else {
-            VStack(alignment: .leading, spacing: 8) {
-                Text(date, format: .dateTime.month().day())
-                    .font(.system(size: 13, weight: .medium, design: .rounded))
-                    .foregroundStyle(AppTheme.secondaryText)
-                FlowLayout(spacing: 10) {
-                    ForEach(Array(items.enumerated()), id: \.offset) { _, item in
-                        HStack(spacing: 8) {
-                            Circle()
-                                .fill(item.2)
-                                .frame(width: 8, height: 8)
-                            Text(item.0)
-                                .foregroundStyle(AppTheme.secondaryText)
-                            Text(clockText(item.1))
-                                .foregroundStyle(AppTheme.primaryText)
-                        }
-                        .font(.system(size: 13, weight: .semibold, design: .rounded))
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 8)
-                        .background(AppTheme.elevatedSurface)
-                        .clipShape(Capsule())
-                    }
-                }
-            }
-        }
+        return items.isEmpty ? nil : items
     }
 
     private func clockText(_ minutes: Double) -> String {
@@ -991,6 +1086,24 @@ private struct MealTimingScatterChart: View {
         let step = max(30.0, ceil((upper - lower) / 4 / 15) * 15)
         return stride(from: lower, through: upper, by: step).map { $0 }
     }
+
+    private func updateSelection(at location: CGPoint, proxy: ChartProxy, geometry: GeometryProxy) {
+        guard let plotFrame = proxy.plotFrame else {
+            selectedDate = nil
+            return
+        }
+        let plotRect = geometry[plotFrame]
+        guard plotRect.contains(location) else {
+            selectedDate = nil
+            return
+        }
+        let xPosition = location.x - plotRect.origin.x
+        if let date: Date = proxy.value(atX: xPosition) {
+            selectedDate = nearestDate(to: date, in: series.flatMap { $0.points.map(\.date) })
+        } else {
+            selectedDate = nil
+        }
+    }
 }
 
 private struct ShowerScatterChart: View {
@@ -1003,35 +1116,62 @@ private struct ShowerScatterChart: View {
             PlaceholderCard(text: "还没有洗澡时间数据。")
         } else {
             VStack(alignment: .leading, spacing: 12) {
-                if !compact {
-                    selectedHeader
+                if let selectedItems {
+                    fixedChartCallout {
+                        Text(selectedDate ?? .now, format: .dateTime.month().day())
+                            .font(.system(size: 13, weight: .medium, design: .rounded))
+                            .foregroundStyle(AppTheme.secondaryText)
+                        VStack(alignment: .leading, spacing: 8) {
+                            ForEach(Array(selectedItems.enumerated()), id: \.offset) { index, item in
+                                HStack(spacing: 8) {
+                                    Circle()
+                                        .fill(Color.teal)
+                                        .frame(width: 8, height: 8)
+                                    Text(index == 0 ? "第1次" : "第\(index + 1)次")
+                                        .foregroundStyle(AppTheme.secondaryText)
+                                    Spacer(minLength: 10)
+                                    Text(clockText(item.minutes))
+                                        .foregroundStyle(AppTheme.primaryText)
+                                }
+                                .font(.system(size: 14, weight: .semibold, design: .rounded))
+                            }
+                        }
+                    }
                 }
 
-                Chart(points) { point in
-                    PointMark(
-                        x: .value("日期", point.date),
-                        y: .value("时间", point.minutes)
-                    )
-                    .foregroundStyle(.teal)
-                    .symbolSize(compact ? 28 : 44)
-
-                    if selectedDate.flatMap({ Calendar.current.isDate($0, inSameDayAs: point.date) ? point : nil }) != nil {
-                        RuleMark(x: .value("日期", point.date))
-                            .foregroundStyle(AppTheme.primaryText.opacity(0.18))
+                Chart {
+                    if let averageMinutes {
+                        RuleMark(y: .value("平均", averageMinutes))
+                            .foregroundStyle(Color.teal.opacity(0.35))
                             .lineStyle(.init(lineWidth: 1, dash: [4, 4]))
+                            .annotation(position: .leading, spacing: 8) {
+                                averageTag(clockText(averageMinutes), tone: .teal)
+                            }
+                    }
 
-                        RuleMark(y: .value("时间", point.minutes))
-                            .foregroundStyle(AppTheme.primaryText.opacity(0.18))
-                            .lineStyle(.init(lineWidth: 1, dash: [4, 4]))
-
+                    ForEach(points) { point in
                         PointMark(
                             x: .value("日期", point.date),
                             y: .value("时间", point.minutes)
                         )
                         .foregroundStyle(.teal)
-                        .symbolSize(compact ? 52 : 64)
-                        .annotation(position: .top, spacing: 8) {
-                            chartCallout(date: point.date, value: clockText(point.minutes))
+                        .symbolSize(compact ? 28 : 44)
+
+                        if selectedDate.flatMap({ Calendar.current.isDate($0, inSameDayAs: point.date) ? point : nil }) != nil {
+                            RuleMark(x: .value("日期", point.date))
+                                .foregroundStyle(AppTheme.primaryText.opacity(0.18))
+                                .lineStyle(.init(lineWidth: 1, dash: [4, 4]))
+
+                            RuleMark(y: .value("时间", point.minutes))
+                                .foregroundStyle(AppTheme.primaryText.opacity(0.18))
+                                .lineStyle(.init(lineWidth: 1, dash: [4, 4]))
+
+                            PointMark(
+                                x: .value("日期", point.date),
+                                y: .value("时间", point.minutes)
+                            )
+                            .foregroundStyle(.teal)
+                            .symbolSize(compact ? 52 : 64)
                         }
                     }
                 }
@@ -1055,12 +1195,13 @@ private struct ShowerScatterChart: View {
                             .gesture(
                                 DragGesture(minimumDistance: 0)
                                     .onChanged { value in
-                                        guard let plotFrame = proxy.plotFrame else { return }
-                                        let origin = geometry[plotFrame].origin
-                                        let xPosition = value.location.x - origin.x
-                                        if let date: Date = proxy.value(atX: xPosition) {
-                                            selectedDate = nearestDate(to: date, in: points.map(\.date))
-                                        }
+                                        updateSelection(at: value.location, proxy: proxy, geometry: geometry)
+                                    }
+                            )
+                            .simultaneousGesture(
+                                SpatialTapGesture()
+                                    .onEnded { value in
+                                        updateSelection(at: value.location, proxy: proxy, geometry: geometry)
                                     }
                             )
                     }
@@ -1069,33 +1210,10 @@ private struct ShowerScatterChart: View {
         }
     }
 
-    @ViewBuilder
-    private var selectedHeader: some View {
-        if let selectedDate {
-            let items = points.filter { Calendar.current.isDate($0.date, inSameDayAs: selectedDate) }
-            if items.isEmpty {
-                Text(selectedDate, format: .dateTime.month().day())
-                    .font(.system(size: 13, weight: .medium, design: .rounded))
-                    .foregroundStyle(AppTheme.secondaryText)
-            } else {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(selectedDate, format: .dateTime.month().day())
-                        .font(.system(size: 13, weight: .medium, design: .rounded))
-                        .foregroundStyle(AppTheme.secondaryText)
-                    FlowLayout(spacing: 10) {
-                        ForEach(Array(items.enumerated()), id: \.offset) { index, item in
-                            Text(index == 0 ? clockText(item.minutes) : "第\(index + 1)次 \(clockText(item.minutes))")
-                                .font(.system(size: 13, weight: .semibold, design: .rounded))
-                                .foregroundStyle(AppTheme.primaryText)
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 8)
-                                .background(AppTheme.elevatedSurface)
-                                .clipShape(Capsule())
-                        }
-                    }
-                }
-            }
-        }
+    private var selectedItems: [AnalyticsScatterPoint]? {
+        guard let selectedDate else { return nil }
+        let items = points.filter { Calendar.current.isDate($0.date, inSameDayAs: selectedDate) }
+        return items.isEmpty ? nil : items
     }
 
     private func clockText(_ minutes: Double) -> String {
@@ -1111,11 +1229,34 @@ private struct ShowerScatterChart: View {
         return lower...max(lower + 30, upper)
     }
 
+    private var averageMinutes: Double? {
+        guard !points.isEmpty else { return nil }
+        return points.map(\.minutes).reduce(0, +) / Double(points.count)
+    }
+
     private var axisValues: [Double] {
         let lower = adaptiveDomain.lowerBound
         let upper = adaptiveDomain.upperBound
         let step = max(30.0, ceil((upper - lower) / 4 / 15) * 15)
         return stride(from: lower, through: upper, by: step).map { $0 }
+    }
+
+    private func updateSelection(at location: CGPoint, proxy: ChartProxy, geometry: GeometryProxy) {
+        guard let plotFrame = proxy.plotFrame else {
+            selectedDate = nil
+            return
+        }
+        let plotRect = geometry[plotFrame]
+        guard plotRect.contains(location) else {
+            selectedDate = nil
+            return
+        }
+        let xPosition = location.x - plotRect.origin.x
+        if let date: Date = proxy.value(atX: xPosition) {
+            selectedDate = nearestDate(to: date, in: points.map(\.date))
+        } else {
+            selectedDate = nil
+        }
     }
 }
 
@@ -1275,23 +1416,38 @@ private struct AnalyticsDateRangeSheet: View {
     }
 }
 
-private func chartCallout(date: Date, value: String) -> some View {
-    VStack(alignment: .leading, spacing: 4) {
-        Text(date, format: .dateTime.month().day())
+private func fixedChartCallout<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+    content()
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .background(AppTheme.cardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(AppTheme.border, lineWidth: 1)
+        )
+        .frame(maxWidth: .infinity, alignment: .center)
+}
+
+private func averageTag(_ value: String, tone: Color) -> some View {
+    Text(value)
+        .font(.system(size: 11, weight: .bold, design: .rounded))
+        .foregroundStyle(tone)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(tone.opacity(0.12))
+        .clipShape(Capsule())
+}
+
+private func calloutMetric(label: String, value: String) -> some View {
+    VStack(alignment: .leading, spacing: 2) {
+        Text(label)
             .font(.system(size: 11, weight: .medium, design: .rounded))
             .foregroundStyle(AppTheme.secondaryText)
         Text(value)
-            .font(.system(size: 13, weight: .bold, design: .rounded))
+            .font(.system(size: 14, weight: .bold, design: .rounded))
             .foregroundStyle(AppTheme.primaryText)
     }
-    .padding(.horizontal, 10)
-    .padding(.vertical, 8)
-    .background(AppTheme.cardBackground)
-    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-    .overlay(
-        RoundedRectangle(cornerRadius: 12, style: .continuous)
-            .stroke(AppTheme.border, lineWidth: 1)
-    )
 }
 
 private func nearestDate(to date: Date, in candidates: [Date]) -> Date? {
