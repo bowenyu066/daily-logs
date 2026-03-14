@@ -14,18 +14,21 @@ struct HomeView: View {
 
     var body: some View {
         NavigationStack {
-            ZStack {
-                AppTheme.background.ignoresSafeArea()
+            GeometryReader { proxy in
+                ZStack {
+                    AppTheme.background.ignoresSafeArea()
 
-                ScrollView(.vertical, showsIndicators: false) {
-                    VStack(alignment: .leading, spacing: 18) {
-                        headerCard
-                        sleepSection
-                        mealSection
-                        showerSection
+                    ScrollView(.vertical, showsIndicators: false) {
+                        VStack(alignment: .leading, spacing: 18) {
+                            headerCard
+                            sleepSection
+                            mealSection
+                            showerSection
+                        }
+                        .padding(.horizontal, 18)
+                        .padding(.top, topContentInset(for: proxy))
+                        .padding(.bottom, 16)
                     }
-                    .padding(.horizontal, 18)
-                    .padding(.vertical, 16)
                 }
             }
             .navigationBarHidden(true)
@@ -359,6 +362,10 @@ struct HomeView: View {
         let hours = Int(duration) / 3600
         let minutes = Int(duration) % 3600 / 60
         return "\(hours)小时\(minutes)分"
+    }
+
+    private func topContentInset(for proxy: GeometryProxy) -> CGFloat {
+        max(proxy.safeAreaInsets.top + 18, 36)
     }
 
     private func formattedSun(_ date: Date?) -> String {
