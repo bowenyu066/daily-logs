@@ -204,7 +204,7 @@ struct AnalyticsView: View {
     private func metricValue(_ metric: AnalyticsMetricKind) -> String {
         switch metric {
         case .averageSleep:
-            return summary.averageSleepHours > 0 ? String(format: "%.1f 小时", summary.averageSleepHours) : "--"
+            return formattedDuration(hours: summary.averageSleepHours)
         case .averageWake:
             return formatClock(summary.averageWakeMinutes)
         case .averageBedtime:
@@ -232,6 +232,12 @@ struct AnalyticsView: View {
         let hour = total / 60
         let minute = total % 60
         return String(format: "%02d:%02d", hour, minute)
+    }
+
+    private func formattedDuration(hours: Double) -> String {
+        guard hours > 0 else { return "--" }
+        let totalMinutes = Int((hours * 60).rounded())
+        return "\(totalMinutes / 60)小时\(totalMinutes % 60)分"
     }
 
     private func wrapForNight(_ minutes: Double) -> Double {
@@ -384,21 +390,24 @@ private struct SummaryCard: View {
     let tone: Color
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(spacing: 10) {
             Text(title)
-                .font(.system(size: 13, weight: .medium, design: .rounded))
+                .font(.system(size: 12, weight: .medium, design: .rounded))
                 .foregroundStyle(AppTheme.secondaryText)
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
+                .lineLimit(2)
+                .minimumScaleFactor(0.85)
+                .multilineTextAlignment(.center)
 
             Text(value)
-                .font(.system(size: 19, weight: .bold, design: .rounded))
+                .font(.system(size: 26, weight: .bold, design: .rounded))
                 .foregroundStyle(tone)
-                .lineLimit(1)
+                .lineLimit(2)
                 .minimumScaleFactor(0.72)
+                .multilineTextAlignment(.center)
         }
-        .frame(maxWidth: .infinity, minHeight: 88, alignment: .leading)
-        .padding(16)
+        .frame(maxWidth: .infinity, minHeight: 104, alignment: .center)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 18)
         .appCardStyle()
     }
 }
