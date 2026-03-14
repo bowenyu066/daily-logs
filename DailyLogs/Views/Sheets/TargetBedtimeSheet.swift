@@ -15,6 +15,8 @@ struct TargetBedtimeSheet: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 22) {
+                headerBar
+
                 HStack(spacing: 10) {
                     ForEach(Weekday.allCases) { weekday in
                         Button {
@@ -74,19 +76,29 @@ struct TargetBedtimeSheet: View {
             }
             .padding(24)
             .background(AppTheme.background.ignoresSafeArea())
-            .navigationTitle("目标入睡")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("取消") { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("保存") {
-                        onSave(schedule)
-                        dismiss()
-                    }
-                }
+        }
+    }
+
+    private var headerBar: some View {
+        HStack {
+            Button("取消") { dismiss() }
+                .font(.system(size: 18, weight: .semibold, design: .rounded))
+                .foregroundStyle(AppTheme.accent)
+
+            Spacer()
+
+            Text("目标入睡")
+                .font(.system(size: 22, weight: .bold, design: .rounded))
+                .foregroundStyle(AppTheme.primaryText)
+
+            Spacer()
+
+            Button("保存") {
+                onSave(schedule)
+                dismiss()
             }
+            .font(.system(size: 18, weight: .semibold, design: .rounded))
+            .foregroundStyle(AppTheme.accent)
         }
     }
 

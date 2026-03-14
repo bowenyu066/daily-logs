@@ -3,17 +3,19 @@ import SwiftUI
 struct DatePickerSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var draftDate: Date
+    let allowedRange: ClosedRange<Date>
     let onConfirm: (Date) -> Void
 
-    init(selectedDate: Date, onConfirm: @escaping (Date) -> Void) {
+    init(selectedDate: Date, allowedRange: ClosedRange<Date>, onConfirm: @escaping (Date) -> Void) {
         _draftDate = State(initialValue: selectedDate)
+        self.allowedRange = allowedRange
         self.onConfirm = onConfirm
     }
 
     var body: some View {
         NavigationStack {
             VStack {
-                DatePicker("选择日期", selection: $draftDate, displayedComponents: .date)
+                DatePicker("选择日期", selection: $draftDate, in: allowedRange, displayedComponents: .date)
                     .datePickerStyle(.graphical)
                     .labelsHidden()
                     .padding()
@@ -36,4 +38,3 @@ struct DatePickerSheet: View {
         }
     }
 }
-

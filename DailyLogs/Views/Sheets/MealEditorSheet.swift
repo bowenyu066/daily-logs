@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import Photos
 
 enum MealCaptureMode {
     case camera
@@ -45,7 +46,6 @@ struct MealEditorSheet: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
-                    statusPicker
                     timePicker
                     photoBlock
 
@@ -86,6 +86,7 @@ struct MealEditorSheet: View {
             .onAppear {
                 guard !didAutoPresentSource else { return }
                 didAutoPresentSource = true
+                prepareDraftForLoggingIfNeeded()
                 switch preferredSource {
                 case .camera:
                     if UIImagePickerController.isSourceTypeAvailable(.camera) {
@@ -101,46 +102,37 @@ struct MealEditorSheet: View {
             }
             .sheet(isPresented: $showingImagePicker) {
                 if let pickerSource {
-                    ImagePicker(sourceType: pickerSource) { image in
+                    ImagePicker(sourceType: pickerSource) { image, capturedAt in
                         selectedImage = image
+                        if image != nil {
+                            draft.status = .logged
+                            draft.time = normalizedPickedDate(capturedAt) ?? draft.time ?? defaultLoggedTime
+                        }
                     }
                 }
             }
         }
     }
 
-    private var statusPicker: some View {
-        Picker("状态", selection: $draft.status) {
-            ForEach(MealStatus.allCases, id: \.self) { status in
-                Text(status.title).tag(status)
-            }
-        }
-        .pickerStyle(.segmented)
-        .disabled(!isEditable)
-    }
-
     private var timePicker: some View {
-        Group {
-            if draft.status == .logged {
-                DatePicker(
-                    "时间",
-                    selection: Binding(
-                        get: { draft.time ?? baseDate.settingTime(hour: 8, minute: 0) },
-                        set: { draft.time = $0 }
-                    )
-                )
-                .labelsHidden()
-                .datePickerStyle(.wheel)
-            } else {
-                RoundedRectangle(cornerRadius: 22, style: .continuous)
-                    .fill(Color.white.opacity(0.72))
-                    .frame(height: 110)
-                    .overlay(
-                        Text(draft.status == .skipped ? "跳过" : "--")
-                            .font(.system(size: 24, weight: .bold, design: .rounded))
-                            .foregroundStyle(draft.status == .skipped ? AppTheme.warning : AppTheme.secondaryText)
-                    )
-            }
+        VStack(alignment: .leading, spacing: 10) {
+            Text("时间")
+                .font(.system(size: 16, weight: .semibold, design: .rounded))
+                .foregroundStyle(AppTheme.secondaryText)
+
+            DatePicker(
+                "时间",
+                selection: Binding(
+                    get: { draft.time ?? defaultLoggedTime },
+                    set: {
+                        draft.time = $0
+                        draft.status = .logged
+                    }
+                ),
+                displayedComponents: .hourAndMinute
+            )
+            .labelsHidden()
+            .datePickerStyle(.wheel)
         }
         .disabled(!isEditable)
     }
@@ -205,6 +197,12 @@ struct MealEditorSheet: View {
 
     private var normalizedDraft: MealEntry {
         var entry = draft
+        if selectedImage != nil || entry.photoURL != nil {
+            entry.status = .logged
+        }
+        if entry.status == .logged && entry.time == nil {
+            entry.time = defaultLoggedTime
+        }
         if entry.status != .logged {
             entry.time = nil
             if selectedImage == nil {
@@ -217,11 +215,37 @@ struct MealEditorSheet: View {
         }
         return entry
     }
+
+    private var defaultLoggedTime: Date {
+        switch draft.mealKind {
+        case .breakfast:
+            return baseDate.settingTime(hour: 8, minute: 0)
+        case .lunch:
+            return baseDate.settingTime(hour: 12, minute: 30)
+        case .dinner:
+            return baseDate.settingTime(hour: 18, minute: 30)
+        case .custom:
+            return baseDate.settingTime(hour: 15, minute: 0)
+        }
+    }
+
+    private func prepareDraftForLoggingIfNeeded() {
+        if draft.status != .logged || draft.time == nil {
+            draft.status = .logged
+            draft.time = draft.time ?? defaultLoggedTime
+        }
+    }
+
+    private func normalizedPickedDate(_ pickedDate: Date?) -> Date? {
+        guard let pickedDate else { return nil }
+        let components = Calendar.current.dateComponents([.hour, .minute], from: pickedDate)
+        return baseDate.settingTime(hour: components.hour ?? 12, minute: components.minute ?? 0)
+    }
 }
 
 private struct ImagePicker: UIViewControllerRepresentable {
     let sourceType: UIImagePickerController.SourceType
-    let onImagePicked: (UIImage?) -> Void
+    let onImagePicked: (UIImage?, Date?) -> Void
 
     func makeUIViewController(context: Context) -> UIImagePickerController {
         let picker = UIImagePickerController()
@@ -237,21 +261,35 @@ private struct ImagePicker: UIViewControllerRepresentable {
     }
 
     final class Coordinator: NSObject, UINavigationControllerDelegate, UIImagePickerControllerDelegate {
-        let onImagePicked: (UIImage?) -> Void
+        let onImagePicked: (UIImage?, Date?) -> Void
 
-        init(onImagePicked: @escaping (UIImage?) -> Void) {
+        init(onImagePicked: @escaping (UIImage?, Date?) -> Void) {
             self.onImagePicked = onImagePicked
         }
 
         func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
-            onImagePicked(nil)
+            onImagePicked(nil, nil)
             picker.dismiss(animated: true)
         }
 
         func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey : Any]) {
             let image = info[.originalImage] as? UIImage
-            onImagePicked(image)
+            let capturedAt = capturedDate(from: info, sourceType: picker.sourceType)
+            onImagePicked(image, capturedAt)
             picker.dismiss(animated: true)
+        }
+
+        private func capturedDate(
+            from info: [UIImagePickerController.InfoKey : Any],
+            sourceType: UIImagePickerController.SourceType
+        ) -> Date? {
+            if let asset = info[.phAsset] as? PHAsset, let creationDate = asset.creationDate {
+                return creationDate
+            }
+            if sourceType == .camera {
+                return Date()
+            }
+            return nil
         }
     }
 }

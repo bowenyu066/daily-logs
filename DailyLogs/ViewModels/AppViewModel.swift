@@ -28,7 +28,7 @@ final class AppViewModel: ObservableObject {
         let store = LocalJSONStore()
         let preferences = UserPreferences()
         return AppViewModel(
-            authService: LocalAuthService(),
+            authService: LocalAuthService(store: store),
             repository: LocalDailyRecordRepository(store: store),
             preferencesStore: LocalPreferencesStore(store: store),
             photoStorageService: LocalPhotoStorageService(),
@@ -73,6 +73,14 @@ final class AppViewModel: ObservableObject {
         selectedDate.startOfDay <= Date().startOfDay
     }
 
+    var availableStartDate: Date {
+        user?.createdAt.startOfDay ?? Date().startOfDay
+    }
+
+    var availableDateRange: ClosedRange<Date> {
+        availableStartDate...Date().startOfDay
+    }
+
     var analyticsSummary: AnalyticsSummary {
         AnalyticsCalculator.build(records: allRecords, range: analyticsRange)
     }
@@ -84,6 +92,7 @@ final class AppViewModel: ObservableObject {
         do {
             preferences = try preferencesStore.loadPreferences(userID: user?.userID)
             if let user {
+                selectedDate = max(selectedDate, user.createdAt.startOfDay)
                 try seedDemoDataIfNeeded(for: user.userID)
                 try loadAllRecords(for: user.userID)
                 try loadSelectedRecord()
@@ -98,6 +107,7 @@ final class AppViewModel: ObservableObject {
         do {
             user = try authService.handleAppleSignIn(result: result)
             preferences = try preferencesStore.loadPreferences(userID: user?.userID)
+            selectedDate = max(Date().startOfDay, availableStartDate)
             try seedDemoDataIfNeeded(for: user?.userID ?? "")
             try loadAllRecords(for: user?.userID ?? "")
             try loadSelectedRecord()
@@ -110,6 +120,7 @@ final class AppViewModel: ObservableObject {
         do {
             user = try authService.continueAsGuest()
             preferences = try preferencesStore.loadPreferences(userID: user?.userID)
+            selectedDate = max(Date().startOfDay, availableStartDate)
             try seedDemoDataIfNeeded(for: user?.userID ?? "")
             try loadAllRecords(for: user?.userID ?? "")
             try loadSelectedRecord()
@@ -131,7 +142,8 @@ final class AppViewModel: ObservableObject {
     }
 
     func selectDate(_ date: Date) async {
-        selectedDate = date.startOfDay
+        let clamped = min(max(date.startOfDay, availableStartDate), Date().startOfDay)
+        selectedDate = clamped
         do {
             try loadSelectedRecord()
         } catch {
@@ -157,11 +169,18 @@ final class AppViewModel: ObservableObject {
         guard canEditSelectedDate else { return }
         var updatedEntry = entry
         do {
+            let existingEntry = dailyRecord.meals.first(where: { $0.id == updatedEntry.id })
             if let image {
-                if let path = entry.photoURL {
+                if let path = existingEntry?.photoURL {
                     try photoStorageService.deletePhoto(at: path)
                 }
                 updatedEntry.photoURL = try photoStorageService.savePhoto(image)
+            } else if let oldPhotoURL = existingEntry?.photoURL, updatedEntry.photoURL == nil {
+                try photoStorageService.deletePhoto(at: oldPhotoURL)
+            }
+
+            if updatedEntry.time != nil || updatedEntry.hasPhoto {
+                updatedEntry.status = .logged
             }
             if let index = dailyRecord.meals.firstIndex(where: { $0.id == updatedEntry.id }) {
                 dailyRecord.meals[index] = updatedEntry
@@ -187,6 +206,27 @@ final class AppViewModel: ObservableObject {
         }
     }
 
+    func skipMeal(_ entry: MealEntry) async {
+        guard canEditSelectedDate else { return }
+        do {
+            if let photoURL = entry.photoURL {
+                try photoStorageService.deletePhoto(at: photoURL)
+            }
+            var updatedEntry = entry
+            updatedEntry.status = .skipped
+            updatedEntry.time = nil
+            updatedEntry.photoURL = nil
+            if let index = dailyRecord.meals.firstIndex(where: { $0.id == updatedEntry.id }) {
+                dailyRecord.meals[index] = updatedEntry
+            } else {
+                dailyRecord.meals.append(updatedEntry)
+            }
+            persistCurrentRecord()
+        } catch {
+            errorMessage = "更新餐食失败：\(error.localizedDescription)"
+        }
+    }
+
     func saveShower(_ shower: ShowerEntry) async {
         guard canEditSelectedDate else { return }
         if let index = dailyRecord.showers.firstIndex(where: { $0.id == shower.id }) {
@@ -207,6 +247,9 @@ final class AppViewModel: ObservableObject {
     func addDefaultMealSlot(title: String) async {
         let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
+        guard !preferences.defaultMealSlots.contains(where: { $0.title.compare(trimmed, options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame }) else {
+            return
+        }
         preferences.defaultMealSlots.append(MealSlot(kind: .custom, title: trimmed))
         mergeMealsWithPreferences()
         persistPreferences()
@@ -262,6 +305,7 @@ final class AppViewModel: ObservableObject {
 
     private func loadAllRecords(for userID: String) throws {
         allRecords = try repository.loadAllRecords(userID: userID)
+            .filter { $0.date >= availableStartDate }
     }
 
     private func seedDemoDataIfNeeded(for userID: String) throws {

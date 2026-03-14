@@ -10,10 +10,56 @@ struct UserAccount: Codable, Equatable {
     var displayName: String
     var email: String?
     var authMode: AuthMode
+    var createdAt: Date
 
     var isGuest: Bool {
         authMode == .guest
     }
+
+    enum CodingKeys: String, CodingKey {
+        case userID
+        case displayName
+        case email
+        case authMode
+        case createdAt
+    }
+
+    init(
+        userID: String,
+        displayName: String,
+        email: String?,
+        authMode: AuthMode,
+        createdAt: Date
+    ) {
+        self.userID = userID
+        self.displayName = displayName
+        self.email = email
+        self.authMode = authMode
+        self.createdAt = createdAt
+    }
+
+    init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        userID = try container.decode(String.self, forKey: .userID)
+        displayName = try container.decode(String.self, forKey: .displayName)
+        email = try container.decodeIfPresent(String.self, forKey: .email)
+        authMode = try container.decode(AuthMode.self, forKey: .authMode)
+        createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt) ?? .now.startOfDay
+    }
+
+    func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(userID, forKey: .userID)
+        try container.encode(displayName, forKey: .displayName)
+        try container.encodeIfPresent(email, forKey: .email)
+        try container.encode(authMode, forKey: .authMode)
+        try container.encode(createdAt, forKey: .createdAt)
+    }
+}
+
+struct UserProfile: Codable, Equatable {
+    var userID: String
+    var createdAt: Date
 }
 
 enum RecordSource: String, Codable, CaseIterable {
@@ -103,6 +149,20 @@ struct MealEntry: Codable, Equatable, Identifiable {
         default:
             return mealKind.rawValue
         }
+    }
+
+    var hasPhoto: Bool {
+        photoURL?.isEmpty == false
+    }
+
+    func effectiveStatus(on recordDate: Date, relativeTo referenceDate: Date = .now) -> MealStatus {
+        if time != nil || hasPhoto {
+            return .logged
+        }
+        if status == .skipped {
+            return .skipped
+        }
+        return recordDate.startOfDay < referenceDate.startOfDay ? .skipped : .empty
     }
 }
 

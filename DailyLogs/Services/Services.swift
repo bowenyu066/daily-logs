@@ -39,6 +39,11 @@ final class LocalAuthService: AuthService {
     private let defaults = UserDefaults.standard
     private let key = "dailylogs.currentUser"
     private let guestID = "guest.local"
+    private let store: LocalJSONStore
+
+    init(store: LocalJSONStore) {
+        self.store = store
+    }
 
     var currentUser: UserAccount? {
         guard let data = defaults.data(forKey: key) else { return nil }
@@ -46,7 +51,12 @@ final class LocalAuthService: AuthService {
     }
 
     func restoreSession() -> UserAccount? {
-        currentUser
+        guard let session = currentUser else { return nil }
+        let refreshed = refreshUser(session)
+        if let refreshed {
+            persistSession(refreshed)
+        }
+        return refreshed
     }
 
     func handleAppleSignIn(result: Result<ASAuthorization, Error>) throws -> UserAccount {
@@ -66,11 +76,12 @@ final class LocalAuthService: AuthService {
                 userID: credential.user,
                 displayName: displayName.isEmpty ? (previousUser?.displayName ?? "我的记录") : displayName,
                 email: credential.email ?? previousUser?.email,
-                authMode: .apple
+                authMode: .apple,
+                createdAt: resolveCreatedAt(for: credential.user)
             )
-            let data = try JSONEncoder().encode(user)
-            defaults.set(data, forKey: key)
-            return user
+            let refreshed = try saveProfile(for: user)
+            persistSession(refreshed)
+            return refreshed
         case .failure(let error):
             throw error
         }
@@ -81,11 +92,12 @@ final class LocalAuthService: AuthService {
             userID: guestID,
             displayName: "游客模式",
             email: nil,
-            authMode: .guest
+            authMode: .guest,
+            createdAt: resolveCreatedAt(for: guestID)
         )
-        let data = try JSONEncoder().encode(user)
-        defaults.set(data, forKey: key)
-        return user
+        let refreshed = try saveProfile(for: user)
+        persistSession(refreshed)
+        return refreshed
     }
 
     func signOut() throws {
@@ -99,12 +111,91 @@ final class LocalAuthService: AuthService {
             "Apple 登录结果不可用。"
         }
     }
+
+    private func persistSession(_ user: UserAccount) {
+        if let data = try? JSONEncoder().encode(user) {
+            defaults.set(data, forKey: key)
+        }
+    }
+
+    private func refreshUser(_ session: UserAccount) -> UserAccount? {
+        do {
+            let database = try store.load()
+            if let profile = database.profilesByUser[session.userID] {
+                return UserAccount(
+                    userID: session.userID,
+                    displayName: session.displayName,
+                    email: session.email,
+                    authMode: session.authMode,
+                    createdAt: profile.createdAt
+                )
+            }
+
+            let fallbackCreatedAt = earliestKnownDate(for: session.userID, database: database) ?? session.createdAt
+            var updatedDatabase = database
+            updatedDatabase.profilesByUser[session.userID] = UserProfile(userID: session.userID, createdAt: fallbackCreatedAt.startOfDay)
+            try store.save(updatedDatabase)
+            return UserAccount(
+                userID: session.userID,
+                displayName: session.displayName,
+                email: session.email,
+                authMode: session.authMode,
+                createdAt: fallbackCreatedAt.startOfDay
+            )
+        } catch {
+            return session
+        }
+    }
+
+    private func saveProfile(for user: UserAccount) throws -> UserAccount {
+        var database = try store.load()
+        let existingCreatedAt = database.profilesByUser[user.userID]?.createdAt
+        let earliestCreatedAt = [existingCreatedAt, earliestKnownDate(for: user.userID, database: database), user.createdAt]
+            .compactMap { $0 }
+            .min()?
+            .startOfDay ?? user.createdAt.startOfDay
+        database.profilesByUser[user.userID] = UserProfile(userID: user.userID, createdAt: earliestCreatedAt)
+        try store.save(database)
+        return UserAccount(
+            userID: user.userID,
+            displayName: user.displayName,
+            email: user.email,
+            authMode: user.authMode,
+            createdAt: earliestCreatedAt
+        )
+    }
+
+    private func resolveCreatedAt(for userID: String) -> Date {
+        do {
+            let database = try store.load()
+            if let profile = database.profilesByUser[userID] {
+                return profile.createdAt.startOfDay
+            }
+            if let earliestRecordDate = earliestKnownDate(for: userID, database: database) {
+                return earliestRecordDate.startOfDay
+            }
+        } catch {}
+
+        #if DEBUG
+        return Date().startOfDay.adding(days: -44)
+        #else
+        return Date().startOfDay
+        #endif
+    }
+
+    private func earliestKnownDate(for userID: String, database: LocalJSONStore.Database) -> Date? {
+        database.recordsByUser[userID]?
+            .values
+            .map(\.date)
+            .min()
+    }
 }
 
 final class LocalJSONStore {
     struct Database: Codable {
         var recordsByUser: [String: [String: DailyRecord]] = [:]
         var preferencesByUser: [String: UserPreferences] = [:]
+        var profilesByUser: [String: UserProfile] = [:]
     }
 
     private let fileURL: URL
@@ -353,8 +444,8 @@ enum AnalyticsCalculator {
                 let comps = calendar.dateComponents([.hour, .minute], from: $0)
                 return Double((comps.hour ?? 0) * 60 + (comps.minute ?? 0))
             }
-            let loggedMeals = record.meals.filter { $0.status == .logged }.count
-            let skippedMeals = record.meals.filter { $0.status == .skipped }.count
+            let loggedMeals = record.meals.filter { $0.effectiveStatus(on: record.date) == .logged }.count
+            let skippedMeals = record.meals.filter { $0.effectiveStatus(on: record.date) == .skipped }.count
             return AnalyticsPoint(
                 date: record.date,
                 sleepHours: sleepHours,
@@ -372,7 +463,11 @@ enum AnalyticsCalculator {
         let averageWakeMinutes = points.compactMap(\.wakeMinutes).averageOptional
 
         let allTrackedMeals = Double(filtered.flatMap(\.meals).count)
-        let allLoggedMeals = Double(filtered.flatMap(\.meals).filter { $0.status == .logged }.count)
+        let allLoggedMeals = Double(
+            filtered.flatMap { record in
+                record.meals.filter { $0.effectiveStatus(on: record.date) == .logged }
+            }.count
+        )
         let mealCompletionRate = allTrackedMeals > 0 ? allLoggedMeals / allTrackedMeals : 0
         let averageShowers = filtered.map { Double($0.showers.count) }.average
 

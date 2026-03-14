@@ -7,7 +7,6 @@ struct HomeView: View {
     @State private var showingSleepEditor = false
     @State private var showingTargetBedtime = false
     @State private var editingMealContext: MealEditorContext?
-    @State private var mealActionEntry: MealEntry?
     @State private var editingShower: ShowerEntry?
     @State private var showingNewShower = false
 
@@ -31,7 +30,10 @@ struct HomeView: View {
             }
             .navigationBarHidden(true)
             .sheet(isPresented: $showingDatePicker) {
-                DatePickerSheet(selectedDate: appViewModel.selectedDate) { date in
+                DatePickerSheet(
+                    selectedDate: appViewModel.selectedDate,
+                    allowedRange: appViewModel.availableDateRange
+                ) { date in
                     Task { await appViewModel.selectDate(date) }
                 }
             }
@@ -83,29 +85,6 @@ struct HomeView: View {
                     },
                     onDelete: nil
                 )
-            }
-            .confirmationDialog(
-                "",
-                isPresented: Binding(
-                    get: { mealActionEntry != nil },
-                    set: { if !$0 { mealActionEntry = nil } }
-                ),
-                titleVisibility: .hidden
-            ) {
-                if UIImagePickerController.isSourceTypeAvailable(.camera) {
-                    Button("拍照") {
-                        openMealEditor(with: .camera)
-                    }
-                }
-                Button("选择相册照片") {
-                    openMealEditor(with: .photoLibrary)
-                }
-                Button("仅记录时间") {
-                    openMealEditor(with: .timeOnly)
-                }
-                Button("取消", role: .cancel) {
-                    mealActionEntry = nil
-                }
             }
             .alert("提示", isPresented: .constant(appViewModel.errorMessage != nil), actions: {
                 Button("知道了") {
@@ -164,12 +143,21 @@ struct HomeView: View {
 
     private var sleepSection: some View {
         VStack(alignment: .leading, spacing: 14) {
-            SectionHeader(
-                title: "睡眠",
-                subtitle: nil,
-                actionTitle: appViewModel.formattedTargetBedtime()
-            ) {
-                showingTargetBedtime = true
+            HStack(alignment: .firstTextBaseline) {
+                Text("睡眠")
+                    .font(.system(size: 22, weight: .bold, design: .rounded))
+                    .foregroundStyle(AppTheme.primaryText)
+                Spacer()
+                Button {
+                    showingTargetBedtime = true
+                } label: {
+                    Text("目标入睡：\(appViewModel.formattedTargetBedtime())")
+                        .font(.system(size: 14, weight: .semibold, design: .rounded))
+                        .foregroundStyle(AppTheme.secondaryText)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                }
+                .buttonStyle(.plain)
             }
 
             VStack(spacing: 14) {
@@ -179,24 +167,27 @@ struct HomeView: View {
                     HStack(spacing: 14) {
                         SleepMetricCard(
                             title: "入睡",
-                            value: appViewModel.dailyRecord.sleepRecord.bedtimePreviousNight?.formatted(date: .omitted, time: .shortened) ?? "记录",
+                            value: appViewModel.dailyRecord.sleepRecord.bedtimePreviousNight?.displayClockTime,
                             accent: .purple
                         )
 
                         SleepMetricCard(
                             title: "起床",
-                            value: appViewModel.dailyRecord.sleepRecord.wakeTimeCurrentDay?.formatted(date: .omitted, time: .shortened) ?? "记录",
-                            accent: AppTheme.accent
+                            value: appViewModel.dailyRecord.sleepRecord.wakeTimeCurrentDay?.displayClockTime,
+                            accent: .purple
                         )
                     }
                 }
                 .buttonStyle(.plain)
 
                 HStack {
-                    Text(durationText)
-                        .font(.system(size: 28, weight: .bold, design: .rounded))
-                        .foregroundStyle(AppTheme.primaryText)
+                    Text("总睡眠时长")
+                        .font(.system(size: 15, weight: .semibold, design: .rounded))
+                        .foregroundStyle(AppTheme.secondaryText)
                     Spacer()
+                    Text(durationText)
+                        .font(.system(size: 18, weight: .bold, design: .rounded))
+                        .foregroundStyle(durationText == "无记录" ? AppTheme.secondaryText : AppTheme.primaryText)
                 }
                 .padding(.horizontal, 6)
             }
@@ -211,23 +202,39 @@ struct HomeView: View {
 
             LazyVGrid(columns: mealColumns, spacing: 14) {
                 ForEach(appViewModel.dailyRecord.meals) { meal in
-                    Button {
-                        guard appViewModel.canEditSelectedDate else { return }
-                        mealActionEntry = meal
+                    Menu {
+                        if UIImagePickerController.isSourceTypeAvailable(.camera) {
+                            Button("拍照") {
+                                openMealEditor(meal, with: .camera)
+                            }
+                        }
+                        Button("选择相册照片") {
+                            openMealEditor(meal, with: .photoLibrary)
+                        }
+                        Button("仅记录时间") {
+                            openMealEditor(meal, with: .timeOnly)
+                        }
+                        Button("跳过", role: .destructive) {
+                            Task { await appViewModel.skipMeal(meal) }
+                        }
                     } label: {
-                        MealCard(entry: meal)
+                        MealCard(entry: meal, recordDate: appViewModel.selectedDate)
                     }
                     .buttonStyle(.plain)
                     .disabled(!appViewModel.canEditSelectedDate)
                 }
 
                 Button {
-                    mealActionEntry = MealEntry(
+                    editingMealContext = MealEditorContext(
+                        entry: MealEntry(
                         mealKind: .custom,
                         customTitle: "加餐",
                         status: .logged,
                         time: appViewModel.selectedDate.settingTime(hour: 15, minute: 0),
                         photoURL: nil
+                    )
+                        ,
+                        preferredSource: .timeOnly
                     )
                 } label: {
                     AddMealCard()
@@ -253,12 +260,14 @@ struct HomeView: View {
                 if appViewModel.dailyRecord.showers.isEmpty {
                     HStack {
                         Spacer()
-                        Text("--")
-                            .font(.system(size: 26, weight: .bold, design: .rounded))
+                        Text("无记录")
+                            .font(.system(size: 18, weight: .bold, design: .rounded))
                             .foregroundStyle(AppTheme.secondaryText)
                         Spacer()
                     }
-                    .padding(22)
+                    .padding(24)
+                    .background(Color.white.opacity(0.54))
+                    .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
                 } else {
                     ForEach(appViewModel.dailyRecord.showers) { shower in
                         Button {
@@ -287,7 +296,7 @@ struct HomeView: View {
 
     private var durationText: String {
         guard let duration = appViewModel.dailyRecord.sleepRecord.duration else {
-            return "--"
+            return "无记录"
         }
         let hours = Int(duration) / 3600
         let minutes = Int(duration) % 3600 / 60
@@ -295,13 +304,13 @@ struct HomeView: View {
     }
 
     private func formattedSun(_ date: Date?) -> String {
-        date?.formatted(date: .omitted, time: .shortened) ?? "--:--"
+        date?.displayClockTime ?? "--:--"
     }
 
-    private func openMealEditor(with source: MealCaptureMode) {
-        guard let mealActionEntry else { return }
-        editingMealContext = MealEditorContext(entry: mealActionEntry, preferredSource: source)
-        self.mealActionEntry = nil
+    private func openMealEditor(_ meal: MealEntry, with source: MealCaptureMode) {
+        DispatchQueue.main.async {
+            editingMealContext = MealEditorContext(entry: meal, preferredSource: source)
+        }
     }
 }
 
@@ -329,6 +338,8 @@ private struct SunMetricCard: View {
                 Text(value)
                     .font(.system(size: 24, weight: .bold, design: .rounded))
                     .foregroundStyle(AppTheme.primaryText)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
             }
             Spacer()
         }
@@ -341,7 +352,7 @@ private struct SunMetricCard: View {
 
 private struct SleepMetricCard: View {
     let title: String
-    let value: String
+    let value: String?
     let accent: Color
 
     var body: some View {
@@ -349,9 +360,20 @@ private struct SleepMetricCard: View {
             Text(title)
                 .font(.system(size: 14, weight: .semibold, design: .rounded))
                 .foregroundStyle(AppTheme.secondaryText)
-            Text(value)
-                .font(.system(size: 28, weight: .bold, design: .rounded))
-                .foregroundStyle(accent)
+
+            if let value {
+                Text(value)
+                    .font(.system(size: 28, weight: .bold, design: .rounded))
+                    .foregroundStyle(accent)
+            } else {
+                Text("无记录")
+                    .font(.system(size: 18, weight: .bold, design: .rounded))
+                    .foregroundStyle(AppTheme.secondaryText)
+                    .frame(maxWidth: .infinity, minHeight: 42, alignment: .leading)
+                    .padding(.horizontal, 12)
+                    .background(Color.black.opacity(0.05))
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(18)
@@ -362,25 +384,47 @@ private struct SleepMetricCard: View {
 
 private struct MealCard: View {
     let entry: MealEntry
+    let recordDate: Date
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Text(entry.displayTitle)
                     .font(.system(size: 18, weight: .bold, design: .rounded))
                     .foregroundStyle(AppTheme.primaryText)
                 Spacer()
-                if entry.photoURL != nil {
+                if thumbnailImage != nil {
                     Image(systemName: "photo")
                         .foregroundStyle(AppTheme.accent)
                 }
             }
 
-            Spacer(minLength: 0)
+            if let thumbnailImage {
+                Image(uiImage: thumbnailImage)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 88)
+                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    .overlay(alignment: .bottomLeading) {
+                        if effectiveStatus == .logged {
+                            Text(bottomText)
+                                .font(.system(size: 14, weight: .bold, design: .rounded))
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 7)
+                                .background(.black.opacity(0.42))
+                                .clipShape(Capsule())
+                                .padding(10)
+                        }
+                    }
+            } else {
+                Spacer(minLength: 0)
 
-            Text(bottomText)
-                .font(.system(size: 20, weight: .bold, design: .rounded))
-                .foregroundStyle(statusColor)
+                Text(bottomText)
+                    .font(.system(size: 20, weight: .bold, design: .rounded))
+                    .foregroundStyle(statusColor)
+            }
         }
         .padding(18)
         .frame(minHeight: 132, alignment: .topLeading)
@@ -388,24 +432,24 @@ private struct MealCard: View {
         .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .stroke(entry.status == .skipped ? AppTheme.warning.opacity(0.35) : AppTheme.border, lineWidth: 1)
+                .stroke(effectiveStatus == .skipped ? AppTheme.warning.opacity(0.35) : AppTheme.border, lineWidth: 1)
         )
         .shadow(color: AppTheme.shadow.opacity(0.7), radius: 16, x: 0, y: 10)
     }
 
     private var bottomText: String {
-        switch entry.status {
+        switch effectiveStatus {
         case .empty:
-            return "--"
+            return "无记录"
         case .logged:
-            return entry.time?.formatted(date: .omitted, time: .shortened) ?? "--"
+            return entry.time?.displayClockTime ?? "无记录"
         case .skipped:
             return "跳过"
         }
     }
 
     private var statusColor: Color {
-        switch entry.status {
+        switch effectiveStatus {
         case .empty: AppTheme.secondaryText
         case .logged: AppTheme.primaryText
         case .skipped: AppTheme.warning
@@ -413,11 +457,20 @@ private struct MealCard: View {
     }
 
     private var backgroundColor: Color {
-        switch entry.status {
+        switch effectiveStatus {
         case .empty: Color.white.opacity(0.84)
         case .logged: AppTheme.accentSoft.opacity(0.92)
         case .skipped: AppTheme.warning.opacity(0.12)
         }
+    }
+
+    private var thumbnailImage: UIImage? {
+        guard let photoURL = entry.photoURL else { return nil }
+        return UIImage(contentsOfFile: photoURL)
+    }
+
+    private var effectiveStatus: MealStatus {
+        entry.effectiveStatus(on: recordDate)
     }
 }
 

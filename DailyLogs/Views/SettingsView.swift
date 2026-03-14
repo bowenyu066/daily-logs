@@ -3,7 +3,7 @@ import SwiftUI
 struct SettingsView: View {
     @EnvironmentObject private var appViewModel: AppViewModel
     @State private var showingTargetBedtime = false
-    @State private var showingAddMealSlot = false
+    @State private var showingMealSlots = false
 
     var body: some View {
         NavigationStack {
@@ -28,10 +28,9 @@ struct SettingsView: View {
                     Task { await appViewModel.updateBedtimeSchedule(schedule) }
                 }
             }
-            .sheet(isPresented: $showingAddMealSlot) {
-                AddCustomMealSlotSheet { title in
-                    Task { await appViewModel.addDefaultMealSlot(title: title) }
-                }
+            .sheet(isPresented: $showingMealSlots) {
+                DefaultMealSlotsSheet()
+                    .environmentObject(appViewModel)
             }
         }
     }
@@ -88,41 +87,41 @@ struct SettingsView: View {
     }
 
     private var defaultMealsCard: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            SectionHeader(
-                title: "默认餐次",
-                subtitle: nil,
-                actionTitle: "添加"
-            ) {
-                showingAddMealSlot = true
-            }
-
-            ForEach(appViewModel.preferences.defaultMealSlots) { slot in
+        Button {
+            showingMealSlots = true
+        } label: {
+            VStack(alignment: .leading, spacing: 14) {
                 HStack {
-                    Text(slot.title)
-                        .font(.system(size: 16, weight: .semibold, design: .rounded))
+                    Text("默认餐次")
+                        .font(.system(size: 18, weight: .bold, design: .rounded))
                         .foregroundStyle(AppTheme.primaryText)
                     Spacer()
-                    if slot.isDefault {
-                        Text("默认")
-                            .font(.system(size: 12, weight: .bold, design: .rounded))
-                            .foregroundStyle(AppTheme.accent)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 6)
-                            .background(AppTheme.accentSoft)
-                            .clipShape(Capsule())
-                    } else {
-                        Button("删除") {
-                            Task { await appViewModel.deleteDefaultMealSlot(slot) }
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(AppTheme.secondaryText)
+                }
+
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(appViewModel.preferences.defaultMealSlots) { slot in
+                            Text(slot.title)
+                                .font(.system(size: 15, weight: .semibold, design: .rounded))
+                                .foregroundStyle(slot.isDefault ? AppTheme.accent : AppTheme.primaryText)
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 10)
+                                .background(slot.isDefault ? AppTheme.accentSoft : Color.white)
+                                .clipShape(Capsule())
+                                .overlay(
+                                    Capsule()
+                                        .stroke(slot.isDefault ? AppTheme.accentSoft : AppTheme.border, lineWidth: 1)
+                                )
                         }
-                        .font(.system(size: 13, weight: .bold, design: .rounded))
-                        .foregroundStyle(AppTheme.warning)
                     }
                 }
-                .padding(.vertical, 4)
             }
         }
-        .padding(22)
+        .buttonStyle(.plain)
+        .padding(18)
         .appCardStyle()
     }
 

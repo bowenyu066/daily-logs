@@ -37,6 +37,13 @@ extension Date {
         let weekday = Calendar.current.component(.weekday, from: self)
         return weekday == 1 ? 7 : weekday - 1
     }
+
+    var displayClockTime: String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "HH:mm"
+        return formatter.string(from: self)
+    }
 }
 
 extension DateComponents {
