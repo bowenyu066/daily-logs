@@ -27,6 +27,8 @@ targets:
     platform: iOS
     sources:
       - path: DailyLogs
+    resources:
+      - path: DailyLogs/Resources/Assets.xcassets
     dependencies:
       - package: Firebase
         product: FirebaseCore
