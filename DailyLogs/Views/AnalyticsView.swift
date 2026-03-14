@@ -651,7 +651,7 @@ private struct SleepIntervalChart: View {
                     }
                 }
                 .frame(height: compact ? 210 : 330)
-                .chartYScale(domain: (42 * 60)...(18 * 60))
+                .chartYScale(domain: (18 * 60)...(42 * 60))
                 .chartYAxis {
                     AxisMarks(position: .leading, values: stride(from: 18 * 60, through: 42 * 60, by: 240).map(Double.init)) { value in
                         AxisGridLine()
