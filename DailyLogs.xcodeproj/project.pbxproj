@@ -1,0 +1,537 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		0F4D96EB490F357AA03163DB /* AuthGateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0CAE3F01F1BDE18FCC36472 /* AuthGateView.swift */; };
+		2C14620AD9C4B1DF01917190 /* DatePickerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = D93232686CA86483D4885BF9 /* DatePickerSheet.swift */; };
+		3110D21E6C502FB22566E967 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5472D45C0BFA14D1EE95FC70 /* SettingsView.swift */; };
+		33EE19C380FDBA8C2032C9D4 /* SleepEditorSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF5762DCFE4B315E3833D8BC /* SleepEditorSheet.swift */; };
+		37488E578F0831EDC367F502 /* DailyLogsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36526958B7B61CD2ECE3F26D /* DailyLogsTests.swift */; };
+		3F0A3F64BDF1AF401997CFD1 /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF0B19B41CFCCC70905BDEFD /* MainTabView.swift */; };
+		54428D63B958275E3244C408 /* ShowerEditorSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1952A565E83EBA9DBEAAB3EB /* ShowerEditorSheet.swift */; };
+		602BFF12A72316CB2C6715B5 /* AppTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5FE9D45ED272B7C3741130F /* AppTheme.swift */; };
+		6198659370A6DC59287FCEFB /* TargetBedtimeSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24911E06DE213238FD9EC904 /* TargetBedtimeSheet.swift */; };
+		94617C54D35326DF8699B4DC /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F39D33BAEB12FE282E58CCEC /* HomeView.swift */; };
+		A4C4FA79F7F4B8B95326DEA5 /* AppViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87050F5756327B4F773FB04E /* AppViewModel.swift */; };
+		A60312D032FE078B28B9F654 /* Date+Helpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10E071B07E641BCA90A6676 /* Date+Helpers.swift */; };
+		A689B0A49862ECE1CD6E0896 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3EB0253F59127B97E282CB47 /* Models.swift */; };
+		BBEB885C4F2E713F4B1045E8 /* DailyLogsApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9A87F79CBFFD14BE517E83B /* DailyLogsApp.swift */; };
+		C77BDDD8C95D3A1F9665A7D7 /* AddCustomMealSlotSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DAD86FDF83B92E47626EE74 /* AddCustomMealSlotSheet.swift */; };
+		C856BAB61B27C87C412FA4E4 /* Services.swift in Sources */ = {isa = PBXBuildFile; fileRef = 829D2D327EEAB6E3CF6799DA /* Services.swift */; };
+		D8F616382DD0712C9476C738 /* AnalyticsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0441CFAFE3F0A7AF7E9C46A /* AnalyticsView.swift */; };
+		D945D660D8D556FA0B7E6900 /* MealEditorSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 68D65F2FD02AA371BF0CB871 /* MealEditorSheet.swift */; };
+		DEAFBF139E59BF3CD1C66C1A /* SectionHeader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 432E478CA32978E10CBE8E93 /* SectionHeader.swift */; };
+		EBAD80E1B4B1CBBB28DBAC22 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12C02AFAD5427640EE2B07E9 /* RootView.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		1806505184F73AEC807113A6 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 670D04AF0661FF9C5D6E1007 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = C5251B84CC15BB41A0582704;
+			remoteInfo = DailyLogs;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		12C02AFAD5427640EE2B07E9 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
+		1952A565E83EBA9DBEAAB3EB /* ShowerEditorSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShowerEditorSheet.swift; sourceTree = "<group>"; };
+		24911E06DE213238FD9EC904 /* TargetBedtimeSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TargetBedtimeSheet.swift; sourceTree = "<group>"; };
+		36526958B7B61CD2ECE3F26D /* DailyLogsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyLogsTests.swift; sourceTree = "<group>"; };
+		3EB0253F59127B97E282CB47 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
+		432E478CA32978E10CBE8E93 /* SectionHeader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SectionHeader.swift; sourceTree = "<group>"; };
+		5472D45C0BFA14D1EE95FC70 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		56BE35AFD454230D435DDF21 /* DailyLogs.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = DailyLogs.entitlements; sourceTree = "<group>"; };
+		68D65F2FD02AA371BF0CB871 /* MealEditorSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MealEditorSheet.swift; sourceTree = "<group>"; };
+		829D2D327EEAB6E3CF6799DA /* Services.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services.swift; sourceTree = "<group>"; };
+		87050F5756327B4F773FB04E /* AppViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppViewModel.swift; sourceTree = "<group>"; };
+		9DAD86FDF83B92E47626EE74 /* AddCustomMealSlotSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddCustomMealSlotSheet.swift; sourceTree = "<group>"; };
+		B9A87F79CBFFD14BE517E83B /* DailyLogsApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyLogsApp.swift; sourceTree = "<group>"; };
+		BF5762DCFE4B315E3833D8BC /* SleepEditorSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepEditorSheet.swift; sourceTree = "<group>"; };
+		C9487DDA529E9809A07AD9D7 /* DailyLogs.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = DailyLogs.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		D0441CFAFE3F0A7AF7E9C46A /* AnalyticsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalyticsView.swift; sourceTree = "<group>"; };
+		D93232686CA86483D4885BF9 /* DatePickerSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatePickerSheet.swift; sourceTree = "<group>"; };
+		E0CAE3F01F1BDE18FCC36472 /* AuthGateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthGateView.swift; sourceTree = "<group>"; };
+		E6AB97CC73CE19F1AA905122 /* DailyLogsTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = DailyLogsTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		EF0B19B41CFCCC70905BDEFD /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabView.swift; sourceTree = "<group>"; };
+		F10E071B07E641BCA90A6676 /* Date+Helpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Date+Helpers.swift"; sourceTree = "<group>"; };
+		F39D33BAEB12FE282E58CCEC /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
+		F5FE9D45ED272B7C3741130F /* AppTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppTheme.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		004E7AF789649DDDCA8353E3 /* Components */ = {
+			isa = PBXGroup;
+			children = (
+				432E478CA32978E10CBE8E93 /* SectionHeader.swift */,
+			);
+			path = Components;
+			sourceTree = "<group>";
+		};
+		0CC47474B273CF9308CAFCB6 /* DailyLogsTests */ = {
+			isa = PBXGroup;
+			children = (
+				36526958B7B61CD2ECE3F26D /* DailyLogsTests.swift */,
+			);
+			path = DailyLogsTests;
+			sourceTree = "<group>";
+		};
+		3BB5E071F457E3E2AB20F23D /* DailyLogs */ = {
+			isa = PBXGroup;
+			children = (
+				88A6249B717DF64C42E47D1E /* App */,
+				8A8F360570C9A653EDBE3645 /* Models */,
+				46614AC266287CC6404D4B58 /* Resources */,
+				9E86BFC7AE6894EBAF365180 /* Services */,
+				7922AA3FDEFEAEB0A1B0201B /* ViewModels */,
+				6C3B89BFF44251B5F3CFDC57 /* Views */,
+			);
+			path = DailyLogs;
+			sourceTree = "<group>";
+		};
+		46614AC266287CC6404D4B58 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				56BE35AFD454230D435DDF21 /* DailyLogs.entitlements */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		6C3B89BFF44251B5F3CFDC57 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				D0441CFAFE3F0A7AF7E9C46A /* AnalyticsView.swift */,
+				E0CAE3F01F1BDE18FCC36472 /* AuthGateView.swift */,
+				F39D33BAEB12FE282E58CCEC /* HomeView.swift */,
+				EF0B19B41CFCCC70905BDEFD /* MainTabView.swift */,
+				5472D45C0BFA14D1EE95FC70 /* SettingsView.swift */,
+				004E7AF789649DDDCA8353E3 /* Components */,
+				DD3A8888A4A89700C1D5DDBF /* Sheets */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		7922AA3FDEFEAEB0A1B0201B /* ViewModels */ = {
+			isa = PBXGroup;
+			children = (
+				87050F5756327B4F773FB04E /* AppViewModel.swift */,
+			);
+			path = ViewModels;
+			sourceTree = "<group>";
+		};
+		88A6249B717DF64C42E47D1E /* App */ = {
+			isa = PBXGroup;
+			children = (
+				F5FE9D45ED272B7C3741130F /* AppTheme.swift */,
+				B9A87F79CBFFD14BE517E83B /* DailyLogsApp.swift */,
+				12C02AFAD5427640EE2B07E9 /* RootView.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		8A8F360570C9A653EDBE3645 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				F10E071B07E641BCA90A6676 /* Date+Helpers.swift */,
+				3EB0253F59127B97E282CB47 /* Models.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		9E86BFC7AE6894EBAF365180 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				829D2D327EEAB6E3CF6799DA /* Services.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		9F5F7B822640B65BEFBAE3BC = {
+			isa = PBXGroup;
+			children = (
+				3BB5E071F457E3E2AB20F23D /* DailyLogs */,
+				0CC47474B273CF9308CAFCB6 /* DailyLogsTests */,
+				C6B117B90141ED880B000A5B /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		C6B117B90141ED880B000A5B /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				C9487DDA529E9809A07AD9D7 /* DailyLogs.app */,
+				E6AB97CC73CE19F1AA905122 /* DailyLogsTests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		DD3A8888A4A89700C1D5DDBF /* Sheets */ = {
+			isa = PBXGroup;
+			children = (
+				9DAD86FDF83B92E47626EE74 /* AddCustomMealSlotSheet.swift */,
+				D93232686CA86483D4885BF9 /* DatePickerSheet.swift */,
+				68D65F2FD02AA371BF0CB871 /* MealEditorSheet.swift */,
+				1952A565E83EBA9DBEAAB3EB /* ShowerEditorSheet.swift */,
+				BF5762DCFE4B315E3833D8BC /* SleepEditorSheet.swift */,
+				24911E06DE213238FD9EC904 /* TargetBedtimeSheet.swift */,
+			);
+			path = Sheets;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		7F1033AE13DD96DE81814736 /* DailyLogsTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A9F37AB66C2AACA05716D5B4 /* Build configuration list for PBXNativeTarget "DailyLogsTests" */;
+			buildPhases = (
+				42B5368147DEFBC752C998B2 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				7BB7888F490F1F38385F981B /* PBXTargetDependency */,
+			);
+			name = DailyLogsTests;
+			packageProductDependencies = (
+			);
+			productName = DailyLogsTests;
+			productReference = E6AB97CC73CE19F1AA905122 /* DailyLogsTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		C5251B84CC15BB41A0582704 /* DailyLogs */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = EFFDF0725B43929A43D7CF93 /* Build configuration list for PBXNativeTarget "DailyLogs" */;
+			buildPhases = (
+				01060AA82A5D71E809CC6AEA /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = DailyLogs;
+			packageProductDependencies = (
+			);
+			productName = DailyLogs;
+			productReference = C9487DDA529E9809A07AD9D7 /* DailyLogs.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		670D04AF0661FF9C5D6E1007 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+			};
+			buildConfigurationList = D4929F87BCBFBB48CED770A4 /* Build configuration list for PBXProject "DailyLogs" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 9F5F7B822640B65BEFBAE3BC;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				C5251B84CC15BB41A0582704 /* DailyLogs */,
+				7F1033AE13DD96DE81814736 /* DailyLogsTests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		01060AA82A5D71E809CC6AEA /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				C77BDDD8C95D3A1F9665A7D7 /* AddCustomMealSlotSheet.swift in Sources */,
+				D8F616382DD0712C9476C738 /* AnalyticsView.swift in Sources */,
+				602BFF12A72316CB2C6715B5 /* AppTheme.swift in Sources */,
+				A4C4FA79F7F4B8B95326DEA5 /* AppViewModel.swift in Sources */,
+				0F4D96EB490F357AA03163DB /* AuthGateView.swift in Sources */,
+				BBEB885C4F2E713F4B1045E8 /* DailyLogsApp.swift in Sources */,
+				A60312D032FE078B28B9F654 /* Date+Helpers.swift in Sources */,
+				2C14620AD9C4B1DF01917190 /* DatePickerSheet.swift in Sources */,
+				94617C54D35326DF8699B4DC /* HomeView.swift in Sources */,
+				3F0A3F64BDF1AF401997CFD1 /* MainTabView.swift in Sources */,
+				D945D660D8D556FA0B7E6900 /* MealEditorSheet.swift in Sources */,
+				A689B0A49862ECE1CD6E0896 /* Models.swift in Sources */,
+				EBAD80E1B4B1CBBB28DBAC22 /* RootView.swift in Sources */,
+				DEAFBF139E59BF3CD1C66C1A /* SectionHeader.swift in Sources */,
+				C856BAB61B27C87C412FA4E4 /* Services.swift in Sources */,
+				3110D21E6C502FB22566E967 /* SettingsView.swift in Sources */,
+				54428D63B958275E3244C408 /* ShowerEditorSheet.swift in Sources */,
+				33EE19C380FDBA8C2032C9D4 /* SleepEditorSheet.swift in Sources */,
+				6198659370A6DC59287FCEFB /* TargetBedtimeSheet.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		42B5368147DEFBC752C998B2 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				37488E578F0831EDC367F502 /* DailyLogsTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		7BB7888F490F1F38385F981B /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = C5251B84CC15BB41A0582704 /* DailyLogs */;
+			targetProxy = 1806505184F73AEC807113A6 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		2B6D935C1406F298B299F1F1 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = DailyLogs/Resources/DailyLogs.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_NAME = DailyLogs;
+				SDKROOT = iphoneos;
+				SUPPORTS_MACCATALYST = NO;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+		53EC31978926EFE9833AF857 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/DailyLogs.app/DailyLogs";
+			};
+			name = Debug;
+		};
+		76861B3469541013CD7CE5EE /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSCameraUsageDescription = "用于为餐食记录拍照。";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "用于显示你所在地区的日出日落时间。";
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "用于保存你拍摄的餐食照片。";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "用于从相册选择餐食照片。";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 1.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.flyfishyu.DailyLogs;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+		8215960220238D73CA789552 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = DailyLogs/Resources/DailyLogs.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_NAME = DailyLogs;
+				SDKROOT = iphoneos;
+				SUPPORTS_MACCATALYST = NO;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		A0AAA4286E9061E60C691C1F /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSCameraUsageDescription = "用于为餐食记录拍照。";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "用于显示你所在地区的日出日落时间。";
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "用于保存你拍摄的餐食照片。";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "用于从相册选择餐食照片。";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 1.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.flyfishyu.DailyLogs;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		E4D3BB3B3002DF2D023E94A4 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/DailyLogs.app/DailyLogs";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		A9F37AB66C2AACA05716D5B4 /* Build configuration list for PBXNativeTarget "DailyLogsTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				53EC31978926EFE9833AF857 /* Debug */,
+				E4D3BB3B3002DF2D023E94A4 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		D4929F87BCBFBB48CED770A4 /* Build configuration list for PBXProject "DailyLogs" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A0AAA4286E9061E60C691C1F /* Debug */,
+				76861B3469541013CD7CE5EE /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		EFFDF0725B43929A43D7CF93 /* Build configuration list for PBXNativeTarget "DailyLogs" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				8215960220238D73CA789552 /* Debug */,
+				2B6D935C1406F298B299F1F1 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 670D04AF0661FF9C5D6E1007 /* Project object */;
+}
