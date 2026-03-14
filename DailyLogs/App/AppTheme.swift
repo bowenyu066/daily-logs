@@ -42,6 +42,11 @@ enum AppTheme {
             ? UIColor(red: 0.17, green: 0.24, blue: 0.34, alpha: 1)
             : UIColor(red: 0.86, green: 0.91, blue: 0.97, alpha: 1)
     })
+    static let mealLoggedBackground = Color(uiColor: UIColor { trait in
+        trait.userInterfaceStyle == .dark
+            ? UIColor(red: 0.17, green: 0.28, blue: 0.20, alpha: 1)
+            : UIColor(red: 0.85, green: 0.93, blue: 0.84, alpha: 1)
+    })
     static let sunriseAccent = Color(red: 0.86, green: 0.56, blue: 0.16)
     static let sleepAccent = Color(red: 0.45, green: 0.54, blue: 0.88)
     static let wakeAccent = Color(red: 0.90, green: 0.66, blue: 0.26)

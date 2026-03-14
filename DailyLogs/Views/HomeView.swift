@@ -89,6 +89,7 @@ struct HomeView: View {
                     }
                 )
                 .presentationDetents([.fraction(0.42)])
+                .presentationBackground(AppTheme.background)
             }
             .sheet(isPresented: $showingNewShower) {
                 ShowerEditorSheet(
@@ -101,6 +102,7 @@ struct HomeView: View {
                     onDelete: nil
                 )
                 .presentationDetents([.fraction(0.42)])
+                .presentationBackground(AppTheme.background)
             }
             .alert("提示", isPresented: .constant(appViewModel.errorMessage != nil), actions: {
                 Button("知道了") {
@@ -546,7 +548,7 @@ private struct MealCard: View {
     private var backgroundColor: Color {
         switch effectiveStatus {
         case .empty: AppTheme.surface
-        case .logged: AppTheme.accentSoft.opacity(0.92)
+        case .logged: AppTheme.mealLoggedBackground
         case .skipped: AppTheme.warning.opacity(0.12)
         }
     }
