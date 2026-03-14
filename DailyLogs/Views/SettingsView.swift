@@ -1,6 +1,8 @@
 import SwiftUI
+import UIKit
 
 struct SettingsView: View {
+    @Environment(\.openURL) private var openURL
     @EnvironmentObject private var appViewModel: AppViewModel
     @State private var showingTargetBedtime = false
     @State private var showingMealSlots = false
@@ -100,9 +102,20 @@ struct SettingsView: View {
             SettingsRow(title: "目标入睡", value: appViewModel.bedtimeScheduleSummary()) {
                 showingTargetBedtime = true
             }
-            SettingsRow(title: "位置权限", value: permissionText) {
-                appViewModel.requestLocationAccess()
-            }
+            LocationPermissionToggleRow(
+                isOn: Binding(
+                    get: { appViewModel.preferences.locationPermissionState == .authorized },
+                    set: { isOn in
+                        if isOn {
+                            appViewModel.requestLocationAccess()
+                        } else if appViewModel.preferences.locationPermissionState == .authorized {
+                            if let url = URL(string: UIApplication.openSettingsURLString) {
+                                openURL(url)
+                            }
+                        }
+                    }
+                )
+            )
         }
         .padding(22)
         .appCardStyle()
@@ -164,14 +177,6 @@ struct SettingsView: View {
         .appCardStyle()
     }
 
-    private var permissionText: String {
-        switch appViewModel.preferences.locationPermissionState {
-        case .authorized: "已开启"
-        case .denied: "已拒绝"
-        case .notDetermined: "未设置"
-        }
-    }
-
     private var accountSubtitle: String {
         if appViewModel.user?.isGuest == true {
             return "游客模式，本地保存"
@@ -224,6 +229,23 @@ private struct SettingsStaticRow: View {
             Image(systemName: "chevron.up.chevron.down")
                 .font(.system(size: 11, weight: .bold))
                 .foregroundStyle(AppTheme.secondaryText)
+        }
+        .padding(.vertical, 2)
+    }
+}
+
+private struct LocationPermissionToggleRow: View {
+    @Binding var isOn: Bool
+
+    var body: some View {
+        HStack {
+            Text("位置权限")
+                .font(.system(size: 16, weight: .semibold, design: .rounded))
+                .foregroundStyle(AppTheme.primaryText)
+            Spacer()
+            Toggle("", isOn: $isOn)
+                .labelsHidden()
+                .tint(AppTheme.accent)
         }
         .padding(.vertical, 2)
     }

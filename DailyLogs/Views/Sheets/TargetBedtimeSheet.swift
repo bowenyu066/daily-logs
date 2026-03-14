@@ -15,7 +15,7 @@ struct TargetBedtimeSheet: View {
     var body: some View {
         VStack(spacing: 20) {
             headerBar
-                .padding(.top, 10)
+                .padding(.top, 30)
 
             HStack(spacing: 10) {
                 ForEach(Weekday.allCases) { weekday in

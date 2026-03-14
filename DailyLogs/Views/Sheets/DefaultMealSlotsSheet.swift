@@ -8,7 +8,7 @@ struct DefaultMealSlotsSheet: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             headerBar
-                .padding(.top, 8)
+                .padding(.top, 26)
 
             TagFlowLayout(spacing: 8, lineSpacing: 10) {
                 ForEach(appViewModel.preferences.defaultMealSlots) { slot in
