@@ -12,6 +12,7 @@ final class AppViewModel: ObservableObject {
     @Published private(set) var allRecords: [DailyRecord] = []
     @Published private(set) var preferences: UserPreferences
     @Published var analyticsRange: AnalyticsRange = .week
+    @Published var analyticsCustomDateRange: ClosedRange<Date> = Date().startOfDay.adding(days: -29)...Date().startOfDay
     @Published private(set) var isBootstrapped = false
     @Published var errorMessage: String?
 
@@ -86,7 +87,11 @@ final class AppViewModel: ObservableObject {
     }
 
     var analyticsSummary: AnalyticsSummary {
-        AnalyticsCalculator.build(records: allRecords, range: analyticsRange)
+        AnalyticsCalculator.build(
+            records: allRecords,
+            range: analyticsRange,
+            customRange: analyticsRange == .custom ? analyticsCustomDateRange : nil
+        )
     }
 
     var preferredColorScheme: ColorScheme? {
@@ -108,6 +113,7 @@ final class AppViewModel: ObservableObject {
             preferences = try preferencesStore.loadPreferences(userID: user?.userID)
             if let user {
                 selectedDate = max(selectedDate, user.createdAt.startOfDay)
+                analyticsCustomDateRange = defaultAnalyticsCustomRange(startingAt: user.createdAt)
                 try seedDemoDataIfNeeded(for: user.userID)
                 try loadAllRecords(for: user.userID)
                 await refreshFromCloudIfNeeded(for: user)
@@ -124,6 +130,7 @@ final class AppViewModel: ObservableObject {
             user = try authService.handleAppleSignIn(result: result)
             preferences = try preferencesStore.loadPreferences(userID: user?.userID)
             selectedDate = max(Date().startOfDay, availableStartDate)
+            analyticsCustomDateRange = defaultAnalyticsCustomRange(startingAt: availableStartDate)
             try seedDemoDataIfNeeded(for: user?.userID ?? "")
             try loadAllRecords(for: user?.userID ?? "")
             if let user {
@@ -140,6 +147,7 @@ final class AppViewModel: ObservableObject {
             user = try authService.continueAsGuest()
             preferences = try preferencesStore.loadPreferences(userID: user?.userID)
             selectedDate = max(Date().startOfDay, availableStartDate)
+            analyticsCustomDateRange = defaultAnalyticsCustomRange(startingAt: availableStartDate)
             try seedDemoDataIfNeeded(for: user?.userID ?? "")
             try loadAllRecords(for: user?.userID ?? "")
             if let user {
@@ -387,6 +395,17 @@ final class AppViewModel: ObservableObject {
         preferences.bedtimeSchedule.target(for: selectedDate)?.displayTime ?? "--:--"
     }
 
+    func updateAnalyticsRange(_ range: AnalyticsRange) {
+        analyticsRange = range
+    }
+
+    func updateAnalyticsCustomDateRange(_ range: ClosedRange<Date>) {
+        let lower = max(range.lowerBound.startOfDay, availableStartDate)
+        let upper = min(range.upperBound.startOfDay, Date().startOfDay)
+        analyticsCustomDateRange = min(lower, upper)...max(lower, upper)
+        analyticsRange = .custom
+    }
+
     func bedtimeScheduleSummary() -> String {
         preferences.bedtimeSchedule.summary()
     }
@@ -600,5 +619,10 @@ final class AppViewModel: ObservableObject {
         } catch {
             errorMessage = "云端记录同步失败：\(error.localizedDescription)"
         }
+    }
+
+    private func defaultAnalyticsCustomRange(startingAt start: Date) -> ClosedRange<Date> {
+        let lower = max(start.startOfDay, Date().startOfDay.adding(days: -29))
+        return lower...Date().startOfDay
     }
 }

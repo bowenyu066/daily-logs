@@ -401,22 +401,33 @@ struct AnalyticsCustomization: Codable, Equatable {
             .mealCompletion,
             .averageShowers
         ],
-        visibleWidgets: []
+        visibleWidgets: [.sleepTrend]
     )
 }
 
-enum AnalyticsRange: Int, CaseIterable, Identifiable {
-    case week = 7
-    case month = 30
-    case quarter = 90
+enum AnalyticsRange: String, Codable, CaseIterable, Identifiable {
+    case week
+    case month
+    case quarter
+    case custom
 
-    var id: Int { rawValue }
+    var id: String { rawValue }
 
     var title: String {
         switch self {
         case .week: "7天"
         case .month: "30天"
         case .quarter: "90天"
+        case .custom: "自定义"
+        }
+    }
+
+    var dayCount: Int {
+        switch self {
+        case .week: 7
+        case .month: 30
+        case .quarter: 90
+        case .custom: 30
         }
     }
 }

@@ -449,14 +449,24 @@ struct AnalyticsSummary {
 }
 
 enum AnalyticsCalculator {
-    static func build(records: [DailyRecord], range: AnalyticsRange) -> AnalyticsSummary {
+    static func build(records: [DailyRecord], range: AnalyticsRange, customRange: ClosedRange<Date>? = nil) -> AnalyticsSummary {
         let calendar = Calendar.current
         let endDate = calendar.startOfDay(for: .now)
-        let cutoff = endDate.adding(days: -(range.rawValue - 1))
-        let filtered = records.filter { $0.date >= cutoff && $0.date <= endDate }
+        let bounds: ClosedRange<Date> = {
+            if range == .custom, let customRange {
+                let lower = customRange.lowerBound.startOfDay
+                let upper = min(customRange.upperBound.startOfDay, endDate)
+                return lower...upper
+            }
+            let cutoff = endDate.adding(days: -(range.dayCount - 1))
+            return cutoff...endDate
+        }()
+        let filtered = records.filter { $0.date >= bounds.lowerBound && $0.date <= bounds.upperBound }
         let recordMap = Dictionary(uniqueKeysWithValues: filtered.map { ($0.date.startOfDay, $0) })
-        let days = stride(from: 0, through: range.rawValue - 1, by: 1).map { offset -> AnalyticsDayPoint in
-            let date = cutoff.adding(days: offset)
+        let daySpan = Calendar.current.dateComponents([.day], from: bounds.lowerBound, to: bounds.upperBound).day ?? 0
+        let totalDays = max(1, daySpan + 1)
+        let days = stride(from: 0, through: totalDays - 1, by: 1).map { offset -> AnalyticsDayPoint in
+            let date = bounds.lowerBound.adding(days: offset)
             guard let record = recordMap[date] else {
                 return AnalyticsDayPoint(
                     date: date,

@@ -31,14 +31,20 @@ struct NoopCloudSyncService: CloudSyncService {
 
 @MainActor
 final class FirebaseCloudSyncService: CloudSyncService {
-    private let db: Firestore?
-    private let storage: Storage?
     private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()
 
+    private var db: Firestore? {
+        FirebaseBootstrap.configureIfPossible()
+        return FirebaseBootstrap.isConfigured ? Firestore.firestore() : nil
+    }
+
+    private var storage: Storage? {
+        FirebaseBootstrap.configureIfPossible()
+        return FirebaseBootstrap.isConfigured ? Storage.storage() : nil
+    }
+
     init() {
-        db = FirebaseBootstrap.isConfigured ? Firestore.firestore() : nil
-        storage = FirebaseBootstrap.isConfigured ? Storage.storage() : nil
         encoder.dateEncodingStrategy = .iso8601
         decoder.dateDecodingStrategy = .iso8601
     }
