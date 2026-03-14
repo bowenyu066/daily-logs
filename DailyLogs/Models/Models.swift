@@ -296,12 +296,14 @@ struct UserPreferences: Codable, Equatable {
     var bedtimeSchedule: BedtimeSchedule = .default
     var locationPermissionState: LocationPermissionState = .notDetermined
     var appearanceMode: AppearanceMode = .system
+    var analyticsCustomization: AnalyticsCustomization = .default
 
     enum CodingKeys: String, CodingKey {
         case defaultMealSlots
         case bedtimeSchedule
         case locationPermissionState
         case appearanceMode
+        case analyticsCustomization
         case targetBedtime
     }
 
@@ -309,12 +311,14 @@ struct UserPreferences: Codable, Equatable {
         defaultMealSlots: [MealSlot] = MealSlot.defaults,
         bedtimeSchedule: BedtimeSchedule = .default,
         locationPermissionState: LocationPermissionState = .notDetermined,
-        appearanceMode: AppearanceMode = .system
+        appearanceMode: AppearanceMode = .system,
+        analyticsCustomization: AnalyticsCustomization = .default
     ) {
         self.defaultMealSlots = defaultMealSlots
         self.bedtimeSchedule = bedtimeSchedule
         self.locationPermissionState = locationPermissionState
         self.appearanceMode = appearanceMode
+        self.analyticsCustomization = analyticsCustomization
     }
 
     init(from decoder: any Decoder) throws {
@@ -322,6 +326,7 @@ struct UserPreferences: Codable, Equatable {
         defaultMealSlots = try container.decodeIfPresent([MealSlot].self, forKey: .defaultMealSlots) ?? MealSlot.defaults
         locationPermissionState = try container.decodeIfPresent(LocationPermissionState.self, forKey: .locationPermissionState) ?? .notDetermined
         appearanceMode = try container.decodeIfPresent(AppearanceMode.self, forKey: .appearanceMode) ?? .system
+        analyticsCustomization = try container.decodeIfPresent(AnalyticsCustomization.self, forKey: .analyticsCustomization) ?? .default
         if let bedtimeSchedule = try container.decodeIfPresent(BedtimeSchedule.self, forKey: .bedtimeSchedule) {
             self.bedtimeSchedule = bedtimeSchedule
         } else {
@@ -336,7 +341,68 @@ struct UserPreferences: Codable, Equatable {
         try container.encode(bedtimeSchedule, forKey: .bedtimeSchedule)
         try container.encode(locationPermissionState, forKey: .locationPermissionState)
         try container.encode(appearanceMode, forKey: .appearanceMode)
+        try container.encode(analyticsCustomization, forKey: .analyticsCustomization)
     }
+}
+
+enum AnalyticsMetricKind: String, Codable, CaseIterable, Identifiable {
+    case averageSleep
+    case averageWake
+    case averageBedtime
+    case mealCompletion
+    case averageShowers
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .averageSleep: "平均睡眠"
+        case .averageWake: "平均起床"
+        case .averageBedtime: "平均入睡"
+        case .mealCompletion: "三餐完成率"
+        case .averageShowers: "平均洗澡"
+        }
+    }
+}
+
+enum AnalyticsWidgetKind: String, Codable, CaseIterable, Identifiable {
+    case sleepTrend
+    case sleepDuration
+    case wakeTrend
+    case bedtimeTrend
+    case mealCompletion
+    case mealTiming
+    case showerTiming
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .sleepTrend: "睡眠趋势"
+        case .sleepDuration: "平均睡眠"
+        case .wakeTrend: "平均起床"
+        case .bedtimeTrend: "平均入睡"
+        case .mealCompletion: "三餐完成率"
+        case .mealTiming: "进餐时间"
+        case .showerTiming: "洗澡时间"
+        }
+    }
+}
+
+struct AnalyticsCustomization: Codable, Equatable {
+    var visibleMetrics: [AnalyticsMetricKind]
+    var visibleWidgets: [AnalyticsWidgetKind]
+
+    static let `default` = AnalyticsCustomization(
+        visibleMetrics: [
+            .averageSleep,
+            .averageWake,
+            .averageBedtime,
+            .mealCompletion,
+            .averageShowers
+        ],
+        visibleWidgets: []
+    )
 }
 
 enum AnalyticsRange: Int, CaseIterable, Identifiable {
@@ -355,12 +421,30 @@ enum AnalyticsRange: Int, CaseIterable, Identifiable {
     }
 }
 
-struct AnalyticsPoint: Identifiable, Equatable {
+struct AnalyticsDayPoint: Identifiable, Equatable {
     var id: Date { date }
     var date: Date
-    var sleepHours: Double
+    var sleepHours: Double?
+    var bedtimeMinutes: Double?
     var wakeMinutes: Double?
+    var sleepStartMinutes: Double?
+    var sleepEndMinutes: Double?
     var loggedMeals: Int
-    var skippedMeals: Int
+    var trackedMeals: Int
     var showers: Int
+}
+
+struct AnalyticsScatterPoint: Identifiable, Equatable {
+    var id: String
+    var date: Date
+    var minutes: Double
+}
+
+struct MealAnalyticsSeries: Identifiable, Equatable {
+    var id: String { key }
+    var key: String
+    var title: String
+    var completionRate: Double
+    var averageMinutes: Double?
+    var points: [AnalyticsScatterPoint]
 }

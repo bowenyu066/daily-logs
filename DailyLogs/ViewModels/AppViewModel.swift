@@ -208,6 +208,12 @@ final class AppViewModel: ObservableObject {
         await syncPreferencesToCloudIfNeeded()
     }
 
+    func updateAnalyticsCustomization(_ customization: AnalyticsCustomization) async {
+        preferences.analyticsCustomization = customization
+        persistPreferences()
+        await syncPreferencesToCloudIfNeeded()
+    }
+
     func saveMeal(_ entry: MealEntry, image: UIImage?) async {
         guard canEditSelectedDate else { return }
         var updatedEntry = entry

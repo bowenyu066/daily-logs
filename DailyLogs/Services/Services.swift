@@ -439,60 +439,136 @@ private extension Double {
 
 struct AnalyticsSummary {
     var averageSleepHours: Double
+    var averageBedtimeMinutes: Double?
     var averageWakeMinutes: Double?
-    var mealCompletionRate: Double
+    var defaultMealCompletionRate: Double
     var averageShowers: Double
-    var points: [AnalyticsPoint]
+    var days: [AnalyticsDayPoint]
+    var mealSeries: [MealAnalyticsSeries]
+    var showerPoints: [AnalyticsScatterPoint]
 }
 
 enum AnalyticsCalculator {
     static func build(records: [DailyRecord], range: AnalyticsRange) -> AnalyticsSummary {
         let calendar = Calendar.current
-        let cutoff = calendar.startOfDay(for: .now).adding(days: -(range.rawValue - 1))
-        let filtered = records
-            .filter { $0.date >= cutoff }
-            .sorted { $0.date < $1.date }
-
-        let points = filtered.map { record in
-            let sleepHours = (record.sleepRecord.duration ?? 0) / 3600
-            let wakeMinutes = record.sleepRecord.wakeTimeCurrentDay.map {
-                let comps = calendar.dateComponents([.hour, .minute], from: $0)
-                return Double((comps.hour ?? 0) * 60 + (comps.minute ?? 0))
+        let endDate = calendar.startOfDay(for: .now)
+        let cutoff = endDate.adding(days: -(range.rawValue - 1))
+        let filtered = records.filter { $0.date >= cutoff && $0.date <= endDate }
+        let recordMap = Dictionary(uniqueKeysWithValues: filtered.map { ($0.date.startOfDay, $0) })
+        let days = stride(from: 0, through: range.rawValue - 1, by: 1).map { offset -> AnalyticsDayPoint in
+            let date = cutoff.adding(days: offset)
+            guard let record = recordMap[date] else {
+                return AnalyticsDayPoint(
+                    date: date,
+                    sleepHours: nil,
+                    bedtimeMinutes: nil,
+                    wakeMinutes: nil,
+                    sleepStartMinutes: nil,
+                    sleepEndMinutes: nil,
+                    loggedMeals: 0,
+                    trackedMeals: 0,
+                    showers: 0
+                )
             }
+
             let loggedMeals = record.meals.filter { $0.effectiveStatus(on: record.date) == .logged }.count
-            let skippedMeals = record.meals.filter { $0.effectiveStatus(on: record.date) == .skipped }.count
-            return AnalyticsPoint(
-                date: record.date,
-                sleepHours: sleepHours,
-                wakeMinutes: wakeMinutes,
+            let sleepStartMinutes = record.sleepRecord.bedtimePreviousNight.map(chartMinutes)
+            let sleepEndMinutes = record.sleepRecord.wakeTimeCurrentDay.map(chartMinutes)
+
+            return AnalyticsDayPoint(
+                date: date,
+                sleepHours: record.sleepRecord.duration.map { $0 / 3600 },
+                bedtimeMinutes: record.sleepRecord.bedtimePreviousNight.map(clockMinutes),
+                wakeMinutes: record.sleepRecord.wakeTimeCurrentDay.map(clockMinutes),
+                sleepStartMinutes: sleepStartMinutes,
+                sleepEndMinutes: sleepEndMinutes,
                 loggedMeals: loggedMeals,
-                skippedMeals: skippedMeals,
+                trackedMeals: record.meals.count,
                 showers: record.showers.count
             )
         }
 
-        let averageSleepHours = points
-            .map(\.sleepHours)
-            .filter { $0 > 0 }
-            .average
-        let averageWakeMinutes = points.compactMap(\.wakeMinutes).averageOptional
+        let averageSleepHours = days.compactMap(\.sleepHours).averageOptional ?? 0
+        let averageBedtimeMinutes = days.compactMap(\.bedtimeMinutes).averageOptional
+        let averageWakeMinutes = days.compactMap(\.wakeMinutes).averageOptional
+        let averageShowers = days.map { Double($0.showers) }.average
 
-        let allTrackedMeals = Double(filtered.flatMap(\.meals).count)
-        let allLoggedMeals = Double(
-            filtered.flatMap { record in
-                record.meals.filter { $0.effectiveStatus(on: record.date) == .logged }
-            }.count
-        )
-        let mealCompletionRate = allTrackedMeals > 0 ? allLoggedMeals / allTrackedMeals : 0
-        let averageShowers = filtered.map { Double($0.showers.count) }.average
+        let defaultMealEntries = filtered.flatMap { record in
+            record.meals.filter { [.breakfast, .lunch, .dinner].contains($0.mealKind) }.map { (record, $0) }
+        }
+        let defaultTrackedMeals = Double(defaultMealEntries.count)
+        let defaultLoggedMeals = Double(defaultMealEntries.filter { pair in
+            pair.1.effectiveStatus(on: pair.0.date) == .logged
+        }.count)
+        let defaultMealCompletionRate = defaultTrackedMeals > 0 ? defaultLoggedMeals / defaultTrackedMeals : 0
+
+        let groupedMeals = Dictionary(grouping: filtered.flatMap { record in
+            record.meals.map { (record, $0) }
+        }, by: { $0.1.slotKey })
+
+        let mealSeries = groupedMeals.values
+            .compactMap { entries -> MealAnalyticsSeries? in
+                guard let sample = entries.first?.1 else { return nil }
+                let points = entries.compactMap { record, meal -> AnalyticsScatterPoint? in
+                    guard meal.effectiveStatus(on: record.date) == .logged, let time = meal.time else { return nil }
+                    return AnalyticsScatterPoint(
+                        id: "\(record.date.storageKey())-\(meal.slotKey)",
+                        date: record.date,
+                        minutes: clockMinutes(time)
+                    )
+                }
+                let tracked = Double(entries.count)
+                let logged = Double(points.count)
+                return MealAnalyticsSeries(
+                    key: sample.slotKey,
+                    title: sample.displayTitle,
+                    completionRate: tracked > 0 ? logged / tracked : 0,
+                    averageMinutes: points.map(\.minutes).averageOptional,
+                    points: points.sorted { $0.date < $1.date }
+                )
+            }
+            .sorted { lhs, rhs in
+                mealSortRank(for: lhs.key, title: lhs.title) < mealSortRank(for: rhs.key, title: rhs.title)
+            }
+
+        let showerPoints = filtered.flatMap { record in
+            record.showers.enumerated().map { index, shower in
+                AnalyticsScatterPoint(
+                    id: "\(record.date.storageKey())-shower-\(index)",
+                    date: record.date,
+                    minutes: clockMinutes(shower.time)
+                )
+            }
+        }
 
         return AnalyticsSummary(
             averageSleepHours: averageSleepHours,
+            averageBedtimeMinutes: averageBedtimeMinutes,
             averageWakeMinutes: averageWakeMinutes,
-            mealCompletionRate: mealCompletionRate,
+            defaultMealCompletionRate: defaultMealCompletionRate,
             averageShowers: averageShowers,
-            points: points
+            days: days,
+            mealSeries: mealSeries,
+            showerPoints: showerPoints
         )
+    }
+
+    private static func clockMinutes(_ date: Date) -> Double {
+        let calendar = Calendar.current
+        let components = calendar.dateComponents([.hour, .minute], from: date)
+        return Double((components.hour ?? 0) * 60 + (components.minute ?? 0))
+    }
+
+    private static func chartMinutes(_ date: Date) -> Double {
+        let minutes = clockMinutes(date)
+        return minutes < 18 * 60 ? minutes + 24 * 60 : minutes
+    }
+
+    private static func mealSortRank(for key: String, title: String) -> String {
+        if key == MealKind.breakfast.rawValue { return "0-\(title)" }
+        if key == MealKind.lunch.rawValue { return "1-\(title)" }
+        if key == MealKind.dinner.rawValue { return "2-\(title)" }
+        return "3-\(title)"
     }
 }
 
