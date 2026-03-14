@@ -13,70 +13,72 @@ struct TargetBedtimeSheet: View {
     }
 
     var body: some View {
-        NavigationStack {
-            VStack(spacing: 22) {
-                headerBar
+        VStack(spacing: 20) {
+            headerBar
+                .padding(.top, 10)
 
-                HStack(spacing: 10) {
-                    ForEach(Weekday.allCases) { weekday in
-                        Button {
-                            selectedWeekday = weekday
-                        } label: {
-                            Text(weekday.shortLabel)
-                                .font(.system(size: 17, weight: .bold, design: .rounded))
-                                .foregroundStyle(selectedWeekday == weekday ? Color.white : AppTheme.primaryText)
-                                .frame(maxWidth: .infinity)
-                                .frame(height: 42)
-                                .background(selectedWeekday == weekday ? AppTheme.accent : AppTheme.surface)
-                                .clipShape(Circle())
-                        }
-                        .buttonStyle(.plain)
+            HStack(spacing: 10) {
+                ForEach(Weekday.allCases) { weekday in
+                    Button {
+                        selectedWeekday = weekday
+                    } label: {
+                        Text(weekday.shortLabel)
+                            .font(.system(size: 17, weight: .bold, design: .rounded))
+                            .foregroundStyle(selectedWeekday == weekday ? Color.white : AppTheme.primaryText)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 42)
+                            .background(selectedWeekday == weekday ? AppTheme.accent : AppTheme.surface)
+                            .clipShape(Circle())
                     }
+                    .buttonStyle(.plain)
                 }
-
-                Text(selectedTime.displayTime)
-                    .font(.system(size: 42, weight: .bold, design: .rounded))
-                    .foregroundStyle(AppTheme.primaryText)
-
-                DatePicker(
-                    "",
-                    selection: Binding(
-                        get: { selectedDate },
-                        set: { updateSelectedWeekday(with: $0) }
-                    ),
-                    displayedComponents: .hourAndMinute
-                )
-                .datePickerStyle(.wheel)
-                .labelsHidden()
-
-                VStack(spacing: 10) {
-                    ForEach(Weekday.allCases) { weekday in
-                        Button {
-                            selectedWeekday = weekday
-                        } label: {
-                            HStack {
-                                Text(weekday.title)
-                                    .font(.system(size: 16, weight: .semibold, design: .rounded))
-                                    .foregroundStyle(AppTheme.primaryText)
-                                Spacer()
-                                Text(time(for: weekday).displayTime)
-                                    .font(.system(size: 16, weight: .bold, design: .rounded))
-                                    .foregroundStyle(selectedWeekday == weekday ? AppTheme.accent : AppTheme.secondaryText)
-                            }
-                            .padding(.horizontal, 18)
-                            .padding(.vertical, 14)
-                            .background(AppTheme.elevatedSurface)
-                            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-
-                Spacer()
             }
-            .padding(24)
-            .background(AppTheme.background.ignoresSafeArea())
+
+            Text(selectedTime.displayTime)
+                .font(.system(size: 42, weight: .bold, design: .rounded))
+                .foregroundStyle(AppTheme.primaryText)
+
+            DatePicker(
+                "",
+                selection: Binding(
+                    get: { selectedDate },
+                    set: { updateSelectedWeekday(with: $0) }
+                ),
+                displayedComponents: .hourAndMinute
+            )
+            .datePickerStyle(.wheel)
+            .labelsHidden()
+            .frame(maxHeight: 170)
+            .clipped()
+
+            VStack(spacing: 10) {
+                ForEach(Weekday.allCases) { weekday in
+                    Button {
+                        selectedWeekday = weekday
+                    } label: {
+                        HStack {
+                            Text(weekday.title)
+                                .font(.system(size: 16, weight: .semibold, design: .rounded))
+                                .foregroundStyle(AppTheme.primaryText)
+                            Spacer()
+                            Text(time(for: weekday).displayTime)
+                                .font(.system(size: 16, weight: .bold, design: .rounded))
+                                .foregroundStyle(selectedWeekday == weekday ? AppTheme.accent : AppTheme.secondaryText)
+                        }
+                        .padding(.horizontal, 18)
+                        .padding(.vertical, 14)
+                        .background(AppTheme.elevatedSurface)
+                        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+
+            Spacer(minLength: 0)
         }
+        .padding(.horizontal, 24)
+        .padding(.bottom, 24)
+        .background(AppTheme.background.ignoresSafeArea())
     }
 
     private var headerBar: some View {
@@ -107,6 +109,10 @@ struct TargetBedtimeSheet: View {
                 .frame(width: 48, height: 48)
                 .background(AppTheme.surface)
                 .clipShape(Circle())
+                .overlay(
+                    Circle()
+                        .stroke(AppTheme.border, lineWidth: 1)
+                )
         }
         .buttonStyle(.plain)
     }

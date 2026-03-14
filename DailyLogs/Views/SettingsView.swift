@@ -27,10 +27,13 @@ struct SettingsView: View {
                 TargetBedtimeSheet(initialValue: appViewModel.preferences.bedtimeSchedule) { schedule in
                     Task { await appViewModel.updateBedtimeSchedule(schedule) }
                 }
+                .presentationDragIndicator(.visible)
             }
             .sheet(isPresented: $showingMealSlots) {
                 DefaultMealSlotsSheet()
                     .environmentObject(appViewModel)
+                    .presentationDetents([.fraction(0.34), .medium])
+                    .presentationDragIndicator(.visible)
             }
         }
     }

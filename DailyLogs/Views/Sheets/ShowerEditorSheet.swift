@@ -28,11 +28,12 @@ struct ShowerEditorSheet: View {
     }
 
     var body: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: 16) {
             headerBar
+                .padding(.top, 8)
 
             Text(draftTime.displayClockTime)
-                .font(.system(size: 40, weight: .bold, design: .rounded))
+                .font(.system(size: 34, weight: .bold, design: .rounded))
                 .foregroundStyle(AppTheme.showerAccent)
                 .monospacedDigit()
 
@@ -43,6 +44,8 @@ struct ShowerEditorSheet: View {
             )
             .datePickerStyle(.wheel)
             .labelsHidden()
+            .frame(maxHeight: 150)
+            .clipped()
             .disabled(!isEditable)
 
             if let onDelete {
@@ -53,7 +56,8 @@ struct ShowerEditorSheet: View {
                 .font(.system(size: 16, weight: .bold, design: .rounded))
             }
         }
-        .padding(24)
+        .padding(.horizontal, 24)
+        .padding(.bottom, 20)
         .background(AppTheme.background.ignoresSafeArea())
     }
 
