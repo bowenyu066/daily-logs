@@ -20,10 +20,14 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>FirebaseAppDelegateProxyEnabled</key>
 	<false/>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSHealthShareUsageDescription</key>
 	<string>用于自动同步你的睡眠数据，替代手动输入。</string>
+	<key>NSHealthUpdateUsageDescription</key>
+	<string>用于在你手动记录或修正睡眠数据时，与 Apple Health 保持一致。</string>
 	<key>NSCameraUsageDescription</key>
 	<string>用于为餐食记录拍照。</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
@@ -39,9 +43,9 @@
 	</dict>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
-	<key>UIDeviceFamily</key>
+	<key>UISupportedInterfaceOrientations</key>
 	<array>
-		<integer>1</integer>
+		<string>UIInterfaceOrientationPortrait</string>
 	</array>
 	<key>UILaunchScreen</key>
 	<dict/>
