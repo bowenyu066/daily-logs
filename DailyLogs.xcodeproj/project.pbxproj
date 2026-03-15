@@ -53,6 +53,7 @@
 		0EE15D79A393C8AB962EBC89 /* DefaultMealSlotsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefaultMealSlotsSheet.swift; sourceTree = "<group>"; };
 		12C02AFAD5427640EE2B07E9 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		1952A565E83EBA9DBEAAB3EB /* ShowerEditorSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShowerEditorSheet.swift; sourceTree = "<group>"; };
+		1D722F3BE20818A492AAE8CF /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		24911E06DE213238FD9EC904 /* TargetBedtimeSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TargetBedtimeSheet.swift; sourceTree = "<group>"; };
 		36526958B7B61CD2ECE3F26D /* DailyLogsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyLogsTests.swift; sourceTree = "<group>"; };
 		3EB0253F59127B97E282CB47 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
@@ -133,6 +134,7 @@
 				828C3314E92354C53C42B8F8 /* GoogleService-Info.plist */,
 				F64987693C004FE40BE1E072 /* icon-1024.png */,
 				9DABA8EC0910397E76119987 /* icon.png */,
+				1D722F3BE20818A492AAE8CF /* Info.plist */,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -363,6 +365,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = DailyLogs/Resources/DailyLogs.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				INFOPLIST_FILE = DailyLogs/Resources/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -435,14 +438,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_NSCameraUsageDescription = "用于为餐食记录拍照。";
-				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "用于显示你所在地区的日出日落时间。";
-				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "用于保存你拍摄的餐食照片。";
-				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "用于从相册选择餐食照片。";
-				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
-				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
-				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				GENERATE_INFOPLIST_FILE = NO;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MARKETING_VERSION = 1.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
@@ -462,6 +458,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = DailyLogs/Resources/DailyLogs.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				INFOPLIST_FILE = DailyLogs/Resources/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -525,14 +522,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_NSCameraUsageDescription = "用于为餐食记录拍照。";
-				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "用于显示你所在地区的日出日落时间。";
-				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "用于保存你拍摄的餐食照片。";
-				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "用于从相册选择餐食照片。";
-				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
-				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
-				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				GENERATE_INFOPLIST_FILE = NO;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MARKETING_VERSION = 1.0;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;

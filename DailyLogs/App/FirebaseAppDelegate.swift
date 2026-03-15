@@ -14,8 +14,27 @@ final class FirebaseAppDelegate: NSObject, UIApplicationDelegate {
 enum FirebaseBootstrap {
     static func configureIfPossible() {
         guard FirebaseApp.app() == nil else { return }
-        guard Bundle.main.path(forResource: "GoogleService-Info", ofType: "plist") != nil else { return }
-        FirebaseApp.configure()
+        let optionsURL = Bundle.main.url(forResource: "GoogleService-Info", withExtension: "plist")
+
+        guard let optionsURL else {
+            #if DEBUG
+            print("FirebaseBootstrap: GoogleService-Info.plist not found in bundle \(Bundle.main.bundlePath)")
+            #endif
+            return
+        }
+
+        guard let options = FirebaseOptions(contentsOfFile: optionsURL.path) else {
+            #if DEBUG
+            print("FirebaseBootstrap: Failed to load FirebaseOptions from \(optionsURL.path)")
+            #endif
+            return
+        }
+
+        FirebaseApp.configure(options: options)
+
+        #if DEBUG
+        print("FirebaseBootstrap: configured Firebase with \(options.googleAppID)")
+        #endif
     }
 
     static var isConfigured: Bool {

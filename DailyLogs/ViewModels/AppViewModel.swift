@@ -1,5 +1,6 @@
 import AuthenticationServices
 import CoreLocation
+import FirebaseAuth
 import Foundation
 import SwiftUI
 import UIKit
@@ -139,7 +140,7 @@ final class AppViewModel: ObservableObject {
             }
             try loadSelectedRecord()
         } catch {
-            errorMessage = "登录失败：\(error.localizedDescription)"
+            errorMessage = loginErrorMessage(from: error)
         }
     }
 
@@ -174,6 +175,39 @@ final class AppViewModel: ObservableObject {
         } catch {
             errorMessage = "退出失败：\(error.localizedDescription)"
         }
+    }
+
+    private func loginErrorMessage(from error: Error) -> String {
+        let nsError = error as NSError
+        let loweredDescription = nsError.localizedDescription.lowercased()
+
+        #if DEBUG
+        print("Apple sign-in failed:", nsError)
+        print("Apple sign-in userInfo:", nsError.userInfo)
+        #endif
+
+        if nsError.domain == AuthErrorDomain {
+            switch AuthErrorCode(rawValue: nsError.code) {
+            case .internalError:
+                return "登录失败：Firebase Auth 已收到 Apple 登录结果，但服务端配置还不完整。请检查 Firebase Authentication 里是否启用了 Apple，并确认 Apple Team ID、Key ID、Private Key 都已配置。"
+            case .invalidCredential:
+                return "登录失败：Apple 登录凭证无效，请重新试一次。"
+            case .missingOrInvalidNonce:
+                return "登录失败：登录请求已过期，请重新点一次 Apple 登录。"
+            case .appNotAuthorized:
+                return "登录失败：当前 App 还没有在 Firebase / Apple 侧完成授权配置。"
+            case .operationNotAllowed:
+                return "登录失败：Firebase Authentication 里还没有启用 Apple 登录。"
+            default:
+                break
+            }
+        }
+
+        if loweredDescription.contains("internal error has occurred") {
+            return "登录失败：Firebase 已初始化，但 Apple 登录的 Firebase Authentication 配置还不完整。请到 Firebase Console 的 Authentication -> Sign-in method -> Apple，确认已启用，并填写 Apple Team ID、Key ID 和 Private Key。"
+        }
+
+        return "登录失败：\(error.localizedDescription)"
     }
 
     func selectDate(_ date: Date) async {

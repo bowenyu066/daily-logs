@@ -13,14 +13,7 @@ settings:
     PRODUCT_BUNDLE_IDENTIFIER: com.flyfishyu.DailyLogs
     CURRENT_PROJECT_VERSION: 1
     MARKETING_VERSION: 1.0
-    GENERATE_INFOPLIST_FILE: YES
-    INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
-    INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: YES
-    INFOPLIST_KEY_UILaunchScreen_Generation: YES
-    INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: 用于显示你所在地区的日出日落时间。
-    INFOPLIST_KEY_NSCameraUsageDescription: 用于为餐食记录拍照。
-    INFOPLIST_KEY_NSPhotoLibraryUsageDescription: 用于从相册选择餐食照片。
-    INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription: 用于保存你拍摄的餐食照片。
+    GENERATE_INFOPLIST_FILE: NO
 targets:
   DailyLogs:
     type: application
@@ -44,6 +37,7 @@ targets:
         PRODUCT_NAME: DailyLogs
         TARGETED_DEVICE_FAMILY: 1
         SUPPORTS_MACCATALYST: NO
+        INFOPLIST_FILE: DailyLogs/Resources/Info.plist
         CODE_SIGN_ENTITLEMENTS: DailyLogs/Resources/DailyLogs.entitlements
     scheme:
       testTargets:
