@@ -73,17 +73,21 @@ struct CardModifier: ViewModifier {
     func body(content: Content) -> some View {
         content
             .background(AppTheme.cardBackground)
-            .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: 28, style: .continuous)
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
                     .stroke(AppTheme.border, lineWidth: 1)
             )
-            .shadow(color: AppTheme.shadow, radius: 18, x: 0, y: 12)
+            .shadow(color: AppTheme.shadow, radius: 6, x: 0, y: 2)
     }
 }
 
 extension View {
     func appCardStyle() -> some View {
         modifier(CardModifier())
+    }
+
+    func sectionStyle() -> some View {
+        self.padding(.vertical, 4)
     }
 }

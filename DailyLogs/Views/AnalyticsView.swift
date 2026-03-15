@@ -401,14 +401,14 @@ private struct SummaryCard: View {
     var body: some View {
         VStack(spacing: 10) {
             Text(title)
-                .font(.system(size: 12, weight: .medium, design: .rounded))
+                .font(.system(size: 14, weight: .medium, design: .rounded))
                 .foregroundStyle(AppTheme.secondaryText)
                 .lineLimit(2)
                 .minimumScaleFactor(0.85)
                 .multilineTextAlignment(.center)
 
             Text(value)
-                .font(.system(size: 26, weight: .bold, design: .rounded))
+                .font(.system(size: 24, weight: .bold, design: .rounded))
                 .foregroundStyle(tone)
                 .lineLimit(2)
                 .minimumScaleFactor(0.72)
@@ -417,7 +417,8 @@ private struct SummaryCard: View {
         .frame(maxWidth: .infinity, minHeight: 104, alignment: .center)
         .padding(.horizontal, 10)
         .padding(.vertical, 18)
-        .appCardStyle()
+        .background(AppTheme.mutedFill)
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 }
 

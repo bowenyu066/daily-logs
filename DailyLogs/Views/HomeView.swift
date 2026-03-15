@@ -10,18 +10,19 @@ struct HomeView: View {
     @State private var editingShower: ShowerEntry?
     @State private var showingNewShower = false
 
-    private let mealColumns = [GridItem(.adaptive(minimum: 156), spacing: 14)]
-
     var body: some View {
         NavigationStack {
             ZStack {
                 AppTheme.background.ignoresSafeArea()
 
                 ScrollView(.vertical, showsIndicators: false) {
-                    VStack(alignment: .leading, spacing: 18) {
-                        headerCard
+                    VStack(alignment: .leading, spacing: 24) {
+                        headerSection
+                        Divider()
                         sleepSection
+                        Divider()
                         mealSection
+                        Divider()
                         showerSection
                     }
                     .padding(.horizontal, 18)
@@ -112,8 +113,10 @@ struct HomeView: View {
         }
     }
 
-    private var headerCard: some View {
-        VStack(alignment: .leading, spacing: 18) {
+    // MARK: - Header
+
+    private var headerSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(Calendar.current.isDateInToday(appViewModel.selectedDate) ? "今天是" : "这一天")
@@ -122,9 +125,14 @@ struct HomeView: View {
                     Button {
                         showingDatePicker = true
                     } label: {
-                        Text(appViewModel.selectedDate.formattedDayTitle())
-                            .font(.system(size: 34, weight: .bold, design: .rounded))
-                            .foregroundStyle(AppTheme.primaryText)
+                        HStack(spacing: 6) {
+                            Text(appViewModel.selectedDate.formattedDayTitle())
+                                .font(.system(size: 34, weight: .bold, design: .rounded))
+                                .foregroundStyle(AppTheme.primaryText)
+                            Image(systemName: "chevron.down")
+                                .font(.system(size: 14, weight: .bold))
+                                .foregroundStyle(AppTheme.secondaryText)
+                        }
                     }
                     .buttonStyle(.plain)
                 }
@@ -148,14 +156,34 @@ struct HomeView: View {
                 .buttonStyle(.plain)
             }
 
-            HStack(spacing: 14) {
-                SunMetricCard(title: "日出", icon: "sunrise", value: formattedSun(appViewModel.dailyRecord.sunTimes?.sunrise))
-                SunMetricCard(title: "日落", icon: "sunset", value: formattedSun(appViewModel.dailyRecord.sunTimes?.sunset))
+            HStack(spacing: 16) {
+                Label {
+                    Text(formattedSun(appViewModel.dailyRecord.sunTimes?.sunrise))
+                        .font(.system(size: 15, weight: .semibold, design: .rounded))
+                        .foregroundStyle(AppTheme.primaryText)
+                        .monospacedDigit()
+                } icon: {
+                    Image(systemName: "sunrise")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(AppTheme.sunriseAccent)
+                }
+
+                Label {
+                    Text(formattedSun(appViewModel.dailyRecord.sunTimes?.sunset))
+                        .font(.system(size: 15, weight: .semibold, design: .rounded))
+                        .foregroundStyle(AppTheme.primaryText)
+                        .monospacedDigit()
+                } icon: {
+                    Image(systemName: "sunset")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(AppTheme.sleepAccent)
+                }
             }
         }
-        .padding(22)
-        .appCardStyle()
+        .sectionStyle()
     }
+
+    // MARK: - Sleep
 
     private var sleepSection: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -176,143 +204,204 @@ struct HomeView: View {
                 .buttonStyle(.plain)
             }
 
-            VStack(spacing: 14) {
-                HStack(spacing: 14) {
-                    Button {
-                        editingSleepTarget = .bedtime
-                    } label: {
-                        SleepMetricCard(
-                            title: "入睡",
-                            value: appViewModel.dailyRecord.sleepRecord.bedtimePreviousNight?.displayClockTime,
-                            accent: AppTheme.sleepAccent
-                        )
-                    }
-                    .buttonStyle(.plain)
+            Text(durationText)
+                .font(.system(size: 36, weight: .bold, design: .rounded))
+                .foregroundStyle(durationText == "-- h -- m" ? AppTheme.secondaryText : AppTheme.primaryText)
 
-                    Button {
-                        editingSleepTarget = .wakeTime
-                    } label: {
-                        SleepMetricCard(
-                            title: "起床",
-                            value: appViewModel.dailyRecord.sleepRecord.wakeTimeCurrentDay?.displayClockTime,
-                            accent: AppTheme.wakeAccent
-                        )
+            HStack(spacing: 24) {
+                Button {
+                    editingSleepTarget = .bedtime
+                } label: {
+                    HStack(spacing: 6) {
+                        Text("入睡")
+                            .font(.system(size: 14, weight: .semibold, design: .rounded))
+                            .foregroundStyle(AppTheme.secondaryText)
+                        Text(appViewModel.dailyRecord.sleepRecord.bedtimePreviousNight?.displayClockTime ?? "--:--")
+                            .font(.system(size: 18, weight: .bold, design: .rounded))
+                            .foregroundStyle(AppTheme.sleepAccent)
+                            .monospacedDigit()
                     }
                 }
+                .buttonStyle(.plain)
 
-                HStack {
-                    Text("总睡眠时长")
-                        .font(.system(size: 15, weight: .semibold, design: .rounded))
-                        .foregroundStyle(AppTheme.secondaryText)
-                    Spacer()
-                    Text(durationText)
-                        .font(.system(size: 18, weight: .bold, design: .rounded))
-                        .foregroundStyle(durationText == "无记录" ? AppTheme.secondaryText : AppTheme.primaryText)
+                Button {
+                    editingSleepTarget = .wakeTime
+                } label: {
+                    HStack(spacing: 6) {
+                        Text("起床")
+                            .font(.system(size: 14, weight: .semibold, design: .rounded))
+                            .foregroundStyle(AppTheme.secondaryText)
+                        Text(appViewModel.dailyRecord.sleepRecord.wakeTimeCurrentDay?.displayClockTime ?? "--:--")
+                            .font(.system(size: 18, weight: .bold, design: .rounded))
+                            .foregroundStyle(AppTheme.wakeAccent)
+                            .monospacedDigit()
+                    }
                 }
-                .padding(.horizontal, 6)
+                .buttonStyle(.plain)
+
+                Spacer()
             }
-            .padding(18)
-            .appCardStyle()
+
+            if appViewModel.dailyRecord.sleepRecord.hasStageData {
+                SleepStageBar(intervals: appViewModel.dailyRecord.sleepRecord.stageIntervals)
+            }
         }
+        .sectionStyle()
     }
 
+    // MARK: - Meals
+
     private var mealSection: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 10) {
             SectionHeader(title: "餐食", subtitle: nil)
 
-            LazyVGrid(columns: mealColumns, spacing: 14) {
-                ForEach(appViewModel.dailyRecord.meals) { meal in
-                    Menu {
-                        let isLogged = meal.time != nil || meal.hasPhoto
-                        let canDeleteMeal = appViewModel.canDeleteMealEntry(meal)
-
-                        if meal.hasPhoto {
-                            Button("编辑照片") {
-                                openMealEditor(meal, with: .editPhoto)
-                            }
-                            Button("修改时间") {
-                                openMealEditor(meal, with: .editTime)
-                            }
-                            Button("删除照片", role: .destructive) {
-                                Task { await appViewModel.removeMealPhoto(meal) }
-                            }
-                            if canDeleteMeal {
-                                Button("删除餐次", role: .destructive) {
-                                    Task { await appViewModel.deleteMeal(meal) }
-                                }
-                            } else {
-                                Button("删除记录", role: .destructive) {
-                                    Task { await appViewModel.clearMealRecord(meal) }
-                                }
-                            }
-                        } else if isLogged {
-                            Button("添加图片") {
-                                openMealEditor(meal, with: .addPhoto)
-                            }
-                            Button("修改时间") {
-                                openMealEditor(meal, with: .editTime)
-                            }
-                            if canDeleteMeal {
-                                Button("删除餐次", role: .destructive) {
-                                    Task { await appViewModel.deleteMeal(meal) }
-                                }
-                            } else {
-                                Button("删除记录", role: .destructive) {
-                                    Task { await appViewModel.clearMealRecord(meal) }
-                                }
-                            }
-                        } else {
-                            if UIImagePickerController.isSourceTypeAvailable(.camera) {
-                                Button("拍照") {
-                                    openMealEditor(meal, with: .camera)
-                                }
-                            }
-                            Button("选择相册照片") {
-                                openMealEditor(meal, with: .photoLibrary)
-                            }
-                            Button("仅记录时间") {
-                                openMealEditor(meal, with: .timeOnly)
-                            }
-                            if canDeleteMeal {
-                                Button("删除餐次", role: .destructive) {
-                                    Task { await appViewModel.deleteMeal(meal) }
-                                }
-                            }
-                            Button("跳过", role: .destructive) {
-                                Task { await appViewModel.skipMeal(meal) }
-                            }
-                        }
-                    } label: {
-                        MealCard(entry: meal, recordDate: appViewModel.selectedDate)
+            VStack(spacing: 0) {
+                ForEach(Array(appViewModel.dailyRecord.meals.enumerated()), id: \.element.id) { index, meal in
+                    if index > 0 {
+                        Divider().padding(.leading, 4)
                     }
-                    .buttonStyle(.plain)
-                    .disabled(!appViewModel.canEditSelectedDate)
+                    mealRow(meal)
                 }
+
+                Divider().padding(.leading, 4)
 
                 Button {
                     editingMealContext = MealEditorContext(
                         entry: MealEntry(
-                        mealKind: .custom,
-                        customTitle: "加餐",
-                        status: .logged,
-                        time: appViewModel.selectedDate.settingTime(hour: 15, minute: 0),
-                        photoURL: nil
-                    )
-                        ,
+                            mealKind: .custom,
+                            customTitle: "加餐",
+                            status: .logged,
+                            time: appViewModel.selectedDate.settingTime(hour: 15, minute: 0),
+                            photoURL: nil
+                        ),
                         preferredSource: .timeOnly
                     )
                 } label: {
-                    AddMealCard()
+                    HStack(spacing: 8) {
+                        Image(systemName: "plus")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(AppTheme.accent)
+                        Text("添加餐次")
+                            .font(.system(size: 16, weight: .semibold, design: .rounded))
+                            .foregroundStyle(AppTheme.accent)
+                        Spacer()
+                    }
+                    .padding(.vertical, 12)
                 }
                 .buttonStyle(.plain)
                 .disabled(!appViewModel.canEditSelectedDate)
                 .opacity(appViewModel.canEditSelectedDate ? 1 : 0.45)
             }
         }
+        .sectionStyle()
     }
 
+    private func mealRow(_ meal: MealEntry) -> some View {
+        let effectiveStatus = meal.effectiveStatus(on: appViewModel.selectedDate)
+        let accentColor = mealAccentColor(meal)
+
+        return Menu {
+            let isLogged = meal.time != nil || meal.hasPhoto
+            let canDeleteMeal = appViewModel.canDeleteMealEntry(meal)
+
+            if meal.hasPhoto {
+                Button("编辑照片") {
+                    openMealEditor(meal, with: .editPhoto)
+                }
+                Button("修改时间") {
+                    openMealEditor(meal, with: .editTime)
+                }
+                Button("删除照片", role: .destructive) {
+                    Task { await appViewModel.removeMealPhoto(meal) }
+                }
+                if canDeleteMeal {
+                    Button("删除餐次", role: .destructive) {
+                        Task { await appViewModel.deleteMeal(meal) }
+                    }
+                } else {
+                    Button("删除记录", role: .destructive) {
+                        Task { await appViewModel.clearMealRecord(meal) }
+                    }
+                }
+            } else if isLogged {
+                Button("添加图片") {
+                    openMealEditor(meal, with: .addPhoto)
+                }
+                Button("修改时间") {
+                    openMealEditor(meal, with: .editTime)
+                }
+                if canDeleteMeal {
+                    Button("删除餐次", role: .destructive) {
+                        Task { await appViewModel.deleteMeal(meal) }
+                    }
+                } else {
+                    Button("删除记录", role: .destructive) {
+                        Task { await appViewModel.clearMealRecord(meal) }
+                    }
+                }
+            } else {
+                if UIImagePickerController.isSourceTypeAvailable(.camera) {
+                    Button("拍照") {
+                        openMealEditor(meal, with: .camera)
+                    }
+                }
+                Button("选择相册照片") {
+                    openMealEditor(meal, with: .photoLibrary)
+                }
+                Button("仅记录时间") {
+                    openMealEditor(meal, with: .timeOnly)
+                }
+                if canDeleteMeal {
+                    Button("删除餐次", role: .destructive) {
+                        Task { await appViewModel.deleteMeal(meal) }
+                    }
+                }
+                Button("跳过", role: .destructive) {
+                    Task { await appViewModel.skipMeal(meal) }
+                }
+            }
+        } label: {
+            HStack(spacing: 12) {
+                Text(meal.displayTitle)
+                    .font(.system(size: 17, weight: .bold, design: .rounded))
+                    .foregroundStyle(AppTheme.primaryText)
+
+                Spacer()
+
+                if let thumbnail = mealThumbnail(meal) {
+                    Image(uiImage: thumbnail)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 36, height: 36)
+                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                }
+
+                switch effectiveStatus {
+                case .logged:
+                    Text(meal.time?.displayClockTime ?? "已记录")
+                        .font(.system(size: 15, weight: .semibold, design: .rounded))
+                        .foregroundStyle(accentColor)
+                        .monospacedDigit()
+                case .skipped:
+                    Text("跳过")
+                        .font(.system(size: 15, weight: .semibold, design: .rounded))
+                        .foregroundStyle(AppTheme.warning)
+                case .empty:
+                    Text("未记录")
+                        .font(.system(size: 15, weight: .medium, design: .rounded))
+                        .foregroundStyle(AppTheme.secondaryText)
+                }
+            }
+            .padding(.vertical, 12)
+        }
+        .buttonStyle(.plain)
+        .disabled(!appViewModel.canEditSelectedDate)
+    }
+
+    // MARK: - Showers
+
     private var showerSection: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 10) {
             SectionHeader(
                 title: "洗澡",
                 subtitle: nil,
@@ -321,69 +410,80 @@ struct HomeView: View {
                 showingNewShower = true
             }
 
-            VStack(spacing: 10) {
-                if appViewModel.dailyRecord.showers.isEmpty {
-                    HStack {
-                        Spacer()
-                        Text("无记录")
-                            .font(.system(size: 18, weight: .bold, design: .rounded))
-                            .foregroundStyle(AppTheme.secondaryText)
-                        Spacer()
-                    }
-                    .padding(24)
-                    .background(AppTheme.elevatedSurface)
-                    .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-                } else {
-                    ForEach(appViewModel.dailyRecord.showers) { shower in
-                        HStack(spacing: 12) {
+            if appViewModel.dailyRecord.showers.isEmpty {
+                HStack(spacing: 8) {
+                    Image(systemName: "drop.degreesign")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(AppTheme.showerAccent)
+                    Text("无记录")
+                        .font(.system(size: 16, weight: .semibold, design: .rounded))
+                        .foregroundStyle(AppTheme.secondaryText)
+                }
+                .padding(.vertical, 8)
+            } else {
+                VStack(spacing: 0) {
+                    ForEach(Array(appViewModel.dailyRecord.showers.enumerated()), id: \.element.id) { index, shower in
+                        if index > 0 {
+                            Divider().padding(.leading, 4)
+                        }
+                        HStack {
                             Button {
                                 editingShower = shower
                             } label: {
-                                HStack {
-                                    Text(shower.time.formatted(date: .omitted, time: .shortened))
-                                        .font(.system(size: 18, weight: .bold, design: .rounded))
-                                        .foregroundStyle(AppTheme.showerAccent)
-                                        .monospacedDigit()
-                                    Spacer()
-                                }
-                                .padding(.horizontal, 18)
-                                .padding(.vertical, 16)
+                                Text(shower.time.formatted(date: .omitted, time: .shortened))
+                                    .font(.system(size: 17, weight: .bold, design: .rounded))
+                                    .foregroundStyle(AppTheme.showerAccent)
+                                    .monospacedDigit()
                             }
                             .buttonStyle(.plain)
+
+                            Spacer()
 
                             Button {
                                 Task { await appViewModel.deleteShower(shower) }
                             } label: {
                                 Image(systemName: "trash")
-                                    .font(.system(size: 16, weight: .bold))
+                                    .font(.system(size: 14, weight: .semibold))
                                     .foregroundStyle(AppTheme.warning)
-                                    .frame(width: 48, height: 48)
                             }
                             .buttonStyle(.plain)
                             .disabled(!appViewModel.canEditSelectedDate)
                         }
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 12)
-                        .background(AppTheme.elevatedSurface)
-                        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                        .padding(.vertical, 10)
                     }
                 }
             }
-            .appCardStyle()
         }
+        .sectionStyle()
     }
+
+    // MARK: - Helpers
 
     private var durationText: String {
         guard let duration = appViewModel.dailyRecord.sleepRecord.duration else {
-            return "无记录"
+            return "-- h -- m"
         }
         let hours = Int(duration) / 3600
         let minutes = Int(duration) % 3600 / 60
-        return "\(hours)小时\(minutes)分"
+        return "\(hours) h \(minutes) m"
     }
 
     private func formattedSun(_ date: Date?) -> String {
         date?.displayClockTime ?? "--:--"
+    }
+
+    private func mealAccentColor(_ meal: MealEntry) -> Color {
+        switch meal.mealKind {
+        case .breakfast: AppTheme.wakeAccent
+        case .lunch: AppTheme.accent
+        case .dinner: AppTheme.sleepAccent
+        case .custom: AppTheme.sunriseAccent
+        }
+    }
+
+    private func mealThumbnail(_ meal: MealEntry) -> UIImage? {
+        guard let photoURL = meal.photoURL else { return nil }
+        return UIImage(contentsOfFile: photoURL)
     }
 
     private func openMealEditor(_ meal: MealEntry, with source: MealCaptureMode) {
@@ -402,198 +502,64 @@ struct MealEditorContext: Identifiable {
     }
 }
 
-private struct SunMetricCard: View {
-    let title: String
-    let icon: String
-    let value: String
+// MARK: - Sleep Stage Bar
 
-    var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: icon)
-                .font(.system(size: 18, weight: .semibold))
-                .foregroundStyle(AppTheme.accent)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.system(size: 14, weight: .semibold, design: .rounded))
-                    .foregroundStyle(AppTheme.secondaryText)
-                Text(value)
-                    .font(.system(size: 24, weight: .bold, design: .rounded))
-                    .foregroundStyle(AppTheme.primaryText)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.65)
-                    .monospacedDigit()
-            }
-            Spacer()
-        }
-        .padding(16)
-        .frame(maxWidth: .infinity)
-        .background(AppTheme.elevatedSurface)
-        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+struct SleepStageBar: View {
+    let intervals: [SleepStageInterval]
+
+    private var totalDuration: TimeInterval {
+        intervals.reduce(0) { $0 + $1.duration }
     }
-}
 
-private struct SleepMetricCard: View {
-    let title: String
-    let value: String?
-    let accent: Color
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(title)
-                .font(.system(size: 14, weight: .semibold, design: .rounded))
-                .foregroundStyle(AppTheme.secondaryText)
-
-            if let value {
-                Text(value)
-                    .font(.system(size: 28, weight: .bold, design: .rounded))
-                    .foregroundStyle(accent)
-                    .monospacedDigit()
-            } else {
-                Text("无记录")
-                    .font(.system(size: 18, weight: .bold, design: .rounded))
-                    .foregroundStyle(AppTheme.secondaryText)
-                    .frame(maxWidth: .infinity, minHeight: 42, alignment: .leading)
-                    .padding(.horizontal, 12)
-                    .background(AppTheme.mutedFill)
-                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-            }
+    private var stageDurations: [(stage: SleepStage, duration: TimeInterval)] {
+        let grouped = Dictionary(grouping: intervals, by: \.stage)
+        return SleepStage.allCases.compactMap { stage in
+            guard let intervals = grouped[stage] else { return nil }
+            let total = intervals.reduce(0) { $0 + $1.duration }
+            return (stage, total)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(18)
-        .background(AppTheme.elevatedSurface)
-        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
     }
-}
-
-private struct MealCard: View {
-    let entry: MealEntry
-    let recordDate: Date
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text(entry.displayTitle)
-                    .font(.system(size: 18, weight: .bold, design: .rounded))
-                    .foregroundStyle(AppTheme.primaryText)
-                Spacer()
-                if thumbnailImage != nil {
-                    Image(systemName: "photo")
-                        .foregroundStyle(accentColor)
-                }
-            }
-
-            if let thumbnailImage {
-                Image(uiImage: thumbnailImage)
-                    .resizable()
-                    .scaledToFill()
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 88)
-                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-                    .overlay(alignment: .bottomLeading) {
-                        Text(bottomText)
-                            .font(.system(size: 14, weight: .bold, design: .rounded))
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 7)
-                            .background(.black.opacity(0.42))
-                            .clipShape(Capsule())
-                            .padding(10)
+        VStack(alignment: .leading, spacing: 8) {
+            GeometryReader { geometry in
+                HStack(spacing: 1.5) {
+                    ForEach(intervals) { interval in
+                        let fraction = totalDuration > 0 ? interval.duration / totalDuration : 0
+                        RoundedRectangle(cornerRadius: 3, style: .continuous)
+                            .fill(interval.stage.color)
+                            .frame(width: max(2, geometry.size.width * fraction))
                     }
-            } else {
-                Spacer(minLength: 0)
+                }
+            }
+            .frame(height: 10)
+            .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
 
-                if effectiveStatus == .logged {
-                    Text(bottomText)
-                        .font(.system(size: 24, weight: .bold, design: .rounded))
-                        .foregroundStyle(accentColor)
-                        .monospacedDigit()
-                } else {
-                    Text(bottomText)
-                        .font(.system(size: 20, weight: .bold, design: .rounded))
-                        .foregroundStyle(statusColor)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 10)
-                        .background(AppTheme.mutedFill)
-                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            HStack(spacing: 14) {
+                ForEach(stageDurations, id: \.stage) { item in
+                    HStack(spacing: 4) {
+                        Circle()
+                            .fill(item.stage.color)
+                            .frame(width: 8, height: 8)
+                        Text(item.stage.title)
+                            .font(.system(size: 12, weight: .medium, design: .rounded))
+                            .foregroundStyle(AppTheme.secondaryText)
+                        Text(formatStageDuration(item.duration))
+                            .font(.system(size: 12, weight: .semibold, design: .rounded))
+                            .foregroundStyle(AppTheme.primaryText)
+                            .monospacedDigit()
+                    }
                 }
             }
         }
-        .padding(18)
-        .frame(minHeight: 132, alignment: .topLeading)
-        .background(backgroundColor)
-        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .stroke(effectiveStatus == .skipped ? AppTheme.warning.opacity(0.35) : AppTheme.border, lineWidth: 1)
-        )
-        .shadow(color: AppTheme.shadow.opacity(0.7), radius: 16, x: 0, y: 10)
     }
 
-    private var bottomText: String {
-        switch effectiveStatus {
-        case .empty:
-            return "无记录"
-        case .logged:
-            return entry.time?.displayClockTime ?? "无记录"
-        case .skipped:
-            return "跳过"
+    private func formatStageDuration(_ duration: TimeInterval) -> String {
+        let hours = Int(duration) / 3600
+        let minutes = Int(duration) % 3600 / 60
+        if hours > 0 {
+            return "\(hours)h\(minutes)m"
         }
-    }
-
-    private var statusColor: Color {
-        switch effectiveStatus {
-        case .empty: AppTheme.secondaryText
-        case .logged: accentColor
-        case .skipped: AppTheme.warning
-        }
-    }
-
-    private var accentColor: Color {
-        switch entry.mealKind {
-        case .breakfast: AppTheme.wakeAccent
-        case .lunch: AppTheme.accent
-        case .dinner: AppTheme.sleepAccent
-        case .custom: AppTheme.sunriseAccent
-        }
-    }
-
-    private var backgroundColor: Color {
-        switch effectiveStatus {
-        case .empty: AppTheme.surface
-        case .logged: AppTheme.mealLoggedBackground
-        case .skipped: AppTheme.warning.opacity(0.12)
-        }
-    }
-
-    private var thumbnailImage: UIImage? {
-        guard let photoURL = entry.photoURL else { return nil }
-        return UIImage(contentsOfFile: photoURL)
-    }
-
-    private var effectiveStatus: MealStatus {
-        entry.effectiveStatus(on: recordDate)
-    }
-}
-
-private struct AddMealCard: View {
-    var body: some View {
-        VStack(spacing: 10) {
-            Spacer()
-            Image(systemName: "plus")
-                .font(.system(size: 28, weight: .light))
-                .foregroundStyle(AppTheme.secondaryText)
-            Text("添加")
-                .font(.system(size: 16, weight: .bold, design: .rounded))
-                .foregroundStyle(AppTheme.secondaryText)
-            Spacer()
-        }
-        .frame(minHeight: 132)
-        .frame(maxWidth: .infinity)
-        .background(Color.clear)
-        .overlay(
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .stroke(style: StrokeStyle(lineWidth: 1.5, dash: [7, 6]))
-                .foregroundStyle(AppTheme.accent.opacity(0.5))
-        )
+        return "\(minutes)m"
     }
 }

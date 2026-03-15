@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 77;
+	objectVersion = 63;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -32,6 +32,7 @@
 		A689B0A49862ECE1CD6E0896 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3EB0253F59127B97E282CB47 /* Models.swift */; };
 		BBEB885C4F2E713F4B1045E8 /* DailyLogsApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9A87F79CBFFD14BE517E83B /* DailyLogsApp.swift */; };
 		C856BAB61B27C87C412FA4E4 /* Services.swift in Sources */ = {isa = PBXBuildFile; fileRef = 829D2D327EEAB6E3CF6799DA /* Services.swift */; };
+		E1A2B3C4D5E6F7081234ABCD /* HealthKitService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718DEADBEEF /* HealthKitService.swift */; };
 		D8F616382DD0712C9476C738 /* AnalyticsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0441CFAFE3F0A7AF7E9C46A /* AnalyticsView.swift */; };
 		D945D660D8D556FA0B7E6900 /* MealEditorSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 68D65F2FD02AA371BF0CB871 /* MealEditorSheet.swift */; };
 		DEAFBF139E59BF3CD1C66C1A /* SectionHeader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 432E478CA32978E10CBE8E93 /* SectionHeader.swift */; };
@@ -65,12 +66,13 @@
 		812D9C9DFB290A74333F2355 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		828C3314E92354C53C42B8F8 /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
 		829D2D327EEAB6E3CF6799DA /* Services.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F60718DEADBEEF /* HealthKitService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthKitService.swift; sourceTree = "<group>"; };
 		87050F5756327B4F773FB04E /* AppViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppViewModel.swift; sourceTree = "<group>"; };
 		919F3E3BD18392570EBCA49A /* FirebaseAppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FirebaseAppDelegate.swift; sourceTree = "<group>"; };
 		9DABA8EC0910397E76119987 /* icon.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = icon.png; sourceTree = "<group>"; };
 		B9A87F79CBFFD14BE517E83B /* DailyLogsApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyLogsApp.swift; sourceTree = "<group>"; };
 		BF5762DCFE4B315E3833D8BC /* SleepEditorSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepEditorSheet.swift; sourceTree = "<group>"; };
-		C9487DDA529E9809A07AD9D7 /* DailyLogs.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = DailyLogs.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		C9487DDA529E9809A07AD9D7 /* DailyLogs.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = DailyLogs.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		D0441CFAFE3F0A7AF7E9C46A /* AnalyticsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalyticsView.swift; sourceTree = "<group>"; };
 		D93232686CA86483D4885BF9 /* DatePickerSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatePickerSheet.swift; sourceTree = "<group>"; };
 		E0CAE3F01F1BDE18FCC36472 /* AuthGateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthGateView.swift; sourceTree = "<group>"; };
@@ -185,6 +187,7 @@
 			isa = PBXGroup;
 			children = (
 				6CDD5864423CDE853439D36C /* CloudSyncService.swift */,
+				A1B2C3D4E5F60718DEADBEEF /* HealthKitService.swift */,
 				829D2D327EEAB6E3CF6799DA /* Services.swift */,
 			);
 			path = Services;
@@ -287,7 +290,6 @@
 			packageReferences = (
 				23F98C8001E58D22D91C9AEF /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
 			);
-			preferredProjectObjectVersion = 77;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
@@ -333,6 +335,7 @@
 				EBAD80E1B4B1CBBB28DBAC22 /* RootView.swift in Sources */,
 				DEAFBF139E59BF3CD1C66C1A /* SectionHeader.swift in Sources */,
 				C856BAB61B27C87C412FA4E4 /* Services.swift in Sources */,
+				E1A2B3C4D5E6F7081234ABCD /* HealthKitService.swift in Sources */,
 				3110D21E6C502FB22566E967 /* SettingsView.swift in Sources */,
 				54428D63B958275E3244C408 /* ShowerEditorSheet.swift in Sources */,
 				33EE19C380FDBA8C2032C9D4 /* SleepEditorSheet.swift in Sources */,
@@ -365,6 +368,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = DailyLogs/Resources/DailyLogs.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				DEVELOPMENT_TEAM = FMKLLHVL75;
 				INFOPLIST_FILE = DailyLogs/Resources/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -458,6 +462,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = DailyLogs/Resources/DailyLogs.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				DEVELOPMENT_TEAM = FMKLLHVL75;
 				INFOPLIST_FILE = DailyLogs/Resources/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",

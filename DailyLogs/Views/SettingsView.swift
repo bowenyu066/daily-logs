@@ -17,7 +17,7 @@ struct SettingsView: View {
                         accountCard
                         preferenceCard
                         defaultMealsCard
-                        syncPlaceholderCard
+                        healthKitCard
                     }
                     .padding(.horizontal, 18)
                     .padding(.vertical, 16)
@@ -51,6 +51,10 @@ struct SettingsView: View {
                         Text(String(appViewModel.user?.displayName.prefix(1) ?? "我"))
                             .font(.system(size: 22, weight: .bold, design: .rounded))
                             .foregroundStyle(AppTheme.accent)
+                    )
+                    .overlay(
+                        Circle()
+                            .stroke(AppTheme.border, lineWidth: 1)
                     )
                 VStack(alignment: .leading, spacing: 4) {
                     Text(appViewModel.user?.displayName ?? "未登录")
@@ -160,17 +164,25 @@ struct SettingsView: View {
         .appCardStyle()
     }
 
-    private var syncPlaceholderCard: some View {
+    private var healthKitCard: some View {
         VStack(alignment: .leading, spacing: 14) {
-            SectionHeader(title: "同步", subtitle: nil)
+            SectionHeader(title: "Apple Health 睡眠", subtitle: nil)
+            Text("自动从 Apple Health 同步睡眠数据（含阶段），替代手动输入。")
+                .font(.system(size: 14, weight: .medium, design: .rounded))
+                .foregroundStyle(AppTheme.secondaryText)
             HStack {
-                Text("Apple Watch")
+                Text("HealthKit 同步")
                     .font(.system(size: 16, weight: .semibold, design: .rounded))
                     .foregroundStyle(AppTheme.primaryText)
                 Spacer()
-                Text("稍后")
-                    .font(.system(size: 15, weight: .medium, design: .rounded))
-                    .foregroundStyle(AppTheme.secondaryText)
+                Toggle("", isOn: Binding(
+                    get: { appViewModel.preferences.healthKitSyncEnabled },
+                    set: { enabled in
+                        Task { await appViewModel.toggleHealthKitSync(enabled) }
+                    }
+                ))
+                .labelsHidden()
+                .tint(AppTheme.accent)
             }
         }
         .padding(22)
