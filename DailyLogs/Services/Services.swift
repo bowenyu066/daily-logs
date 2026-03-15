@@ -601,6 +601,9 @@ struct AnalyticsSummary {
     var averageWakeMinutes: Double?
     var defaultMealCompletionRate: Double
     var averageShowers: Double
+    var averageLightSleepHours: Double?
+    var averageDeepSleepHours: Double?
+    var averageREMSleepHours: Double?
     var days: [AnalyticsDayPoint]
     var mealSeries: [MealAnalyticsSeries]
     var showerPoints: [AnalyticsScatterPoint]
@@ -649,6 +652,8 @@ enum AnalyticsCalculator {
             let sleepStartMinutes = record.sleepRecord.bedtimePreviousNight.map(chartMinutes)
             let sleepEndMinutes = record.sleepRecord.wakeTimeCurrentDay.map(chartMinutes)
 
+            let stageDurations = record.sleepRecord.hasStageData ? record.sleepRecord.stageDurations : [:]
+
             return AnalyticsDayPoint(
                 date: date,
                 sleepHours: record.sleepRecord.duration.map { $0 / 3600 },
@@ -658,7 +663,11 @@ enum AnalyticsCalculator {
                 sleepEndMinutes: sleepEndMinutes,
                 loggedMeals: loggedMeals,
                 trackedMeals: record.meals.count,
-                showers: record.showers.count
+                showers: record.showers.count,
+                lightSleepHours: stageDurations[.light].map { $0 / 3600 },
+                deepSleepHours: stageDurations[.deep].map { $0 / 3600 },
+                remSleepHours: stageDurations[.rem].map { $0 / 3600 },
+                awakeSleepHours: stageDurations[.awake].map { $0 / 3600 }
             )
         }
 
@@ -725,12 +734,19 @@ enum AnalyticsCalculator {
             }
         }
 
+        let averageLightSleepHours = days.compactMap(\.lightSleepHours).averageOptional
+        let averageDeepSleepHours = days.compactMap(\.deepSleepHours).averageOptional
+        let averageREMSleepHours = days.compactMap(\.remSleepHours).averageOptional
+
         return AnalyticsSummary(
             averageSleepHours: averageSleepHours,
             averageBedtimeMinutes: averageBedtimeMinutes,
             averageWakeMinutes: averageWakeMinutes,
             defaultMealCompletionRate: defaultMealCompletionRate,
             averageShowers: averageShowers,
+            averageLightSleepHours: averageLightSleepHours,
+            averageDeepSleepHours: averageDeepSleepHours,
+            averageREMSleepHours: averageREMSleepHours,
             days: days,
             mealSeries: mealSeries,
             showerPoints: showerPoints

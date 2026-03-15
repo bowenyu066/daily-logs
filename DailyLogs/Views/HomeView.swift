@@ -9,6 +9,7 @@ struct HomeView: View {
     @State private var editingMealContext: MealEditorContext?
     @State private var editingShower: ShowerEntry?
     @State private var showingNewShower = false
+    @State private var previewingPhoto: UIImage?
 
     var body: some View {
         NavigationStack {
@@ -110,6 +111,14 @@ struct HomeView: View {
             }, message: {
                 Text(appViewModel.errorMessage ?? "")
             })
+            .fullScreenCover(item: Binding(
+                get: { previewingPhoto.map { IdentifiableImage(image: $0) } },
+                set: { if $0 == nil { previewingPhoto = nil } }
+            )) { item in
+                PhotoPreviewOverlay(image: item.image) {
+                    previewingPhoto = nil
+                }
+            }
         }
     }
 
@@ -374,6 +383,9 @@ struct HomeView: View {
                         .scaledToFill()
                         .frame(width: 36, height: 36)
                         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        .onTapGesture {
+                            previewingPhoto = thumbnail
+                        }
                 }
 
                 switch effectiveStatus {
@@ -561,5 +573,42 @@ struct SleepStageBar: View {
             return "\(hours)h\(minutes)m"
         }
         return "\(minutes)m"
+    }
+}
+
+// MARK: - Photo Preview
+
+private struct IdentifiableImage: Identifiable {
+    let id = UUID()
+    let image: UIImage
+}
+
+struct PhotoPreviewOverlay: View {
+    let image: UIImage
+    let onDismiss: () -> Void
+
+    var body: some View {
+        ZStack {
+            Color.black.ignoresSafeArea()
+
+            Image(uiImage: image)
+                .resizable()
+                .scaledToFit()
+                .ignoresSafeArea()
+        }
+        .overlay(alignment: .topLeading) {
+            Button {
+                onDismiss()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 17, weight: .bold))
+                    .foregroundStyle(.white)
+                    .frame(width: 36, height: 36)
+                    .background(.white.opacity(0.2))
+                    .clipShape(Circle())
+            }
+            .padding(.top, 54)
+            .padding(.leading, 18)
+        }
     }
 }

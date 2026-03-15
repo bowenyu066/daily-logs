@@ -195,6 +195,12 @@ struct AnalyticsView: View {
                     usesWrappedClock: true
                 )
             }
+        case .lightSleepTrend:
+            sleepStageCard(title: "浅睡时长", keyPath: \.lightSleepHours, average: summary.averageLightSleepHours, tone: SleepStage.light.color, compact: true)
+        case .deepSleepTrend:
+            sleepStageCard(title: "深睡时长", keyPath: \.deepSleepHours, average: summary.averageDeepSleepHours, tone: SleepStage.deep.color, compact: true)
+        case .remSleepTrend:
+            sleepStageCard(title: "REM 时长", keyPath: \.remSleepHours, average: summary.averageREMSleepHours, tone: SleepStage.rem.color, compact: true)
         case .mealCompletion:
             AnalyticsCard(title: "三餐完成率") {
                 MealCompletionBreakdown(series: summary.mealSeries)
@@ -207,6 +213,19 @@ struct AnalyticsView: View {
             AnalyticsCard(title: "洗澡时间") {
                 ShowerScatterChart(points: summary.showerPoints, selectedDate: $highlightedShowerDate, compact: true)
             }
+        }
+    }
+
+    private func sleepStageCard(title: String, keyPath: KeyPath<AnalyticsDayPoint, Double?>, average: Double?, tone: Color, compact: Bool) -> some View {
+        AnalyticsCard(title: title) {
+            DurationLineChart(
+                points: summary.days.compactMap { point in
+                    point[keyPath: keyPath].map { ChartDurationValue(date: point.date, hours: $0) }
+                },
+                averageHours: average,
+                tone: tone,
+                compact: compact
+            )
         }
     }
 
@@ -360,6 +379,12 @@ private struct AnalyticsDetailView: View {
                         usesWrappedClock: true
                     )
                 }
+            case .lightSleepTrend:
+                sleepStageDetailCard(title: "浅睡时长", keyPath: \.lightSleepHours, average: summary.averageLightSleepHours, tone: SleepStage.light.color)
+            case .deepSleepTrend:
+                sleepStageDetailCard(title: "深睡时长", keyPath: \.deepSleepHours, average: summary.averageDeepSleepHours, tone: SleepStage.deep.color)
+            case .remSleepTrend:
+                sleepStageDetailCard(title: "REM 时长", keyPath: \.remSleepHours, average: summary.averageREMSleepHours, tone: SleepStage.rem.color)
             case .mealCompletion:
                 AnalyticsCard(title: "三餐完成率") {
                     VStack(alignment: .leading, spacing: 18) {
@@ -385,6 +410,19 @@ private struct AnalyticsDetailView: View {
         switch route {
         case let .widget(widget):
             widget.title
+        }
+    }
+
+    private func sleepStageDetailCard(title: String, keyPath: KeyPath<AnalyticsDayPoint, Double?>, average: Double?, tone: Color) -> some View {
+        AnalyticsCard(title: title) {
+            DurationLineChart(
+                points: summary.days.compactMap { point in
+                    point[keyPath: keyPath].map { ChartDurationValue(date: point.date, hours: $0) }
+                },
+                averageHours: average,
+                tone: tone,
+                compact: false
+            )
         }
     }
 
@@ -1600,5 +1638,86 @@ private func chartColor(for key: String) -> Color {
     default:
         let palette: [Color] = [.pink, .mint, .teal, .purple, .cyan]
         return palette[abs(key.hashValue) % palette.count]
+    }
+}
+
+// MARK: - Duration Line Chart (for sleep stages)
+
+private struct ChartDurationValue: Identifiable {
+    var id: Date { date }
+    var date: Date
+    var hours: Double
+}
+
+private struct DurationLineChart: View {
+    let points: [ChartDurationValue]
+    let averageHours: Double?
+    let tone: Color
+    var compact: Bool = false
+
+    var body: some View {
+        if points.isEmpty {
+            PlaceholderCard(text: "还没有足够的睡眠阶段数据。")
+        } else {
+            VStack(alignment: .leading, spacing: 10) {
+                if let averageHours {
+                    AverageTextBlock(
+                        title: "平均时长",
+                        value: formatDuration(averageHours),
+                        tone: tone
+                    )
+                }
+
+                Chart {
+                    if let averageHours {
+                        RuleMark(y: .value("平均", averageHours))
+                            .foregroundStyle(tone.opacity(0.72))
+                            .lineStyle(.init(lineWidth: 3, dash: [7, 5]))
+                    }
+
+                    ForEach(points) { point in
+                        LineMark(x: .value("日期", point.date), y: .value("时长", point.hours))
+                            .interpolationMethod(.catmullRom)
+                            .foregroundStyle(tone)
+
+                        PointMark(x: .value("日期", point.date), y: .value("时长", point.hours))
+                            .foregroundStyle(tone.opacity(compact ? 0.65 : 0.9))
+                            .symbolSize(compact ? 30 : 42)
+                    }
+                }
+                .frame(height: compact ? 190 : 260)
+                .chartYScale(domain: adaptiveDomain)
+                .chartXScale(range: .plotDimension(startPadding: 14, endPadding: 14))
+                .chartYAxis {
+                    AxisMarks(position: .leading) { value in
+                        AxisGridLine()
+                        AxisValueLabel {
+                            if let hours = value.as(Double.self) {
+                                Text(formatDuration(hours))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private var adaptiveDomain: ClosedRange<Double> {
+        let values = points.map(\.hours) + (averageHours.map { [$0] } ?? [])
+        let minValue = values.min() ?? 0
+        let maxValue = values.max() ?? 3
+        let lower = max(0, minValue - 0.3)
+        let upper = maxValue + 0.3
+        return lower...max(lower + 0.5, upper)
+    }
+
+    private func formatDuration(_ hours: Double) -> String {
+        let totalMinutes = Int((hours * 60).rounded())
+        let h = totalMinutes / 60
+        let m = totalMinutes % 60
+        if h > 0 {
+            return "\(h)h\(m)m"
+        }
+        return "\(m)m"
     }
 }

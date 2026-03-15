@@ -447,6 +447,9 @@ enum AnalyticsWidgetKind: String, Codable, CaseIterable, Identifiable {
     case sleepDuration
     case wakeTrend
     case bedtimeTrend
+    case lightSleepTrend
+    case deepSleepTrend
+    case remSleepTrend
     case mealCompletion
     case mealTiming
     case showerTiming
@@ -459,6 +462,9 @@ enum AnalyticsWidgetKind: String, Codable, CaseIterable, Identifiable {
         case .sleepDuration: "平均睡眠"
         case .wakeTrend: "平均起床"
         case .bedtimeTrend: "平均入睡"
+        case .lightSleepTrend: "浅睡时长"
+        case .deepSleepTrend: "深睡时长"
+        case .remSleepTrend: "REM 时长"
         case .mealCompletion: "三餐完成率"
         case .mealTiming: "进餐时间"
         case .showerTiming: "洗澡时间"
@@ -520,6 +526,10 @@ struct AnalyticsDayPoint: Identifiable, Equatable {
     var loggedMeals: Int
     var trackedMeals: Int
     var showers: Int
+    var lightSleepHours: Double?
+    var deepSleepHours: Double?
+    var remSleepHours: Double?
+    var awakeSleepHours: Double?
 }
 
 struct AnalyticsScatterPoint: Identifiable, Equatable {
