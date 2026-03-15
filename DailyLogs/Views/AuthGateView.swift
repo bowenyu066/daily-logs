@@ -31,15 +31,46 @@ struct AuthGateView: View {
                         .foregroundStyle(AppTheme.secondaryText)
                 }
 
-                SignInWithAppleButton(.signIn) { request in
-                    appViewModel.prepareAppleSignIn(request)
-                } onCompletion: { result in
-                    Task {
-                        await appViewModel.handleAppleSignIn(result)
+                VStack(spacing: 12) {
+                    SignInWithAppleButton(.signIn) { request in
+                        appViewModel.prepareAppleSignIn(request)
+                    } onCompletion: { result in
+                        Task {
+                            await appViewModel.handleAppleSignIn(result)
+                        }
                     }
+                    .signInWithAppleButtonStyle(.black)
+                    .frame(height: 56)
+                    .overlay {
+                        HStack(spacing: 12) {
+                            Image(systemName: "apple.logo")
+                                .font(.system(size: 20, weight: .semibold))
+                            Text(String(localized: "使用 Apple 登录"))
+                                .font(.system(size: 18, weight: .semibold, design: .rounded))
+                        }
+                        .foregroundStyle(.white)
+                        .allowsHitTesting(false)
+                    }
+
+                    Button {
+                        Task {
+                            await appViewModel.continueAsGuest()
+                        }
+                    } label: {
+                        Text(String(localized: "继续作为游客"))
+                            .font(.system(size: 16, weight: .bold, design: .rounded))
+                            .foregroundStyle(AppTheme.primaryText)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                            .background(AppTheme.surface.opacity(0.92))
+                            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                    .stroke(AppTheme.border, lineWidth: 1)
+                            )
+                    }
+                    .buttonStyle(.plain)
                 }
-                .signInWithAppleButtonStyle(.black)
-                .frame(height: 56)
 
                 Spacer()
             }
