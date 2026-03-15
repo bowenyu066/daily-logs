@@ -529,22 +529,8 @@ private struct SleepTrendChart: View {
                     AxisMarks(position: .leading)
                 }
                 .chartOverlay { proxy in
-                    GeometryReader { geometry in
-                        Rectangle()
-                            .fill(.clear)
-                            .contentShape(Rectangle())
-                            .gesture(
-                                DragGesture(minimumDistance: 0)
-                                    .onChanged { value in
-                                        updateSelection(at: value.location, proxy: proxy, geometry: geometry)
-                                    }
-                            )
-                            .simultaneousGesture(
-                                SpatialTapGesture()
-                                    .onEnded { value in
-                                        updateSelection(at: value.location, proxy: proxy, geometry: geometry)
-                                    }
-                            )
+                    chartSelectionOverlay(proxy: proxy) { location, geometry in
+                        updateSelection(at: location, proxy: proxy, geometry: geometry)
                     }
                 }
             }
@@ -701,22 +687,8 @@ private struct TimeLineChart: View {
                     }
                 }
                 .chartOverlay { proxy in
-                    GeometryReader { geometry in
-                        Rectangle()
-                            .fill(.clear)
-                            .contentShape(Rectangle())
-                            .gesture(
-                                DragGesture(minimumDistance: 0)
-                                    .onChanged { value in
-                                        updateSelection(at: value.location, proxy: proxy, geometry: geometry)
-                                    }
-                            )
-                            .simultaneousGesture(
-                                SpatialTapGesture()
-                                    .onEnded { value in
-                                        updateSelection(at: value.location, proxy: proxy, geometry: geometry)
-                                    }
-                            )
+                    chartSelectionOverlay(proxy: proxy) { location, geometry in
+                        updateSelection(at: location, proxy: proxy, geometry: geometry)
                     }
                 }
             }
@@ -789,33 +761,31 @@ private struct SleepIntervalChart: View {
         if days.compactMap(\.sleepStartMinutes).isEmpty {
             PlaceholderCard(text: "睡眠记录还不够。")
         } else {
-            VStack(alignment: .leading, spacing: selectedPoint == nil ? 2 : 10) {
-                if selectedPoint != nil {
-                    ChartDisplayZone(
-                        ratio: selectedRatio,
-                        cardWidth: 228,
-                        height: compact ? 116 : 126,
-                        idle: {
-                            Color.clear
-                        },
-                        selected: {
-                            fixedChartCallout {
-                                VStack(alignment: .leading, spacing: 6) {
-                                    Text(selectedPoint?.date ?? .now, format: .dateTime.month().day())
-                                        .font(.system(size: 12, weight: .medium, design: .rounded))
-                                        .foregroundStyle(AppTheme.secondaryText)
-                                    Text(durationText(selectedPoint?.sleepHours))
-                                        .font(.system(size: 20, weight: .bold, design: .rounded))
-                                        .foregroundStyle(AppTheme.primaryText)
-                                    HStack(spacing: 18) {
-                                        calloutMetric(label: "入睡", value: labelForSleepClock(selectedPoint?.sleepStartMinutes))
-                                        calloutMetric(label: "起床", value: labelForSleepClock(selectedPoint?.sleepEndMinutes))
-                                    }
+            VStack(alignment: .leading, spacing: 8) {
+                ChartDisplayZone(
+                    ratio: selectedRatio,
+                    cardWidth: 228,
+                    height: selectedPoint == nil ? (compact ? 24 : 28) : (compact ? 116 : 126),
+                    idle: {
+                        Color.clear
+                    },
+                    selected: {
+                        fixedChartCallout {
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text(selectedPoint?.date ?? .now, format: .dateTime.month().day())
+                                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                                    .foregroundStyle(AppTheme.secondaryText)
+                                Text(durationText(selectedPoint?.sleepHours))
+                                    .font(.system(size: 20, weight: .bold, design: .rounded))
+                                    .foregroundStyle(AppTheme.primaryText)
+                                HStack(spacing: 18) {
+                                    calloutMetric(label: "入睡", value: labelForSleepClock(selectedPoint?.sleepStartMinutes))
+                                    calloutMetric(label: "起床", value: labelForSleepClock(selectedPoint?.sleepEndMinutes))
                                 }
                             }
                         }
-                    )
-                }
+                    }
+                )
 
                 Chart {
                     ForEach(days) { point in
@@ -857,7 +827,7 @@ private struct SleepIntervalChart: View {
                 }
                 .frame(height: compact ? 210 : 330)
                 .chartPlotStyle { plotArea in
-                    plotArea.padding(.top, compact ? 8 : 12)
+                    plotArea.padding(.top, compact ? 14 : 18)
                 }
                 .chartYScale(domain: adaptivePlotDomain)
                 .chartXScale(range: .plotDimension(startPadding: 14, endPadding: 14))
@@ -872,22 +842,8 @@ private struct SleepIntervalChart: View {
                     }
                 }
                 .chartOverlay { proxy in
-                    GeometryReader { geometry in
-                        Rectangle()
-                            .fill(.clear)
-                            .contentShape(Rectangle())
-                            .gesture(
-                                DragGesture(minimumDistance: 0)
-                                    .onChanged { value in
-                                        updateSelection(at: value.location, proxy: proxy, geometry: geometry)
-                                    }
-                            )
-                            .simultaneousGesture(
-                                SpatialTapGesture()
-                                    .onEnded { value in
-                                        updateSelection(at: value.location, proxy: proxy, geometry: geometry)
-                                    }
-                            )
+                    chartSelectionOverlay(proxy: proxy) { location, geometry in
+                        updateSelection(at: location, proxy: proxy, geometry: geometry)
                     }
                 }
             }
@@ -1100,22 +1056,8 @@ private struct MealTimingScatterChart: View {
                     }
                 }
                 .chartOverlay { proxy in
-                    GeometryReader { geometry in
-                        Rectangle()
-                            .fill(.clear)
-                            .contentShape(Rectangle())
-                            .gesture(
-                                DragGesture(minimumDistance: 0)
-                                    .onChanged { value in
-                                        updateSelection(at: value.location, proxy: proxy, geometry: geometry)
-                                    }
-                            )
-                            .simultaneousGesture(
-                                SpatialTapGesture()
-                                    .onEnded { value in
-                                        updateSelection(at: value.location, proxy: proxy, geometry: geometry)
-                                    }
-                            )
+                    chartSelectionOverlay(proxy: proxy) { location, geometry in
+                        updateSelection(at: location, proxy: proxy, geometry: geometry)
                     }
                 }
             }
@@ -1303,22 +1245,8 @@ private struct ShowerScatterChart: View {
                     }
                 }
                 .chartOverlay { proxy in
-                    GeometryReader { geometry in
-                        Rectangle()
-                            .fill(.clear)
-                            .contentShape(Rectangle())
-                            .gesture(
-                                DragGesture(minimumDistance: 0)
-                                    .onChanged { value in
-                                        updateSelection(at: value.location, proxy: proxy, geometry: geometry)
-                                    }
-                            )
-                            .simultaneousGesture(
-                                SpatialTapGesture()
-                                    .onEnded { value in
-                                        updateSelection(at: value.location, proxy: proxy, geometry: geometry)
-                                    }
-                            )
+                    chartSelectionOverlay(proxy: proxy) { location, geometry in
+                        updateSelection(at: location, proxy: proxy, geometry: geometry)
                     }
                 }
             }
@@ -1608,6 +1536,31 @@ private func fixedChartCallout<Content: View>(@ViewBuilder content: () -> Conten
                 .stroke(AppTheme.border, lineWidth: 1)
         )
         .frame(maxWidth: .infinity, alignment: .center)
+}
+
+@MainActor
+private func chartSelectionOverlay(
+    proxy: ChartProxy,
+    onSelect: @escaping (CGPoint, GeometryProxy) -> Void
+) -> some View {
+    GeometryReader { geometry in
+        Rectangle()
+            .fill(.clear)
+            .contentShape(Rectangle())
+            .simultaneousGesture(
+                SpatialTapGesture()
+                    .onEnded { value in
+                        onSelect(value.location, geometry)
+                    }
+            )
+            .simultaneousGesture(
+                DragGesture(minimumDistance: 14)
+                    .onChanged { value in
+                        guard abs(value.translation.width) >= abs(value.translation.height) else { return }
+                        onSelect(value.location, geometry)
+                    }
+            )
+    }
 }
 
 private func averageTag(_ value: String, tone: Color) -> some View {
