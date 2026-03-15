@@ -12,6 +12,7 @@ protocol AuthService {
     func prepareAppleSignIn(_ request: ASAuthorizationAppleIDRequest)
     func handleAppleSignIn(result: Result<ASAuthorization, Error>) async throws -> UserAccount
     func continueAsGuest() throws -> UserAccount
+    func updateDisplayName(_ name: String, for user: UserAccount) throws -> UserAccount
     func signOut() throws
 }
 
@@ -162,6 +163,19 @@ final class LocalAuthService: AuthService {
         return refreshed
     }
 
+    func updateDisplayName(_ name: String, for user: UserAccount) throws -> UserAccount {
+        let updated = UserAccount(
+            userID: user.userID,
+            displayName: name,
+            email: user.email,
+            authMode: user.authMode,
+            createdAt: user.createdAt
+        )
+        persistSession(updated)
+        _ = try saveProfile(for: updated)
+        return updated
+    }
+
     func signOut() throws {
         if FirebaseBootstrap.isConfigured, Auth.auth().currentUser != nil {
             try Auth.auth().signOut()
@@ -180,17 +194,17 @@ final class LocalAuthService: AuthService {
         var errorDescription: String? {
             switch self {
             case .invalidCredential:
-                "Apple 登录结果不可用。"
+                String(localized: "Apple 登录结果不可用。")
             case .firebaseUnavailable:
-                "Firebase 还没有正确初始化。"
+                String(localized: "Firebase 还没有正确初始化。")
             case .missingNonce:
-                "登录请求已失效，请再试一次。"
+                String(localized: "登录请求已失效，请再试一次。")
             case .missingIdentityToken:
-                "Apple 没有返回可用的身份令牌。"
+                String(localized: "Apple 没有返回可用的身份令牌。")
             case .invalidIdentityToken:
-                "Apple 身份令牌格式无效。"
+                String(localized: "Apple 身份令牌格式无效。")
             case .unexpectedAuthResult:
-                "Firebase 没有返回完整的登录结果。"
+                String(localized: "Firebase 没有返回完整的登录结果。")
             }
         }
     }

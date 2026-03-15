@@ -32,12 +32,13 @@
 		A689B0A49862ECE1CD6E0896 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3EB0253F59127B97E282CB47 /* Models.swift */; };
 		BBEB885C4F2E713F4B1045E8 /* DailyLogsApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9A87F79CBFFD14BE517E83B /* DailyLogsApp.swift */; };
 		C856BAB61B27C87C412FA4E4 /* Services.swift in Sources */ = {isa = PBXBuildFile; fileRef = 829D2D327EEAB6E3CF6799DA /* Services.swift */; };
-		E1A2B3C4D5E6F7081234ABCD /* HealthKitService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718DEADBEEF /* HealthKitService.swift */; };
 		D8F616382DD0712C9476C738 /* AnalyticsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0441CFAFE3F0A7AF7E9C46A /* AnalyticsView.swift */; };
 		D945D660D8D556FA0B7E6900 /* MealEditorSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 68D65F2FD02AA371BF0CB871 /* MealEditorSheet.swift */; };
 		DEAFBF139E59BF3CD1C66C1A /* SectionHeader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 432E478CA32978E10CBE8E93 /* SectionHeader.swift */; };
+		E1A2B3C4D5E6F7081234ABCD /* HealthKitService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718DEADBEEF /* HealthKitService.swift */; };
 		EBAD80E1B4B1CBBB28DBAC22 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12C02AFAD5427640EE2B07E9 /* RootView.swift */; };
 		FAA742A273B4A2565F8E72C3 /* DefaultMealSlotsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0EE15D79A393C8AB962EBC89 /* DefaultMealSlotsSheet.swift */; };
+		B2C3D4E5F6A1B2C3D4E5F6A1 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6A1B2C3D4E5F6 /* Localizable.xcstrings */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -66,10 +67,10 @@
 		812D9C9DFB290A74333F2355 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		828C3314E92354C53C42B8F8 /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
 		829D2D327EEAB6E3CF6799DA /* Services.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services.swift; sourceTree = "<group>"; };
-		A1B2C3D4E5F60718DEADBEEF /* HealthKitService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthKitService.swift; sourceTree = "<group>"; };
 		87050F5756327B4F773FB04E /* AppViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppViewModel.swift; sourceTree = "<group>"; };
 		919F3E3BD18392570EBCA49A /* FirebaseAppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FirebaseAppDelegate.swift; sourceTree = "<group>"; };
 		9DABA8EC0910397E76119987 /* icon.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = icon.png; sourceTree = "<group>"; };
+		A1B2C3D4E5F60718DEADBEEF /* HealthKitService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthKitService.swift; sourceTree = "<group>"; };
 		B9A87F79CBFFD14BE517E83B /* DailyLogsApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyLogsApp.swift; sourceTree = "<group>"; };
 		BF5762DCFE4B315E3833D8BC /* SleepEditorSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepEditorSheet.swift; sourceTree = "<group>"; };
 		C9487DDA529E9809A07AD9D7 /* DailyLogs.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = DailyLogs.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -82,6 +83,8 @@
 		F39D33BAEB12FE282E58CCEC /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
 		F5FE9D45ED272B7C3741130F /* AppTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppTheme.swift; sourceTree = "<group>"; };
 		F64987693C004FE40BE1E072 /* icon-1024.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "icon-1024.png"; sourceTree = "<group>"; };
+		C3D4E5F6A1B2C3D4E5F6A1B2 /* InfoPlist.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = InfoPlist.xcstrings; sourceTree = "<group>"; };
+		A1B2C3D4E5F6A1B2C3D4E5F6 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -137,6 +140,8 @@
 				F64987693C004FE40BE1E072 /* icon-1024.png */,
 				9DABA8EC0910397E76119987 /* icon.png */,
 				1D722F3BE20818A492AAE8CF /* Info.plist */,
+				C3D4E5F6A1B2C3D4E5F6A1B2 /* InfoPlist.xcstrings */,
+				A1B2C3D4E5F6A1B2C3D4E5F6 /* Localizable.xcstrings */,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -279,10 +284,11 @@
 			};
 			buildConfigurationList = D4929F87BCBFBB48CED770A4 /* Build configuration list for PBXProject "DailyLogs" */;
 			compatibilityVersion = "Xcode 14.0";
-			developmentRegion = en;
+			developmentRegion = "zh-Hans";
 			hasScannedForEncodings = 0;
 			knownRegions = (
 				Base,
+				"zh-Hans",
 				en,
 			);
 			mainGroup = 9F5F7B822640B65BEFBAE3BC;
@@ -308,6 +314,7 @@
 				5FB8AE30FD8B35F3E45F49B6 /* GoogleService-Info.plist in Resources */,
 				468633C0B0FA173AF55CA2A3 /* icon-1024.png in Resources */,
 				7F061EC3D7D5DFE1ED0358D2 /* icon.png in Resources */,
+				B2C3D4E5F6A1B2C3D4E5F6A1 /* Localizable.xcstrings in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -463,6 +470,7 @@
 				CODE_SIGN_ENTITLEMENTS = DailyLogs/Resources/DailyLogs.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				DEVELOPMENT_TEAM = FMKLLHVL75;
+				EAGER_LINKING = YES;
 				INFOPLIST_FILE = DailyLogs/Resources/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",

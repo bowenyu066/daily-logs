@@ -8,8 +8,8 @@ enum SleepEditorTarget: String, Identifiable {
 
     var title: String {
         switch self {
-        case .bedtime: "前一晚入睡"
-        case .wakeTime: "当天起床"
+        case .bedtime: String(localized: "前一晚入睡")
+        case .wakeTime: String(localized: "当天起床")
         }
     }
 
@@ -76,7 +76,7 @@ struct SleepEditorSheet: View {
             .labelsHidden()
 
             if hasExistingValue {
-                Button("清除记录", role: .destructive) {
+                Button(String(localized: "清除记录"), role: .destructive) {
                     onSave(nil)
                     dismiss()
                 }
@@ -91,18 +91,18 @@ struct SleepEditorSheet: View {
 
     private var headerBar: some View {
         ZStack {
-            Text(target == .bedtime ? "入睡时间" : "起床时间")
+            Text(target == .bedtime ? String(localized: "入睡时间") : String(localized: "起床时间"))
                 .font(.system(size: 24, weight: .bold, design: .rounded))
                 .foregroundStyle(AppTheme.primaryText)
 
             HStack {
-                Button("取消") { dismiss() }
+                Button(String(localized: "取消")) { dismiss() }
                     .font(.system(size: 18, weight: .semibold, design: .rounded))
                     .foregroundStyle(AppTheme.accent)
 
                 Spacer()
 
-                Button("保存") {
+                Button(String(localized: "保存")) {
                     onSave(normalizedTime)
                     dismiss()
                 }

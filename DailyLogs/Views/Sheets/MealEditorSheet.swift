@@ -52,7 +52,7 @@ struct MealEditorSheet: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
                     if draft.mealKind == .custom {
-                        TextField("名称", text: Binding(
+                        TextField(String(localized: "名称"), text: Binding(
                             get: { draft.customTitle ?? "" },
                             set: { draft.customTitle = $0 }
                         ))
@@ -73,10 +73,10 @@ struct MealEditorSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("取消") { dismiss() }
+                    Button(String(localized: "取消")) { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("保存") {
+                    Button(String(localized: "保存")) {
                         onSave(normalizedDraft, selectedImage)
                         dismiss()
                     }
@@ -84,7 +84,7 @@ struct MealEditorSheet: View {
                 }
                 if canDelete {
                     ToolbarItem(placement: .bottomBar) {
-                        Button("删除餐次", role: .destructive) {
+                        Button(String(localized: "删除餐次"), role: .destructive) {
                             onDelete()
                             dismiss()
                         }
@@ -111,7 +111,7 @@ struct MealEditorSheet: View {
 
     private var timeSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("时间")
+            Text(String(localized: "时间"))
                 .font(.system(size: 16, weight: .semibold, design: .rounded))
                 .foregroundStyle(AppTheme.secondaryText)
 
@@ -146,7 +146,7 @@ struct MealEditorSheet: View {
                     showingTimePicker = true
                 } label: {
                     HStack {
-                        Text("记录时间")
+                        Text(String(localized: "记录时间"))
                             .font(.system(size: 16, weight: .semibold, design: .rounded))
                             .foregroundStyle(AppTheme.secondaryText)
                         Spacer()
@@ -178,13 +178,13 @@ struct MealEditorSheet: View {
             }
 
             HStack(spacing: 10) {
-                photoActionButton(title: "拍照", systemImage: "camera") {
+                photoActionButton(title: String(localized: "拍照"), systemImage: "camera") {
                     guard UIImagePickerController.isSourceTypeAvailable(.camera) else { return }
                     pickerSource = .camera
                     showingImagePicker = true
                 }
 
-                photoActionButton(title: "相册", systemImage: "photo.on.rectangle") {
+                photoActionButton(title: String(localized: "相册"), systemImage: "photo.on.rectangle") {
                     pickerSource = .photoLibrary
                     showingImagePicker = true
                 }
@@ -229,7 +229,7 @@ struct MealEditorSheet: View {
         var entry = draft
         let trimmed = entry.customTitle?.trimmingCharacters(in: .whitespacesAndNewlines)
         if entry.mealKind == .custom {
-            entry.customTitle = trimmed?.isEmpty == false ? trimmed : "加餐"
+            entry.customTitle = trimmed?.isEmpty == false ? trimmed : String(localized: "加餐")
         }
 
         if selectedImage != nil || entry.photoURL != nil || entry.time != nil {

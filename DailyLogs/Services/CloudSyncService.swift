@@ -14,6 +14,7 @@ protocol CloudSyncService {
     func bootstrap(user: UserAccount, localPreferences: UserPreferences, localRecords: [DailyRecord]) async throws -> CloudBootstrapPayload
     func pushPreferences(_ preferences: UserPreferences, user: UserAccount) async throws
     func pushRecord(_ record: DailyRecord, user: UserAccount) async throws
+    func pushProfile(_ user: UserAccount) async throws
 }
 
 @MainActor
@@ -27,6 +28,8 @@ struct NoopCloudSyncService: CloudSyncService {
     func pushPreferences(_ preferences: UserPreferences, user: UserAccount) async throws {}
 
     func pushRecord(_ record: DailyRecord, user: UserAccount) async throws {}
+
+    func pushProfile(_ user: UserAccount) async throws {}
 }
 
 @MainActor
@@ -99,6 +102,10 @@ final class FirebaseCloudSyncService: CloudSyncService {
         let userRef = db.collection("users").document(user.userID)
         let cloudReadyRecord = try await preparedRecord(record, userID: user.userID)
         try await userRef.collection("records").document(record.date.storageKey()).setData(try encode(cloudReadyRecord))
+        try await upsertProfile(user)
+    }
+
+    func pushProfile(_ user: UserAccount) async throws {
         try await upsertProfile(user)
     }
 

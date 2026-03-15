@@ -21,9 +21,10 @@ struct AnalyticsView: View {
                 AppTheme.background.ignoresSafeArea()
 
                 ScrollView(.vertical, showsIndicators: false) {
-                    VStack(alignment: .leading, spacing: 18) {
+                    VStack(alignment: .leading, spacing: 24) {
                         header
                         summaryGrid
+                        Divider()
                         visibleWidgetCards
                         customizationCard
                     }
@@ -31,7 +32,7 @@ struct AnalyticsView: View {
                     .padding(.vertical, 16)
                 }
             }
-            .navigationTitle("数据")
+            .navigationTitle(String(localized: "数据"))
             .navigationBarTitleDisplayMode(.inline)
             .navigationDestination(item: $route) { route in
                 AnalyticsDetailView(
@@ -81,11 +82,11 @@ struct AnalyticsView: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("规律不是为了控制你，而是为了更轻松地生活。")
+            Text(String(localized: "规律不是为了控制你，而是为了更轻松地生活。"))
                 .font(.system(size: 28, weight: .bold, design: .rounded))
                 .foregroundStyle(AppTheme.primaryText)
 
-            Picker("范围", selection: $appViewModel.analyticsRange) {
+            Picker(String(localized: "范围"), selection: $appViewModel.analyticsRange) {
                 ForEach(AnalyticsRange.allCases) { range in
                     Text(range.title).tag(range)
                 }
@@ -97,8 +98,7 @@ struct AnalyticsView: View {
                 }
             }
         }
-        .padding(22)
-        .appCardStyle()
+        .sectionStyle()
     }
 
     private var summaryGrid: some View {
@@ -119,31 +119,25 @@ struct AnalyticsView: View {
     }
 
     private var sleepTrendCard: some View {
-        AnalyticsCard(title: "睡眠趋势") {
+        VStack(alignment: .leading, spacing: 14) {
+            SectionHeader(title: "睡眠趋势", subtitle: nil)
             SleepTrendChart(days: summary.days, selectedDate: $highlightedSleepDate, compact: true)
         }
+        .sectionStyle()
     }
 
     private var customizationCard: some View {
         Button {
             isShowingCustomization = true
         } label: {
-            HStack(spacing: 10) {
-                Text("自定义")
-                    .font(.system(size: 16, weight: .bold, design: .rounded))
-                    .foregroundStyle(AppTheme.primaryText)
+            HStack(spacing: 6) {
                 Image(systemName: "slider.horizontal.3")
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(AppTheme.accent)
+                Text(String(localized: "自定义"))
+                    .font(.system(size: 16, weight: .bold, design: .rounded))
+                    .foregroundStyle(AppTheme.accent)
             }
-            .padding(.horizontal, 18)
-            .padding(.vertical, 14)
-            .background(AppTheme.cardBackground)
-            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .stroke(AppTheme.border, lineWidth: 1)
-            )
         }
         .buttonStyle(.plain)
         .frame(maxWidth: .infinity)
@@ -158,6 +152,8 @@ struct AnalyticsView: View {
                 widgetPreview(widget)
             }
             .buttonStyle(.plain)
+
+            Divider()
         }
     }
 
@@ -167,11 +163,14 @@ struct AnalyticsView: View {
         case .sleepTrend:
             sleepTrendCard
         case .sleepDuration:
-            AnalyticsCard(title: "睡眠时段") {
+            VStack(alignment: .leading, spacing: 14) {
+                SectionHeader(title: "睡眠时段", subtitle: nil)
                 SleepIntervalChart(days: summary.days, selectedDate: $highlightedSleepIntervalDate, compact: true)
             }
+            .sectionStyle()
         case .wakeTrend:
-            AnalyticsCard(title: "起床变化") {
+            VStack(alignment: .leading, spacing: 14) {
+                SectionHeader(title: "起床变化", subtitle: nil)
                 TimeLineChart(
                     points: summary.days.compactMap { point in
                         point.wakeMinutes.map { ChartTimeValue(date: point.date, minutes: $0) }
@@ -182,8 +181,10 @@ struct AnalyticsView: View {
                     compact: true
                 )
             }
+            .sectionStyle()
         case .bedtimeTrend:
-            AnalyticsCard(title: "入睡变化") {
+            VStack(alignment: .leading, spacing: 14) {
+                SectionHeader(title: "入睡变化", subtitle: nil)
                 TimeLineChart(
                     points: summary.days.compactMap { point in
                         point.bedtimeMinutes.map { ChartTimeValue(date: point.date, minutes: wrapForNight($0)) }
@@ -195,6 +196,7 @@ struct AnalyticsView: View {
                     usesWrappedClock: true
                 )
             }
+            .sectionStyle()
         case .lightSleepTrend:
             sleepStageCard(title: "浅睡时长", keyPath: \.lightSleepHours, average: summary.averageLightSleepHours, tone: SleepStage.light.color, compact: true)
         case .deepSleepTrend:
@@ -202,22 +204,29 @@ struct AnalyticsView: View {
         case .remSleepTrend:
             sleepStageCard(title: "REM 时长", keyPath: \.remSleepHours, average: summary.averageREMSleepHours, tone: SleepStage.rem.color, compact: true)
         case .mealCompletion:
-            AnalyticsCard(title: "三餐完成率") {
+            VStack(alignment: .leading, spacing: 14) {
+                SectionHeader(title: "三餐完成率", subtitle: nil)
                 MealCompletionBreakdown(series: summary.mealSeries)
             }
+            .sectionStyle()
         case .mealTiming:
-            AnalyticsCard(title: "进餐时间") {
+            VStack(alignment: .leading, spacing: 14) {
+                SectionHeader(title: "进餐时间", subtitle: nil)
                 MealTimingScatterChart(series: summary.mealSeries, selectedDate: $highlightedMealDate, compact: true)
             }
+            .sectionStyle()
         case .showerTiming:
-            AnalyticsCard(title: "洗澡时间") {
+            VStack(alignment: .leading, spacing: 14) {
+                SectionHeader(title: "洗澡时间", subtitle: nil)
                 ShowerScatterChart(points: summary.showerPoints, selectedDate: $highlightedShowerDate, compact: true)
             }
+            .sectionStyle()
         }
     }
 
     private func sleepStageCard(title: String, keyPath: KeyPath<AnalyticsDayPoint, Double?>, average: Double?, tone: Color, compact: Bool) -> some View {
-        AnalyticsCard(title: title) {
+        VStack(alignment: .leading, spacing: 14) {
+            SectionHeader(title: title, subtitle: nil)
             DurationLineChart(
                 points: summary.days.compactMap { point in
                     point[keyPath: keyPath].map { ChartDurationValue(date: point.date, hours: $0) }
@@ -227,6 +236,7 @@ struct AnalyticsView: View {
                 compact: compact
             )
         }
+        .sectionStyle()
     }
 
     private func metricValue(_ metric: AnalyticsMetricKind) -> String {
@@ -240,7 +250,7 @@ struct AnalyticsView: View {
         case .mealCompletion:
             return String(format: "%.0f%%", summary.defaultMealCompletionRate * 100)
         case .averageShowers:
-            return String(format: "%.1f 次/天", summary.averageShowers)
+            return String(format: String(localized: "%.1f 次/天"), summary.averageShowers)
         }
     }
 
@@ -265,7 +275,7 @@ struct AnalyticsView: View {
     private func formattedDuration(hours: Double) -> String {
         guard hours > 0 else { return "--" }
         let totalMinutes = Int((hours * 60).rounded())
-        return "\(totalMinutes / 60)小时\(totalMinutes % 60)分"
+        return String(format: String(localized: "%d小时%d分"), totalMinutes / 60, totalMinutes % 60)
     }
 
     private func wrapForNight(_ minutes: Double) -> Double {
@@ -317,7 +327,7 @@ private struct AnalyticsDetailView: View {
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
             VStack(alignment: .leading, spacing: 18) {
-                Picker("范围", selection: $range) {
+                Picker(String(localized: "范围"), selection: $range) {
                     ForEach(AnalyticsRange.allCases) { range in
                         Text(range.title).tag(range)
                     }
@@ -349,15 +359,18 @@ private struct AnalyticsDetailView: View {
         case let .widget(widget):
             switch widget {
             case .sleepTrend:
-                AnalyticsCard(title: "睡眠趋势") {
+                VStack(alignment: .leading, spacing: 14) {
+                    SectionHeader(title: "睡眠趋势", subtitle: nil)
                     SleepTrendChart(days: summary.days, selectedDate: $selectedDate, compact: false)
                 }
             case .sleepDuration:
-                AnalyticsCard(title: "睡眠时段") {
+                VStack(alignment: .leading, spacing: 14) {
+                    SectionHeader(title: "睡眠时段", subtitle: nil)
                     SleepIntervalChart(days: summary.days, selectedDate: $selectedDate, compact: false)
                 }
             case .wakeTrend:
-                AnalyticsCard(title: "起床变化") {
+                VStack(alignment: .leading, spacing: 14) {
+                    SectionHeader(title: "起床变化", subtitle: nil)
                     TimeLineChart(
                         points: summary.days.compactMap { point in
                             point.wakeMinutes.map { ChartTimeValue(date: point.date, minutes: $0) }
@@ -368,7 +381,8 @@ private struct AnalyticsDetailView: View {
                     )
                 }
             case .bedtimeTrend:
-                AnalyticsCard(title: "入睡变化") {
+                VStack(alignment: .leading, spacing: 14) {
+                    SectionHeader(title: "入睡变化", subtitle: nil)
                     TimeLineChart(
                         points: summary.days.compactMap { point in
                             point.bedtimeMinutes.map { ChartTimeValue(date: point.date, minutes: wrapNight($0)) }
@@ -386,7 +400,8 @@ private struct AnalyticsDetailView: View {
             case .remSleepTrend:
                 sleepStageDetailCard(title: "REM 时长", keyPath: \.remSleepHours, average: summary.averageREMSleepHours, tone: SleepStage.rem.color)
             case .mealCompletion:
-                AnalyticsCard(title: "三餐完成率") {
+                VStack(alignment: .leading, spacing: 14) {
+                    SectionHeader(title: "三餐完成率", subtitle: nil)
                     VStack(alignment: .leading, spacing: 18) {
                         MealCompletionBreakdown(series: summary.mealSeries)
                         Divider()
@@ -395,11 +410,13 @@ private struct AnalyticsDetailView: View {
                     }
                 }
             case .mealTiming:
-                AnalyticsCard(title: "进餐时间") {
+                VStack(alignment: .leading, spacing: 14) {
+                    SectionHeader(title: "进餐时间", subtitle: nil)
                     MealTimingScatterChart(series: summary.mealSeries, selectedDate: $selectedDate, compact: false)
                 }
             case .showerTiming:
-                AnalyticsCard(title: "洗澡时间") {
+                VStack(alignment: .leading, spacing: 14) {
+                    SectionHeader(title: "洗澡时间", subtitle: nil)
                     ShowerScatterChart(points: summary.showerPoints, selectedDate: $selectedDate, compact: false)
                 }
             }
@@ -414,7 +431,8 @@ private struct AnalyticsDetailView: View {
     }
 
     private func sleepStageDetailCard(title: String, keyPath: KeyPath<AnalyticsDayPoint, Double?>, average: Double?, tone: Color) -> some View {
-        AnalyticsCard(title: title) {
+        VStack(alignment: .leading, spacing: 14) {
+            SectionHeader(title: title, subtitle: nil)
             DurationLineChart(
                 points: summary.days.compactMap { point in
                     point[keyPath: keyPath].map { ChartDurationValue(date: point.date, hours: $0) }
@@ -460,23 +478,6 @@ private struct SummaryCard: View {
     }
 }
 
-private struct AnalyticsCard<Content: View>: View {
-    let title: String
-    @ViewBuilder let content: Content
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text(title)
-                .font(.system(size: 18, weight: .bold, design: .rounded))
-                .foregroundStyle(AppTheme.primaryText)
-            content
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(22)
-        .appCardStyle()
-    }
-}
-
 private struct PlaceholderCard: View {
     let text: String
 
@@ -498,7 +499,7 @@ private struct SleepTrendChart: View {
 
     var body: some View {
         if days.compactMap(\.sleepHours).isEmpty {
-            PlaceholderCard(text: "记录几天之后，这里会出现睡眠曲线。")
+            PlaceholderCard(text: String(localized: "记录几天之后，这里会出现睡眠曲线。"))
         } else {
             VStack(alignment: .leading, spacing: 12) {
                 ChartDisplayZone(
@@ -507,7 +508,7 @@ private struct SleepTrendChart: View {
                     height: 68,
                     idle: {
                         AverageTextBlock(
-                            title: "平均睡眠",
+                            title: String(localized: "平均睡眠"),
                             value: durationText(averageSleepHours),
                             tone: AppTheme.accent
                         )
@@ -606,7 +607,7 @@ private struct SleepTrendChart: View {
     private func durationText(_ hours: Double?) -> String {
         guard let hours else { return "--" }
         let totalMinutes = Int((hours * 60).rounded())
-        return "\(totalMinutes / 60)小时\(totalMinutes % 60)分"
+        return String(format: String(localized: "%d小时%d分"), totalMinutes / 60, totalMinutes % 60)
     }
 
     private func updateSelection(at location: CGPoint, proxy: ChartProxy, geometry: GeometryProxy) {
@@ -653,7 +654,7 @@ private struct TimeLineChart: View {
 
     var body: some View {
         if points.isEmpty {
-            PlaceholderCard(text: "再多记录几天，这里会更有参考价值。")
+            PlaceholderCard(text: String(localized: "再多记录几天，这里会更有参考价值。"))
         } else {
             VStack(alignment: .leading, spacing: 10) {
                 ChartDisplayZone(
@@ -745,7 +746,7 @@ private struct TimeLineChart: View {
     }
 
     private var averageTitle: String {
-        usesWrappedClock ? "平均入睡" : "平均起床"
+        usesWrappedClock ? String(localized: "平均入睡") : String(localized: "平均起床")
     }
 
     private var adaptiveDomain: ClosedRange<Double> {
@@ -798,7 +799,7 @@ private struct SleepIntervalChart: View {
 
     var body: some View {
         if days.compactMap(\.sleepStartMinutes).isEmpty {
-            PlaceholderCard(text: "睡眠记录还不够。")
+            PlaceholderCard(text: String(localized: "睡眠记录还不够。"))
         } else {
             VStack(alignment: .leading, spacing: 8) {
                 ChartDisplayZone(
@@ -818,8 +819,8 @@ private struct SleepIntervalChart: View {
                                     .font(.system(size: 20, weight: .bold, design: .rounded))
                                     .foregroundStyle(AppTheme.primaryText)
                                 HStack(spacing: 18) {
-                                    calloutMetric(label: "入睡", value: labelForSleepClock(selectedPoint?.sleepStartMinutes))
-                                    calloutMetric(label: "起床", value: labelForSleepClock(selectedPoint?.sleepEndMinutes))
+                                    calloutMetric(label: String(localized: "入睡"), value: labelForSleepClock(selectedPoint?.sleepStartMinutes))
+                                    calloutMetric(label: String(localized: "起床"), value: labelForSleepClock(selectedPoint?.sleepEndMinutes))
                                 }
                             }
                         }
@@ -1010,7 +1011,7 @@ private struct MealTimingScatterChart: View {
 
     var body: some View {
         if series.flatMap(\.points).isEmpty {
-            PlaceholderCard(text: "再记录几餐，这里会看到你的进餐时间分布。")
+            PlaceholderCard(text: String(localized: "再记录几餐，这里会看到你的进餐时间分布。"))
         } else {
             VStack(alignment: .leading, spacing: 12) {
                 ChartDisplayZone(
@@ -1197,7 +1198,7 @@ private struct ShowerScatterChart: View {
 
     var body: some View {
         if points.isEmpty {
-            PlaceholderCard(text: "还没有洗澡时间数据。")
+            PlaceholderCard(text: String(localized: "还没有洗澡时间数据。"))
         } else {
             VStack(alignment: .leading, spacing: 12) {
                 ChartDisplayZone(
@@ -1206,7 +1207,7 @@ private struct ShowerScatterChart: View {
                     height: 84,
                     idle: {
                         AverageTextBlock(
-                            title: "平均洗澡时间",
+                            title: String(localized: "平均洗澡时间"),
                             value: averageMinutes.map(clockText) ?? "--",
                             tone: .teal
                         )
@@ -1223,7 +1224,7 @@ private struct ShowerScatterChart: View {
                                             Circle()
                                                 .fill(Color.teal)
                                                 .frame(width: 8, height: 8)
-                                            Text(index == 0 ? "第1次" : "第\(index + 1)次")
+                                            Text(String(format: String(localized: "第%d次"), index + 1))
                                                 .foregroundStyle(AppTheme.secondaryText)
                                             Spacer(minLength: 8)
                                             Text(clockText(item.minutes))
@@ -1360,7 +1361,7 @@ private struct AnalyticsCustomizationSheet: View {
     var body: some View {
         NavigationStack {
             List {
-                Section("卡片") {
+                Section(String(localized: "卡片")) {
                     ForEach(AnalyticsMetricKind.allCases) { metric in
                         ToggleRow(
                             title: metric.title,
@@ -1371,7 +1372,7 @@ private struct AnalyticsCustomizationSheet: View {
                     }
                 }
 
-                Section("图表") {
+                Section(String(localized: "图表")) {
                     ForEach(customization.visibleWidgets) { widget in
                         ToggleRow(title: widget.title, isOn: true) {
                             customization.visibleWidgets.removeAll { $0 == widget }
@@ -1391,15 +1392,15 @@ private struct AnalyticsCustomizationSheet: View {
             .environment(\.editMode, .constant(.active))
             .scrollContentBackground(.hidden)
             .background(AppTheme.background.ignoresSafeArea())
-            .navigationTitle("自定义")
+            .navigationTitle(String(localized: "自定义"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button("取消") { dismiss() }
+                    Button(String(localized: "取消")) { dismiss() }
                         .foregroundStyle(AppTheme.secondaryText)
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("保存") {
+                    Button(String(localized: "保存")) {
                         onSave(customization)
                         dismiss()
                     }
@@ -1476,22 +1477,22 @@ private struct AnalyticsDateRangeSheet: View {
     var body: some View {
         NavigationStack {
             List {
-                DatePicker("开始", selection: $startDate, in: allowedRange, displayedComponents: .date)
+                DatePicker(String(localized: "开始"), selection: $startDate, in: allowedRange, displayedComponents: .date)
                     .listRowBackground(AppTheme.surface)
-                DatePicker("结束", selection: $endDate, in: allowedRange, displayedComponents: .date)
+                DatePicker(String(localized: "结束"), selection: $endDate, in: allowedRange, displayedComponents: .date)
                     .listRowBackground(AppTheme.surface)
             }
             .scrollContentBackground(.hidden)
             .background(AppTheme.background.ignoresSafeArea())
-            .navigationTitle("时间范围")
+            .navigationTitle(String(localized: "时间范围"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button("取消") { dismiss() }
+                    Button(String(localized: "取消")) { dismiss() }
                         .foregroundStyle(AppTheme.secondaryText)
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("保存") {
+                    Button(String(localized: "保存")) {
                         onSave(min(startDate, endDate).startOfDay...max(startDate, endDate).startOfDay)
                         dismiss()
                     }
@@ -1657,7 +1658,7 @@ private struct DurationLineChart: View {
 
     var body: some View {
         if points.isEmpty {
-            PlaceholderCard(text: "还没有足够的睡眠阶段数据。")
+            PlaceholderCard(text: String(localized: "还没有足够的睡眠阶段数据。"))
         } else {
             VStack(alignment: .leading, spacing: 10) {
                 if let averageHours {

@@ -122,7 +122,7 @@ final class AppViewModel: ObservableObject {
                 updateSunTimesIfPossible()
             }
         } catch {
-            errorMessage = "初始化失败：\(error.localizedDescription)"
+            errorMessage = String(localized: "初始化失败：") + error.localizedDescription
         }
     }
 
@@ -158,7 +158,19 @@ final class AppViewModel: ObservableObject {
             }
             try loadSelectedRecord()
         } catch {
-            errorMessage = "进入游客模式失败：\(error.localizedDescription)"
+            errorMessage = String(localized: "进入游客模式失败：") + error.localizedDescription
+        }
+    }
+
+    func updateDisplayName(_ name: String) async {
+        guard let user else { return }
+        do {
+            self.user = try authService.updateDisplayName(name, for: user)
+            if let updatedUser = self.user, !updatedUser.isGuest, cloudSyncService.isAvailable {
+                try await cloudSyncService.pushProfile(updatedUser)
+            }
+        } catch {
+            errorMessage = String(localized: "修改昵称失败：") + error.localizedDescription
         }
     }
 
@@ -170,7 +182,7 @@ final class AppViewModel: ObservableObject {
             selectedDate = .now.startOfDay
             dailyRecord = DailyRecord.empty(for: selectedDate, preferences: preferences)
         } catch {
-            errorMessage = "退出失败：\(error.localizedDescription)"
+            errorMessage = String(localized: "退出失败：") + error.localizedDescription
         }
     }
 
@@ -186,25 +198,25 @@ final class AppViewModel: ObservableObject {
         if nsError.domain == AuthErrorDomain {
             switch AuthErrorCode(rawValue: nsError.code) {
             case .internalError:
-                return "登录失败：Firebase Auth 已收到 Apple 登录结果，但服务端配置还不完整。请检查 Firebase Authentication 里是否启用了 Apple，并确认 Apple Team ID、Key ID、Private Key 都已配置。"
+                return String(localized: "登录失败：Firebase Auth 已收到 Apple 登录结果，但服务端配置还不完整。请检查 Firebase Authentication 里是否启用了 Apple，并确认 Apple Team ID、Key ID、Private Key 都已配置。")
             case .invalidCredential:
-                return "登录失败：Apple 登录凭证无效，请重新试一次。"
+                return String(localized: "登录失败：Apple 登录凭证无效，请重新试一次。")
             case .missingOrInvalidNonce:
-                return "登录失败：登录请求已过期，请重新点一次 Apple 登录。"
+                return String(localized: "登录失败：登录请求已过期，请重新点一次 Apple 登录。")
             case .appNotAuthorized:
-                return "登录失败：当前 App 还没有在 Firebase / Apple 侧完成授权配置。"
+                return String(localized: "登录失败：当前 App 还没有在 Firebase / Apple 侧完成授权配置。")
             case .operationNotAllowed:
-                return "登录失败：Firebase Authentication 里还没有启用 Apple 登录。"
+                return String(localized: "登录失败：Firebase Authentication 里还没有启用 Apple 登录。")
             default:
                 break
             }
         }
 
         if loweredDescription.contains("internal error has occurred") {
-            return "登录失败：Firebase 已初始化，但 Apple 登录的 Firebase Authentication 配置还不完整。请到 Firebase Console 的 Authentication -> Sign-in method -> Apple，确认已启用，并填写 Apple Team ID、Key ID 和 Private Key。"
+            return String(localized: "登录失败：Firebase 已初始化，但 Apple 登录的 Firebase Authentication 配置还不完整。请到 Firebase Console 的 Authentication -> Sign-in method -> Apple，确认已启用，并填写 Apple Team ID、Key ID 和 Private Key。")
         }
 
-        return "登录失败：\(error.localizedDescription)"
+        return String(localized: "登录失败：") + error.localizedDescription
     }
 
     func selectDate(_ date: Date) async {
@@ -213,7 +225,7 @@ final class AppViewModel: ObservableObject {
         do {
             try loadSelectedRecord()
         } catch {
-            errorMessage = "加载记录失败：\(error.localizedDescription)"
+            errorMessage = String(localized: "加载记录失败：") + error.localizedDescription
         }
     }
 
@@ -244,6 +256,12 @@ final class AppViewModel: ObservableObject {
         dailyRecord.sleepRecord.targetBedtime = schedule.target(for: selectedDate)
         persistPreferences()
         persistCurrentRecord()
+        await syncPreferencesToCloudIfNeeded()
+    }
+
+    func updateAppLanguage(_ language: AppLanguage) async {
+        preferences.appLanguage = language
+        persistPreferences()
         await syncPreferencesToCloudIfNeeded()
     }
 
@@ -284,7 +302,7 @@ final class AppViewModel: ObservableObject {
             persistCurrentRecord()
             await syncCurrentRecordToCloudIfNeeded()
         } catch {
-            errorMessage = "保存餐食失败：\(error.localizedDescription)"
+            errorMessage = String(localized: "保存餐食失败：") + error.localizedDescription
         }
     }
 
@@ -302,7 +320,7 @@ final class AppViewModel: ObservableObject {
             persistCurrentRecord()
             await syncCurrentRecordToCloudIfNeeded()
         } catch {
-            errorMessage = "删除餐食失败：\(error.localizedDescription)"
+            errorMessage = String(localized: "删除餐食失败：") + error.localizedDescription
         }
     }
 
@@ -330,7 +348,7 @@ final class AppViewModel: ObservableObject {
             persistCurrentRecord()
             await syncCurrentRecordToCloudIfNeeded()
         } catch {
-            errorMessage = "删除记录失败：\(error.localizedDescription)"
+            errorMessage = String(localized: "删除记录失败：") + error.localizedDescription
         }
     }
 
@@ -351,7 +369,7 @@ final class AppViewModel: ObservableObject {
             persistCurrentRecord()
             await syncCurrentRecordToCloudIfNeeded()
         } catch {
-            errorMessage = "删除照片失败：\(error.localizedDescription)"
+            errorMessage = String(localized: "删除照片失败：") + error.localizedDescription
         }
     }
 
@@ -373,7 +391,7 @@ final class AppViewModel: ObservableObject {
             persistCurrentRecord()
             await syncCurrentRecordToCloudIfNeeded()
         } catch {
-            errorMessage = "更新餐食失败：\(error.localizedDescription)"
+            errorMessage = String(localized: "更新餐食失败：") + error.localizedDescription
         }
     }
 
@@ -447,7 +465,7 @@ final class AppViewModel: ObservableObject {
                 await syncPreferencesToCloudIfNeeded()
                 await syncHealthKitForCurrentDate()
             } catch {
-                errorMessage = "HealthKit 授权失败：\(error.localizedDescription)"
+                errorMessage = String(localized: "HealthKit 授权失败：") + error.localizedDescription
             }
         } else {
             preferences.healthKitSyncEnabled = false
@@ -472,7 +490,7 @@ final class AppViewModel: ObservableObject {
             dailyRecord.sleepRecord.source = .healthKit
             persistCurrentRecord()
         } catch {
-            errorMessage = "HealthKit 同步失败：\(error.localizedDescription)"
+            errorMessage = String(localized: "HealthKit 同步失败：") + error.localizedDescription
         }
     }
 
@@ -530,7 +548,7 @@ final class AppViewModel: ObservableObject {
             try repository.saveRecord(dailyRecord, userID: user.userID)
             try loadAllRecords(for: user.userID)
         } catch {
-            errorMessage = "保存记录失败：\(error.localizedDescription)"
+            errorMessage = String(localized: "保存记录失败：") + error.localizedDescription
         }
     }
 
@@ -539,7 +557,7 @@ final class AppViewModel: ObservableObject {
             preferences.locationPermissionState = locationService.permissionState
             try preferencesStore.savePreferences(preferences, userID: user?.userID)
         } catch {
-            errorMessage = "保存偏好失败：\(error.localizedDescription)"
+            errorMessage = String(localized: "保存偏好失败：") + error.localizedDescription
         }
     }
 
@@ -633,7 +651,7 @@ final class AppViewModel: ObservableObject {
                 allRecords = merged.values.sorted { $0.date < $1.date }
             }
         } catch {
-            errorMessage = "云端同步失败：\(error.localizedDescription)"
+            errorMessage = String(localized: "云端同步失败：") + error.localizedDescription
         }
     }
 
@@ -642,7 +660,7 @@ final class AppViewModel: ObservableObject {
         do {
             try await cloudSyncService.pushPreferences(preferences, user: user)
         } catch {
-            errorMessage = "云端偏好同步失败：\(error.localizedDescription)"
+            errorMessage = String(localized: "云端偏好同步失败：") + error.localizedDescription
         }
     }
 
@@ -651,7 +669,7 @@ final class AppViewModel: ObservableObject {
         do {
             try await cloudSyncService.pushRecord(dailyRecord, user: user)
         } catch {
-            errorMessage = "云端记录同步失败：\(error.localizedDescription)"
+            errorMessage = String(localized: "云端记录同步失败：") + error.localizedDescription
         }
     }
 

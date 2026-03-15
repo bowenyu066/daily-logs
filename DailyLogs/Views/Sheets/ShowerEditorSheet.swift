@@ -49,7 +49,7 @@ struct ShowerEditorSheet: View {
             .disabled(!isEditable)
 
             if let onDelete {
-                Button("删除记录", role: .destructive) {
+                Button(String(localized: "删除记录"), role: .destructive) {
                     onDelete()
                     dismiss()
                 }
@@ -63,18 +63,18 @@ struct ShowerEditorSheet: View {
 
     private var headerBar: some View {
         ZStack {
-            Text("洗澡时间")
+            Text(String(localized: "洗澡时间"))
                 .font(.system(size: 24, weight: .bold, design: .rounded))
                 .foregroundStyle(AppTheme.primaryText)
 
             HStack {
-                Button("取消") { dismiss() }
+                Button(String(localized: "取消")) { dismiss() }
                     .font(.system(size: 18, weight: .semibold, design: .rounded))
                     .foregroundStyle(AppTheme.accent)
 
                 Spacer()
 
-                Button("保存") {
+                Button(String(localized: "保存")) {
                     onSave(
                         ShowerEntry(
                             id: entryID,

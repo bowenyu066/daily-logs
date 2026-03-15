@@ -25,6 +25,10 @@ struct SectionHeader: View {
                 Button(actionTitle, action: action)
                     .font(.system(size: 14, weight: .semibold, design: .rounded))
                     .foregroundStyle(AppTheme.accent)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(AppTheme.accentSoft)
+                    .clipShape(Capsule())
             }
         }
     }

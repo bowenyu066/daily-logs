@@ -5,20 +5,19 @@ struct MainTabView: View {
         TabView {
             HomeView()
                 .tabItem {
-                    Label("主页", systemImage: "house")
+                    Label(String(localized: "主页"), systemImage: "house")
                 }
 
             AnalyticsView()
                 .tabItem {
-                    Label("数据", systemImage: "chart.line.uptrend.xyaxis")
+                    Label(String(localized: "数据"), systemImage: "chart.line.uptrend.xyaxis")
                 }
 
             SettingsView()
                 .tabItem {
-                    Label("设置", systemImage: "slider.horizontal.3")
+                    Label(String(localized: "设置"), systemImage: "slider.horizontal.3")
                 }
         }
         .tint(AppTheme.accent)
     }
 }
-

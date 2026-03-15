@@ -14,14 +14,19 @@ struct AuthGateView: View {
             .ignoresSafeArea()
 
             VStack(alignment: .leading, spacing: 28) {
+                HStack {
+                    Spacer()
+                    languageToggle
+                }
+
                 Spacer()
 
                 VStack(alignment: .leading, spacing: 14) {
-                    Text("每天只记几件事")
+                    Text("每天只记几件事", tableName: "Localizable")
                         .font(.system(size: 38, weight: .bold, design: .rounded))
                         .foregroundStyle(AppTheme.primaryText)
 
-                    Text("起床、入睡、三餐、洗澡")
+                    Text("起床、入睡、三餐、洗澡", tableName: "Localizable")
                         .font(.system(size: 17, weight: .medium, design: .rounded))
                         .foregroundStyle(AppTheme.secondaryText)
                 }
@@ -36,38 +41,40 @@ struct AuthGateView: View {
                 .signInWithAppleButtonStyle(.black)
                 .frame(height: 56)
 
-                Button {
-                    Task {
-                        await appViewModel.continueAsGuest()
-                    }
-                } label: {
-                    HStack {
-                        Image(systemName: "person.crop.circle.badge.questionmark")
-                        Text("跳过登录，先用游客模式")
-                    }
-                    .font(.system(size: 16, weight: .bold, design: .rounded))
-                    .foregroundStyle(AppTheme.primaryText)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 16)
-                    .background(AppTheme.surface)
-                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 18, style: .continuous)
-                            .stroke(AppTheme.border, lineWidth: 1)
-                    )
-                }
-                .buttonStyle(.plain)
-
                 Spacer()
             }
             .padding(24)
         }
-        .alert("提示", isPresented: .constant(appViewModel.errorMessage != nil), actions: {
-            Button("知道了") {
+        .alert(String(localized: "提示"), isPresented: .constant(appViewModel.errorMessage != nil), actions: {
+            Button(String(localized: "知道了")) {
                 appViewModel.errorMessage = nil
             }
         }, message: {
             Text(appViewModel.errorMessage ?? "")
         })
+    }
+
+    private var languageToggle: some View {
+        Menu {
+            ForEach(AppLanguage.allCases) { lang in
+                Button {
+                    Task { await appViewModel.updateAppLanguage(lang) }
+                } label: {
+                    HStack {
+                        Text(lang.title)
+                        if appViewModel.preferences.appLanguage == lang {
+                            Image(systemName: "checkmark")
+                        }
+                    }
+                }
+            }
+        } label: {
+            Image(systemName: "globe")
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(AppTheme.secondaryText)
+                .frame(width: 42, height: 42)
+                .background(AppTheme.surface)
+                .clipShape(Circle())
+        }
     }
 }

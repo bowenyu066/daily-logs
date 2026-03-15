@@ -1,6 +1,30 @@
 import Foundation
 import SwiftUI
 
+enum AppLanguage: String, Codable, CaseIterable, Identifiable {
+    case system
+    case zhHans
+    case en
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .system: String(localized: "跟随系统", defaultValue: "跟随系统")
+        case .zhHans: "中文"
+        case .en: "English"
+        }
+    }
+
+    var locale: Locale? {
+        switch self {
+        case .system: nil
+        case .zhHans: Locale(identifier: "zh-Hans")
+        case .en: Locale(identifier: "en")
+        }
+    }
+}
+
 enum AuthMode: String, Codable, Equatable {
     case apple
     case guest
@@ -78,10 +102,10 @@ enum MealKind: String, Codable, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .breakfast: "早餐"
-        case .lunch: "午餐"
-        case .dinner: "晚餐"
-        case .custom: "自定义"
+        case .breakfast: String(localized: "早餐")
+        case .lunch: String(localized: "午餐")
+        case .dinner: String(localized: "晚餐")
+        case .custom: String(localized: "自定义")
         }
     }
 }
@@ -93,9 +117,9 @@ enum MealStatus: String, Codable, CaseIterable {
 
     var title: String {
         switch self {
-        case .empty: "未记录"
-        case .logged: "已记录"
-        case .skipped: "跳过"
+        case .empty: String(localized: "未记录")
+        case .logged: String(localized: "已记录")
+        case .skipped: String(localized: "跳过")
         }
     }
 }
@@ -107,9 +131,9 @@ struct MealSlot: Codable, Equatable, Identifiable {
     var isDefault: Bool = false
 
     static let defaults: [MealSlot] = [
-        MealSlot(kind: .breakfast, title: "早餐", isDefault: true),
-        MealSlot(kind: .lunch, title: "午餐", isDefault: true),
-        MealSlot(kind: .dinner, title: "晚餐", isDefault: true)
+        MealSlot(kind: .breakfast, title: MealKind.breakfast.title, isDefault: true),
+        MealSlot(kind: .lunch, title: MealKind.lunch.title, isDefault: true),
+        MealSlot(kind: .dinner, title: MealKind.dinner.title, isDefault: true)
     ]
 }
 
@@ -123,9 +147,9 @@ enum SleepStage: String, Codable, CaseIterable {
 
     var title: String {
         switch self {
-        case .awake: "清醒"
-        case .light: "浅睡"
-        case .deep: "深睡"
+        case .awake: String(localized: "清醒")
+        case .light: String(localized: "浅睡")
+        case .deep: String(localized: "深睡")
         case .rem: "REM"
         }
     }
@@ -277,9 +301,9 @@ enum AppearanceMode: String, Codable, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .system: "跟随系统"
-        case .light: "浅色"
-        case .dark: "深色"
+        case .system: String(localized: "跟随系统")
+        case .light: String(localized: "浅色")
+        case .dark: String(localized: "深色")
         }
     }
 }
@@ -297,25 +321,25 @@ enum Weekday: Int, CaseIterable, Codable, Identifiable {
 
     var shortLabel: String {
         switch self {
-        case .monday: "一"
-        case .tuesday: "二"
-        case .wednesday: "三"
-        case .thursday: "四"
-        case .friday: "五"
-        case .saturday: "六"
-        case .sunday: "日"
+        case .monday: String(localized: "一")
+        case .tuesday: String(localized: "二")
+        case .wednesday: String(localized: "三")
+        case .thursday: String(localized: "四")
+        case .friday: String(localized: "五")
+        case .saturday: String(localized: "六")
+        case .sunday: String(localized: "日")
         }
     }
 
     var title: String {
         switch self {
-        case .monday: "周一"
-        case .tuesday: "周二"
-        case .wednesday: "周三"
-        case .thursday: "周四"
-        case .friday: "周五"
-        case .saturday: "周六"
-        case .sunday: "周日"
+        case .monday: String(localized: "周一")
+        case .tuesday: String(localized: "周二")
+        case .wednesday: String(localized: "周三")
+        case .thursday: String(localized: "周四")
+        case .friday: String(localized: "周五")
+        case .saturday: String(localized: "周六")
+        case .sunday: String(localized: "周日")
         }
     }
 }
@@ -369,6 +393,7 @@ struct UserPreferences: Codable, Equatable {
     var appearanceMode: AppearanceMode = .system
     var analyticsCustomization: AnalyticsCustomization = .default
     var healthKitSyncEnabled: Bool = false
+    var appLanguage: AppLanguage = .system
 
     enum CodingKeys: String, CodingKey {
         case defaultMealSlots
@@ -377,6 +402,7 @@ struct UserPreferences: Codable, Equatable {
         case appearanceMode
         case analyticsCustomization
         case healthKitSyncEnabled
+        case appLanguage
         case targetBedtime
     }
 
@@ -386,7 +412,8 @@ struct UserPreferences: Codable, Equatable {
         locationPermissionState: LocationPermissionState = .notDetermined,
         appearanceMode: AppearanceMode = .system,
         analyticsCustomization: AnalyticsCustomization = .default,
-        healthKitSyncEnabled: Bool = false
+        healthKitSyncEnabled: Bool = false,
+        appLanguage: AppLanguage = .system
     ) {
         self.defaultMealSlots = defaultMealSlots
         self.bedtimeSchedule = bedtimeSchedule
@@ -394,6 +421,7 @@ struct UserPreferences: Codable, Equatable {
         self.appearanceMode = appearanceMode
         self.analyticsCustomization = analyticsCustomization
         self.healthKitSyncEnabled = healthKitSyncEnabled
+        self.appLanguage = appLanguage
     }
 
     init(from decoder: any Decoder) throws {
@@ -403,6 +431,7 @@ struct UserPreferences: Codable, Equatable {
         appearanceMode = try container.decodeIfPresent(AppearanceMode.self, forKey: .appearanceMode) ?? .system
         analyticsCustomization = try container.decodeIfPresent(AnalyticsCustomization.self, forKey: .analyticsCustomization) ?? .default
         healthKitSyncEnabled = try container.decodeIfPresent(Bool.self, forKey: .healthKitSyncEnabled) ?? false
+        appLanguage = try container.decodeIfPresent(AppLanguage.self, forKey: .appLanguage) ?? .system
         if let bedtimeSchedule = try container.decodeIfPresent(BedtimeSchedule.self, forKey: .bedtimeSchedule) {
             self.bedtimeSchedule = bedtimeSchedule
         } else {
@@ -419,6 +448,7 @@ struct UserPreferences: Codable, Equatable {
         try container.encode(appearanceMode, forKey: .appearanceMode)
         try container.encode(analyticsCustomization, forKey: .analyticsCustomization)
         try container.encode(healthKitSyncEnabled, forKey: .healthKitSyncEnabled)
+        try container.encode(appLanguage, forKey: .appLanguage)
     }
 }
 
@@ -433,11 +463,11 @@ enum AnalyticsMetricKind: String, Codable, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .averageSleep: "平均睡眠"
-        case .averageWake: "平均起床"
-        case .averageBedtime: "平均入睡"
-        case .mealCompletion: "三餐完成率"
-        case .averageShowers: "平均洗澡"
+        case .averageSleep: String(localized: "平均睡眠")
+        case .averageWake: String(localized: "平均起床")
+        case .averageBedtime: String(localized: "平均入睡")
+        case .mealCompletion: String(localized: "三餐完成率")
+        case .averageShowers: String(localized: "平均洗澡")
         }
     }
 }
@@ -458,16 +488,16 @@ enum AnalyticsWidgetKind: String, Codable, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .sleepTrend: "睡眠趋势"
-        case .sleepDuration: "平均睡眠"
-        case .wakeTrend: "平均起床"
-        case .bedtimeTrend: "平均入睡"
-        case .lightSleepTrend: "浅睡时长"
-        case .deepSleepTrend: "深睡时长"
-        case .remSleepTrend: "REM 时长"
-        case .mealCompletion: "三餐完成率"
-        case .mealTiming: "进餐时间"
-        case .showerTiming: "洗澡时间"
+        case .sleepTrend: String(localized: "睡眠趋势")
+        case .sleepDuration: String(localized: "平均睡眠")
+        case .wakeTrend: String(localized: "平均起床")
+        case .bedtimeTrend: String(localized: "平均入睡")
+        case .lightSleepTrend: String(localized: "浅睡时长")
+        case .deepSleepTrend: String(localized: "深睡时长")
+        case .remSleepTrend: String(localized: "REM 时长")
+        case .mealCompletion: String(localized: "三餐完成率")
+        case .mealTiming: String(localized: "进餐时间")
+        case .showerTiming: String(localized: "洗澡时间")
         }
     }
 }
@@ -498,10 +528,10 @@ enum AnalyticsRange: String, Codable, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .week: "7天"
-        case .month: "30天"
-        case .quarter: "90天"
-        case .custom: "自定义"
+        case .week: String(localized: "7天")
+        case .month: String(localized: "30天")
+        case .quarter: String(localized: "90天")
+        case .custom: String(localized: "自定义")
         }
     }
 

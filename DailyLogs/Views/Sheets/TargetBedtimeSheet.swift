@@ -96,7 +96,7 @@ struct TargetBedtimeSheet: View {
 
     private var headerBar: some View {
         ZStack {
-            Text("目标入睡")
+            Text(String(localized: "目标入睡"))
                 .font(.system(size: 22, weight: .bold, design: .rounded))
                 .foregroundStyle(AppTheme.primaryText)
             HStack {
