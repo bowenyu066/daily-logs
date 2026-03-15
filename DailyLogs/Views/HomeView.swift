@@ -64,7 +64,7 @@ struct HomeView: View {
                     entry: context.entry,
                     baseDate: appViewModel.selectedDate,
                     preferredSource: context.preferredSource,
-                    canDelete: context.entry.mealKind == .custom,
+                    canDelete: appViewModel.canDeleteMealEntry(context.entry),
                     isEditable: appViewModel.canEditSelectedDate,
                     onSave: { updated, image in
                         Task { await appViewModel.saveMeal(updated, image: image) }
@@ -224,6 +224,7 @@ struct HomeView: View {
                 ForEach(appViewModel.dailyRecord.meals) { meal in
                     Menu {
                         let isLogged = meal.time != nil || meal.hasPhoto
+                        let canDeleteMeal = appViewModel.canDeleteMealEntry(meal)
 
                         if meal.hasPhoto {
                             Button("编辑照片") {
@@ -235,8 +236,14 @@ struct HomeView: View {
                             Button("删除照片", role: .destructive) {
                                 Task { await appViewModel.removeMealPhoto(meal) }
                             }
-                            Button("删除记录", role: .destructive) {
-                                Task { await appViewModel.clearMealRecord(meal) }
+                            if canDeleteMeal {
+                                Button("删除餐次", role: .destructive) {
+                                    Task { await appViewModel.deleteMeal(meal) }
+                                }
+                            } else {
+                                Button("删除记录", role: .destructive) {
+                                    Task { await appViewModel.clearMealRecord(meal) }
+                                }
                             }
                         } else if isLogged {
                             Button("添加图片") {
@@ -245,8 +252,14 @@ struct HomeView: View {
                             Button("修改时间") {
                                 openMealEditor(meal, with: .editTime)
                             }
-                            Button("删除记录", role: .destructive) {
-                                Task { await appViewModel.clearMealRecord(meal) }
+                            if canDeleteMeal {
+                                Button("删除餐次", role: .destructive) {
+                                    Task { await appViewModel.deleteMeal(meal) }
+                                }
+                            } else {
+                                Button("删除记录", role: .destructive) {
+                                    Task { await appViewModel.clearMealRecord(meal) }
+                                }
                             }
                         } else {
                             if UIImagePickerController.isSourceTypeAvailable(.camera) {
@@ -259,6 +272,11 @@ struct HomeView: View {
                             }
                             Button("仅记录时间") {
                                 openMealEditor(meal, with: .timeOnly)
+                            }
+                            if canDeleteMeal {
+                                Button("删除餐次", role: .destructive) {
+                                    Task { await appViewModel.deleteMeal(meal) }
+                                }
                             }
                             Button("跳过", role: .destructive) {
                                 Task { await appViewModel.skipMeal(meal) }

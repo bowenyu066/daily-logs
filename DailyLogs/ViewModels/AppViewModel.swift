@@ -252,8 +252,12 @@ final class AppViewModel: ObservableObject {
         }
     }
 
+    func canDeleteMealEntry(_ entry: MealEntry) -> Bool {
+        !isDefaultMealEntry(entry)
+    }
+
     func deleteMeal(_ entry: MealEntry) async {
-        guard canEditSelectedDate, entry.mealKind == .custom else { return }
+        guard canEditSelectedDate, canDeleteMealEntry(entry) else { return }
         do {
             if let photoURL = entry.photoURL {
                 try photoStorageService.deletePhoto(at: photoURL)
@@ -271,6 +275,12 @@ final class AppViewModel: ObservableObject {
         do {
             if let photoURL = entry.photoURL {
                 try photoStorageService.deletePhoto(at: photoURL)
+            }
+            if canDeleteMealEntry(entry) {
+                dailyRecord.meals.removeAll { $0.id == entry.id }
+                persistCurrentRecord()
+                await syncCurrentRecordToCloudIfNeeded()
+                return
             }
             var updatedEntry = entry
             updatedEntry.status = .empty
@@ -409,6 +419,15 @@ final class AppViewModel: ObservableObject {
 
     func bedtimeScheduleSummary() -> String {
         preferences.bedtimeSchedule.summary()
+    }
+
+    private func isDefaultMealEntry(_ entry: MealEntry) -> Bool {
+        preferences.defaultMealSlots.contains { slot in
+            if slot.kind == .custom {
+                return entry.mealKind == .custom && entry.customTitle == slot.title
+            }
+            return entry.mealKind == slot.kind
+        }
     }
 
     private func loadSelectedRecord() throws {
