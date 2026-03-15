@@ -618,7 +618,8 @@ enum AnalyticsCalculator {
         defaultMealSlots: [MealSlot] = MealSlot.defaults
     ) -> AnalyticsSummary {
         let calendar = Calendar.current
-        let endDate = calendar.startOfDay(for: .now)
+        // Exclude today from analytics — incomplete day skews averages
+        let endDate = calendar.startOfDay(for: .now).adding(days: -1)
         let bounds: ClosedRange<Date> = {
             if range == .custom, let customRange {
                 let lower = customRange.lowerBound.startOfDay

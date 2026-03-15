@@ -221,6 +221,7 @@ final class AppViewModel: ObservableObject {
         guard canEditSelectedDate else { return }
         dailyRecord.sleepRecord.bedtimePreviousNight = bedtime
         dailyRecord.sleepRecord.wakeTimeCurrentDay = wakeTime
+        dailyRecord.sleepRecord.source = .manual
         persistCurrentRecord()
     }
 
@@ -457,21 +458,16 @@ final class AppViewModel: ObservableObject {
 
     func syncHealthKitForCurrentDate() async {
         guard preferences.healthKitSyncEnabled, let user else { return }
+        // Don't overwrite user's manual edits
+        guard dailyRecord.sleepRecord.source != .manual else { return }
         do {
             guard let hkSleep = try await healthSyncAdapter.fetchSleepData(
                 for: selectedDate,
                 after: user.createdAt
             ) else { return }
 
-            let isManualBedtime = dailyRecord.sleepRecord.bedtimePreviousNight != nil && dailyRecord.sleepRecord.source == .manual
-            let isManualWake = dailyRecord.sleepRecord.wakeTimeCurrentDay != nil && dailyRecord.sleepRecord.source == .manual
-
-            if !isManualBedtime {
-                dailyRecord.sleepRecord.bedtimePreviousNight = hkSleep.bedtimePreviousNight
-            }
-            if !isManualWake {
-                dailyRecord.sleepRecord.wakeTimeCurrentDay = hkSleep.wakeTimeCurrentDay
-            }
+            dailyRecord.sleepRecord.bedtimePreviousNight = hkSleep.bedtimePreviousNight
+            dailyRecord.sleepRecord.wakeTimeCurrentDay = hkSleep.wakeTimeCurrentDay
             dailyRecord.sleepRecord.stageIntervals = hkSleep.stageIntervals
             dailyRecord.sleepRecord.source = .healthKit
             persistCurrentRecord()

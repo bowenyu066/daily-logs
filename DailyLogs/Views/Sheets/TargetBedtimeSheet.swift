@@ -3,12 +3,13 @@ import SwiftUI
 struct TargetBedtimeSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var schedule: BedtimeSchedule
-    @State private var selectedWeekday: Weekday
+    @State private var selectedWeekdays: Set<Weekday>
     let onSave: (BedtimeSchedule) -> Void
 
     init(initialValue: BedtimeSchedule, onSave: @escaping (BedtimeSchedule) -> Void) {
         _schedule = State(initialValue: initialValue)
-        _selectedWeekday = State(initialValue: Weekday(rawValue: Date.now.isoWeekday) ?? .monday)
+        let today = Weekday(rawValue: Date.now.isoWeekday) ?? .monday
+        _selectedWeekdays = State(initialValue: [today])
         self.onSave = onSave
     }
 
@@ -22,21 +23,21 @@ struct TargetBedtimeSheet: View {
                     HStack(spacing: 10) {
                         ForEach(Weekday.allCases) { weekday in
                             Button {
-                                selectedWeekday = weekday
+                                toggleWeekday(weekday)
                             } label: {
                                 Text(weekday.shortLabel)
                                     .font(.system(size: 17, weight: .bold, design: .rounded))
-                                    .foregroundStyle(selectedWeekday == weekday ? Color.white : AppTheme.primaryText)
+                                    .foregroundStyle(selectedWeekdays.contains(weekday) ? Color.white : AppTheme.primaryText)
                                     .frame(maxWidth: .infinity)
                                     .frame(height: 42)
-                                    .background(selectedWeekday == weekday ? AppTheme.accent : AppTheme.surface)
+                                    .background(selectedWeekdays.contains(weekday) ? AppTheme.accent : AppTheme.surface)
                                     .clipShape(Circle())
                             }
                             .buttonStyle(.plain)
                         }
                     }
 
-                    Text(selectedTime.displayTime)
+                    Text(displayTimeForSelection)
                         .font(.system(size: 42, weight: .bold, design: .rounded))
                         .foregroundStyle(AppTheme.primaryText)
 
@@ -44,7 +45,7 @@ struct TargetBedtimeSheet: View {
                         "",
                         selection: Binding(
                             get: { selectedDate },
-                            set: { updateSelectedWeekday(with: $0) }
+                            set: { updateSelectedWeekdays(with: $0) }
                         ),
                         displayedComponents: .hourAndMinute
                     )
@@ -59,7 +60,7 @@ struct TargetBedtimeSheet: View {
                     VStack(spacing: 10) {
                         ForEach(Weekday.allCases) { weekday in
                             Button {
-                                selectedWeekday = weekday
+                                toggleWeekday(weekday)
                             } label: {
                                 HStack {
                                     Text(weekday.title)
@@ -68,11 +69,16 @@ struct TargetBedtimeSheet: View {
                                     Spacer()
                                     Text(time(for: weekday).displayTime)
                                         .font(.system(size: 16, weight: .bold, design: .rounded))
-                                        .foregroundStyle(selectedWeekday == weekday ? AppTheme.accent : AppTheme.secondaryText)
+                                        .foregroundStyle(selectedWeekdays.contains(weekday) ? AppTheme.accent : AppTheme.secondaryText)
+                                    if selectedWeekdays.contains(weekday) {
+                                        Image(systemName: "checkmark")
+                                            .font(.system(size: 14, weight: .bold))
+                                            .foregroundStyle(AppTheme.accent)
+                                    }
                                 }
                                 .padding(.horizontal, 18)
                                 .padding(.vertical, 14)
-                                .background(AppTheme.elevatedSurface)
+                                .background(selectedWeekdays.contains(weekday) ? AppTheme.accentSoft : AppTheme.elevatedSurface)
                                 .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
                             }
                             .buttonStyle(.plain)
@@ -124,17 +130,22 @@ struct TargetBedtimeSheet: View {
         .buttonStyle(.plain)
     }
 
-    private var selectedTime: DateComponents {
-        time(for: selectedWeekday)
+    private var displayTimeForSelection: String {
+        guard let first = selectedWeekdays.sorted(by: { $0.rawValue < $1.rawValue }).first else {
+            return "--:--"
+        }
+        return time(for: first).displayTime
     }
 
     private var selectedDate: Date {
-        Calendar.current.date(from: DateComponents(
+        let first = selectedWeekdays.sorted(by: { $0.rawValue < $1.rawValue }).first
+        let t = first.map { time(for: $0) } ?? DateComponents(hour: 23, minute: 30)
+        return Calendar.current.date(from: DateComponents(
             year: 2001,
             month: 1,
             day: 1,
-            hour: selectedTime.hour ?? 23,
-            minute: selectedTime.minute ?? 30
+            hour: t.hour ?? 23,
+            minute: t.minute ?? 30
         )) ?? .now
     }
 
@@ -142,10 +153,22 @@ struct TargetBedtimeSheet: View {
         schedule.entries.first(where: { $0.weekday == weekday })?.time ?? DateComponents(hour: 23, minute: 30)
     }
 
-    private func updateSelectedWeekday(with date: Date) {
+    private func toggleWeekday(_ weekday: Weekday) {
+        if selectedWeekdays.contains(weekday) {
+            if selectedWeekdays.count > 1 {
+                selectedWeekdays.remove(weekday)
+            }
+        } else {
+            selectedWeekdays.insert(weekday)
+        }
+    }
+
+    private func updateSelectedWeekdays(with date: Date) {
         let components = Calendar.current.dateComponents([.hour, .minute], from: date)
-        if let index = schedule.entries.firstIndex(where: { $0.weekday == selectedWeekday }) {
-            schedule.entries[index].time = components
+        for weekday in selectedWeekdays {
+            if let index = schedule.entries.firstIndex(where: { $0.weekday == weekday }) {
+                schedule.entries[index].time = components
+            }
         }
     }
 
