@@ -5,17 +5,17 @@ struct MainTabView: View {
         TabView {
             HomeView()
                 .tabItem {
-                    Label(String(localized: "主页"), systemImage: "house")
+                    Label(NSLocalizedString("主页", comment: ""), systemImage: "house")
                 }
 
             AnalyticsView()
                 .tabItem {
-                    Label(String(localized: "数据"), systemImage: "chart.line.uptrend.xyaxis")
+                    Label(NSLocalizedString("数据", comment: ""), systemImage: "chart.line.uptrend.xyaxis")
                 }
 
             SettingsView()
                 .tabItem {
-                    Label(String(localized: "设置"), systemImage: "slider.horizontal.3")
+                    Label(NSLocalizedString("设置", comment: ""), systemImage: "slider.horizontal.3")
                 }
         }
         .tint(AppTheme.accent)

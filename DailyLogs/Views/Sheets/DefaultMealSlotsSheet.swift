@@ -23,7 +23,7 @@ struct DefaultMealSlotsSheet: View {
             }
 
             HStack(spacing: 10) {
-                TextField(String(localized: "夜宵"), text: $title)
+                TextField(NSLocalizedString("夜宵", comment: ""), text: $title)
                     .font(.system(size: 16, weight: .semibold, design: .rounded))
                     .padding(.horizontal, 14)
                     .padding(.vertical, 12)
@@ -34,7 +34,7 @@ struct DefaultMealSlotsSheet: View {
                             .stroke(AppTheme.border, lineWidth: 1)
                     )
 
-                Button(String(localized: "添加")) {
+                Button(NSLocalizedString("添加", comment: "")) {
                     let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
                     guard !trimmed.isEmpty else { return }
                     Task { await appViewModel.addDefaultMealSlot(title: trimmed) }
@@ -58,12 +58,12 @@ struct DefaultMealSlotsSheet: View {
 
     private var headerBar: some View {
         ZStack {
-            Text(String(localized: "默认餐次"))
+            Text(NSLocalizedString("默认餐次", comment: ""))
                 .font(.system(size: 24, weight: .bold, design: .rounded))
                 .foregroundStyle(AppTheme.primaryText)
 
             HStack {
-                Button(String(localized: "完成")) { dismiss() }
+                Button(NSLocalizedString("完成", comment: "")) { dismiss() }
                     .font(.system(size: 17, weight: .semibold, design: .rounded))
                     .foregroundStyle(AppTheme.accent)
                 Spacer()

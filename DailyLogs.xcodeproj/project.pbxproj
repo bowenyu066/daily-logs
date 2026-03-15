@@ -30,6 +30,7 @@
 		A4C4FA79F7F4B8B95326DEA5 /* AppViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87050F5756327B4F773FB04E /* AppViewModel.swift */; };
 		A60312D032FE078B28B9F654 /* Date+Helpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10E071B07E641BCA90A6676 /* Date+Helpers.swift */; };
 		A689B0A49862ECE1CD6E0896 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3EB0253F59127B97E282CB47 /* Models.swift */; };
+		B2C3D4E5F6A1B2C3D4E5F6A1 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6A1B2C3D4E5F6 /* Localizable.xcstrings */; };
 		BBEB885C4F2E713F4B1045E8 /* DailyLogsApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9A87F79CBFFD14BE517E83B /* DailyLogsApp.swift */; };
 		C856BAB61B27C87C412FA4E4 /* Services.swift in Sources */ = {isa = PBXBuildFile; fileRef = 829D2D327EEAB6E3CF6799DA /* Services.swift */; };
 		D8F616382DD0712C9476C738 /* AnalyticsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0441CFAFE3F0A7AF7E9C46A /* AnalyticsView.swift */; };
@@ -38,7 +39,6 @@
 		E1A2B3C4D5E6F7081234ABCD /* HealthKitService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718DEADBEEF /* HealthKitService.swift */; };
 		EBAD80E1B4B1CBBB28DBAC22 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12C02AFAD5427640EE2B07E9 /* RootView.swift */; };
 		FAA742A273B4A2565F8E72C3 /* DefaultMealSlotsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0EE15D79A393C8AB962EBC89 /* DefaultMealSlotsSheet.swift */; };
-		B2C3D4E5F6A1B2C3D4E5F6A1 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6A1B2C3D4E5F6 /* Localizable.xcstrings */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -71,20 +71,20 @@
 		919F3E3BD18392570EBCA49A /* FirebaseAppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FirebaseAppDelegate.swift; sourceTree = "<group>"; };
 		9DABA8EC0910397E76119987 /* icon.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = icon.png; sourceTree = "<group>"; };
 		A1B2C3D4E5F60718DEADBEEF /* HealthKitService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthKitService.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6A1B2C3D4E5F6 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 		B9A87F79CBFFD14BE517E83B /* DailyLogsApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyLogsApp.swift; sourceTree = "<group>"; };
 		BF5762DCFE4B315E3833D8BC /* SleepEditorSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepEditorSheet.swift; sourceTree = "<group>"; };
+		C3D4E5F6A1B2C3D4E5F6A1B2 /* InfoPlist.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = InfoPlist.xcstrings; sourceTree = "<group>"; };
 		C9487DDA529E9809A07AD9D7 /* DailyLogs.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = DailyLogs.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		D0441CFAFE3F0A7AF7E9C46A /* AnalyticsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalyticsView.swift; sourceTree = "<group>"; };
 		D93232686CA86483D4885BF9 /* DatePickerSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatePickerSheet.swift; sourceTree = "<group>"; };
 		E0CAE3F01F1BDE18FCC36472 /* AuthGateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthGateView.swift; sourceTree = "<group>"; };
-		E6AB97CC73CE19F1AA905122 /* DailyLogsTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = DailyLogsTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		E6AB97CC73CE19F1AA905122 /* DailyLogsTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DailyLogsTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		EF0B19B41CFCCC70905BDEFD /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabView.swift; sourceTree = "<group>"; };
 		F10E071B07E641BCA90A6676 /* Date+Helpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Date+Helpers.swift"; sourceTree = "<group>"; };
 		F39D33BAEB12FE282E58CCEC /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
 		F5FE9D45ED272B7C3741130F /* AppTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppTheme.swift; sourceTree = "<group>"; };
 		F64987693C004FE40BE1E072 /* icon-1024.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "icon-1024.png"; sourceTree = "<group>"; };
-		C3D4E5F6A1B2C3D4E5F6A1B2 /* InfoPlist.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = InfoPlist.xcstrings; sourceTree = "<group>"; };
-		A1B2C3D4E5F6A1B2C3D4E5F6 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -392,6 +392,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
+				DEVELOPMENT_TEAM = FMKLLHVL75;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -554,6 +555,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
+				DEVELOPMENT_TEAM = FMKLLHVL75;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",

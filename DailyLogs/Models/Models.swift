@@ -10,7 +10,7 @@ enum AppLanguage: String, Codable, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .system: String(localized: "跟随系统")
+        case .system: NSLocalizedString("跟随系统", comment: "")
         case .zhHans: "中文"
         case .en: "English"
         }
@@ -100,6 +100,9 @@ struct UserAccount: Codable, Equatable {
 
 struct UserProfile: Codable, Equatable {
     var userID: String
+    var displayName: String?
+    var email: String?
+    var authMode: AuthMode?
     var createdAt: Date
 }
 
@@ -118,10 +121,10 @@ enum MealKind: String, Codable, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .breakfast: String(localized: "早餐")
-        case .lunch: String(localized: "午餐")
-        case .dinner: String(localized: "晚餐")
-        case .custom: String(localized: "自定义")
+        case .breakfast: NSLocalizedString("早餐", comment: "")
+        case .lunch: NSLocalizedString("午餐", comment: "")
+        case .dinner: NSLocalizedString("晚餐", comment: "")
+        case .custom: NSLocalizedString("自定义", comment: "")
         }
     }
 }
@@ -133,9 +136,9 @@ enum MealStatus: String, Codable, CaseIterable {
 
     var title: String {
         switch self {
-        case .empty: String(localized: "未记录")
-        case .logged: String(localized: "已记录")
-        case .skipped: String(localized: "跳过")
+        case .empty: NSLocalizedString("未记录", comment: "")
+        case .logged: NSLocalizedString("已记录", comment: "")
+        case .skipped: NSLocalizedString("跳过", comment: "")
         }
     }
 }
@@ -167,9 +170,9 @@ enum SleepStage: String, Codable, CaseIterable {
 
     var title: String {
         switch self {
-        case .awake: String(localized: "清醒")
-        case .light: String(localized: "浅睡")
-        case .deep: String(localized: "深睡")
+        case .awake: NSLocalizedString("清醒", comment: "")
+        case .light: NSLocalizedString("浅睡", comment: "")
+        case .deep: NSLocalizedString("深睡", comment: "")
         case .rem: "REM"
         }
     }
@@ -321,9 +324,9 @@ enum AppearanceMode: String, Codable, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .system: String(localized: "跟随系统")
-        case .light: String(localized: "浅色")
-        case .dark: String(localized: "深色")
+        case .system: NSLocalizedString("跟随系统", comment: "")
+        case .light: NSLocalizedString("浅色", comment: "")
+        case .dark: NSLocalizedString("深色", comment: "")
         }
     }
 }
@@ -341,25 +344,25 @@ enum Weekday: Int, CaseIterable, Codable, Identifiable {
 
     var shortLabel: String {
         switch self {
-        case .monday: String(localized: "一")
-        case .tuesday: String(localized: "二")
-        case .wednesday: String(localized: "三")
-        case .thursday: String(localized: "四")
-        case .friday: String(localized: "五")
-        case .saturday: String(localized: "六")
-        case .sunday: String(localized: "日")
+        case .monday: NSLocalizedString("一", comment: "")
+        case .tuesday: NSLocalizedString("二", comment: "")
+        case .wednesday: NSLocalizedString("三", comment: "")
+        case .thursday: NSLocalizedString("四", comment: "")
+        case .friday: NSLocalizedString("五", comment: "")
+        case .saturday: NSLocalizedString("六", comment: "")
+        case .sunday: NSLocalizedString("日", comment: "")
         }
     }
 
     var title: String {
         switch self {
-        case .monday: String(localized: "周一")
-        case .tuesday: String(localized: "周二")
-        case .wednesday: String(localized: "周三")
-        case .thursday: String(localized: "周四")
-        case .friday: String(localized: "周五")
-        case .saturday: String(localized: "周六")
-        case .sunday: String(localized: "周日")
+        case .monday: NSLocalizedString("周一", comment: "")
+        case .tuesday: NSLocalizedString("周二", comment: "")
+        case .wednesday: NSLocalizedString("周三", comment: "")
+        case .thursday: NSLocalizedString("周四", comment: "")
+        case .friday: NSLocalizedString("周五", comment: "")
+        case .saturday: NSLocalizedString("周六", comment: "")
+        case .sunday: NSLocalizedString("周日", comment: "")
         }
     }
 }
@@ -483,11 +486,11 @@ enum AnalyticsMetricKind: String, Codable, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .averageSleep: String(localized: "平均睡眠")
-        case .averageWake: String(localized: "平均起床")
-        case .averageBedtime: String(localized: "平均入睡")
-        case .mealCompletion: String(localized: "三餐完成率")
-        case .averageShowers: String(localized: "平均洗澡")
+        case .averageSleep: NSLocalizedString("平均睡眠", comment: "")
+        case .averageWake: NSLocalizedString("平均起床", comment: "")
+        case .averageBedtime: NSLocalizedString("平均入睡", comment: "")
+        case .mealCompletion: NSLocalizedString("三餐完成率", comment: "")
+        case .averageShowers: NSLocalizedString("平均洗澡", comment: "")
         }
     }
 }
@@ -508,16 +511,16 @@ enum AnalyticsWidgetKind: String, Codable, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .sleepTrend: String(localized: "睡眠趋势")
-        case .sleepDuration: String(localized: "平均睡眠")
-        case .wakeTrend: String(localized: "平均起床")
-        case .bedtimeTrend: String(localized: "平均入睡")
-        case .lightSleepTrend: String(localized: "浅睡时长")
-        case .deepSleepTrend: String(localized: "深睡时长")
-        case .remSleepTrend: String(localized: "REM 时长")
-        case .mealCompletion: String(localized: "三餐完成率")
-        case .mealTiming: String(localized: "进餐时间")
-        case .showerTiming: String(localized: "洗澡时间")
+        case .sleepTrend: NSLocalizedString("睡眠趋势", comment: "")
+        case .sleepDuration: NSLocalizedString("平均睡眠", comment: "")
+        case .wakeTrend: NSLocalizedString("平均起床", comment: "")
+        case .bedtimeTrend: NSLocalizedString("平均入睡", comment: "")
+        case .lightSleepTrend: NSLocalizedString("浅睡时长", comment: "")
+        case .deepSleepTrend: NSLocalizedString("深睡时长", comment: "")
+        case .remSleepTrend: NSLocalizedString("REM 时长", comment: "")
+        case .mealCompletion: NSLocalizedString("三餐完成率", comment: "")
+        case .mealTiming: NSLocalizedString("进餐时间", comment: "")
+        case .showerTiming: NSLocalizedString("洗澡时间", comment: "")
         }
     }
 }
@@ -548,10 +551,10 @@ enum AnalyticsRange: String, Codable, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .week: String(localized: "7天")
-        case .month: String(localized: "30天")
-        case .quarter: String(localized: "90天")
-        case .custom: String(localized: "自定义")
+        case .week: NSLocalizedString("7天", comment: "")
+        case .month: NSLocalizedString("30天", comment: "")
+        case .quarter: NSLocalizedString("90天", comment: "")
+        case .custom: NSLocalizedString("自定义", comment: "")
         }
     }
 

@@ -75,8 +75,8 @@ struct AuthGateView: View {
             }
             .padding(24)
         }
-        .alert(String(localized: "提示"), isPresented: .constant(appViewModel.errorMessage != nil), actions: {
-            Button(String(localized: "知道了")) {
+        .alert(NSLocalizedString("提示", comment: ""), isPresented: .constant(appViewModel.errorMessage != nil), actions: {
+            Button(NSLocalizedString("知道了", comment: "")) {
                 appViewModel.errorMessage = nil
             }
         }, message: {

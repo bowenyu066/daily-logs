@@ -25,7 +25,7 @@ struct SettingsView: View {
                     .padding(.vertical, 16)
                 }
             }
-            .navigationTitle(String(localized: "设置"))
+            .navigationTitle(NSLocalizedString("设置", comment: ""))
             .navigationBarTitleDisplayMode(.inline)
             .sheet(isPresented: $showingTargetBedtime) {
                 TargetBedtimeSheet(initialValue: appViewModel.preferences.bedtimeSchedule) { schedule in
@@ -39,29 +39,29 @@ struct SettingsView: View {
                     .presentationDetents([.fraction(0.34), .medium])
                     .presentationDragIndicator(.visible)
             }
-            .alert(String(localized: "修改昵称"), isPresented: $isEditingNickname) {
-                TextField(String(localized: "昵称"), text: $nicknameText)
-                Button(String(localized: "取消"), role: .cancel) {}
-                Button(String(localized: "确定")) {
+            .alert(NSLocalizedString("修改昵称", comment: ""), isPresented: $isEditingNickname) {
+                TextField(NSLocalizedString("昵称", comment: ""), text: $nicknameText)
+                Button(NSLocalizedString("取消", comment: ""), role: .cancel) {}
+                Button(NSLocalizedString("确定", comment: "")) {
                     let trimmed = nicknameText.trimmingCharacters(in: .whitespacesAndNewlines)
                     guard !trimmed.isEmpty else { return }
                     Task { await appViewModel.updateDisplayName(trimmed) }
                 }
             } message: {
-                Text(String(localized: "输入你想使用的昵称"))
+                Text(NSLocalizedString("输入你想使用的昵称", comment: ""))
             }
         }
     }
 
     private var accountCard: some View {
         VStack(alignment: .leading, spacing: 16) {
-            SectionHeader(title: String(localized: "账号"), subtitle: nil)
+            SectionHeader(title: NSLocalizedString("账号", comment: ""), subtitle: nil)
             HStack(spacing: 14) {
                 Circle()
                     .fill(AppTheme.accentSoft)
                     .frame(width: 54, height: 54)
                     .overlay(
-                        Text(String(appViewModel.user?.displayName.prefix(1) ?? String(localized: "我").prefix(1)))
+                        Text(String(appViewModel.user?.displayName.prefix(1) ?? NSLocalizedString("我", comment: "").prefix(1)))
                             .font(.system(size: 22, weight: .bold, design: .rounded))
                             .foregroundStyle(AppTheme.accent)
                     )
@@ -71,7 +71,7 @@ struct SettingsView: View {
                     )
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(spacing: 6) {
-                        Text(appViewModel.user?.displayName ?? String(localized: "未登录"))
+                        Text(appViewModel.user?.displayName ?? NSLocalizedString("未登录", comment: ""))
                             .font(.system(size: 18, weight: .bold, design: .rounded))
                             .foregroundStyle(AppTheme.primaryText)
                         Button {
@@ -108,7 +108,7 @@ struct SettingsView: View {
 
     private var preferenceCard: some View {
         VStack(alignment: .leading, spacing: 16) {
-            SectionHeader(title: String(localized: "偏好"), subtitle: nil)
+            SectionHeader(title: NSLocalizedString("偏好", comment: ""), subtitle: nil)
             Menu {
                 ForEach(AppearanceMode.allCases) { mode in
                     Button {
@@ -123,7 +123,7 @@ struct SettingsView: View {
                     }
                 }
             } label: {
-                SettingsStaticRow(title: String(localized: "外观"), value: appViewModel.preferences.appearanceMode.title)
+                SettingsStaticRow(title: NSLocalizedString("外观", comment: ""), value: appViewModel.preferences.appearanceMode.title)
             }
             .buttonStyle(.plain)
 
@@ -141,11 +141,11 @@ struct SettingsView: View {
                     }
                 }
             } label: {
-                SettingsStaticRow(title: String(localized: "语言"), value: appViewModel.preferences.appLanguage.title)
+                SettingsStaticRow(title: NSLocalizedString("语言", comment: ""), value: appViewModel.preferences.appLanguage.title)
             }
             .buttonStyle(.plain)
 
-            SettingsRow(title: String(localized: "目标入睡"), value: appViewModel.bedtimeScheduleSummary()) {
+            SettingsRow(title: NSLocalizedString("目标入睡", comment: ""), value: appViewModel.bedtimeScheduleSummary()) {
                 showingTargetBedtime = true
             }
             LocationPermissionToggleRow(
@@ -173,7 +173,7 @@ struct SettingsView: View {
         } label: {
             VStack(alignment: .leading, spacing: 14) {
                 HStack {
-                    Text(String(localized: "默认餐次"))
+                    Text(NSLocalizedString("默认餐次", comment: ""))
                         .font(.system(size: 18, weight: .bold, design: .rounded))
                         .foregroundStyle(AppTheme.primaryText)
                     Spacer()
@@ -208,12 +208,12 @@ struct SettingsView: View {
 
     private var healthKitCard: some View {
         VStack(alignment: .leading, spacing: 14) {
-            SectionHeader(title: String(localized: "Apple Health 睡眠"), subtitle: nil)
-            Text(String(localized: "自动从 Apple Health 同步睡眠数据（含阶段），替代手动输入。"))
+            SectionHeader(title: NSLocalizedString("Apple Health 睡眠", comment: ""), subtitle: nil)
+            Text(NSLocalizedString("自动从 Apple Health 同步睡眠数据（含阶段），替代手动输入。", comment: ""))
                 .font(.system(size: 14, weight: .medium, design: .rounded))
                 .foregroundStyle(AppTheme.secondaryText)
             HStack {
-                Text(String(localized: "HealthKit 同步"))
+                Text(NSLocalizedString("HealthKit 同步", comment: ""))
                     .font(.system(size: 16, weight: .semibold, design: .rounded))
                     .foregroundStyle(AppTheme.primaryText)
                 Spacer()
@@ -233,13 +233,13 @@ struct SettingsView: View {
 
     private var accountSubtitle: String {
         if appViewModel.user?.isGuest == true {
-            return String(localized: "游客模式，本地保存")
+            return NSLocalizedString("游客模式，本地保存", comment: "")
         }
-        return appViewModel.user?.email ?? String(localized: "Apple 登录")
+        return appViewModel.user?.email ?? NSLocalizedString("Apple 登录", comment: "")
     }
 
     private var accountActionTitle: String {
-        appViewModel.user?.isGuest == true ? String(localized: "结束游客模式") : String(localized: "退出登录")
+        appViewModel.user?.isGuest == true ? NSLocalizedString("结束游客模式", comment: "") : NSLocalizedString("退出登录", comment: "")
     }
 }
 
@@ -293,7 +293,7 @@ private struct LocationPermissionToggleRow: View {
 
     var body: some View {
         HStack {
-            Text(String(localized: "位置权限"))
+            Text(NSLocalizedString("位置权限", comment: ""))
                 .font(.system(size: 16, weight: .semibold, design: .rounded))
                 .foregroundStyle(AppTheme.primaryText)
             Spacer()

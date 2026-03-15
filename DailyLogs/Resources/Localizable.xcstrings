@@ -2,7 +2,6 @@
   "sourceLanguage" : "zh-Hans",
   "strings" : {
     "%.1f 次/天" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -29,7 +28,6 @@
       }
     },
     "%d小时%d分" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -46,7 +44,6 @@
       }
     },
     "7天" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -63,7 +60,6 @@
       }
     },
     "30天" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -80,7 +76,6 @@
       }
     },
     "90天" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -97,7 +92,6 @@
       }
     },
     "Apple Health 睡眠" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -114,7 +108,6 @@
       }
     },
     "Apple 没有返回可用的身份令牌。" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -125,7 +118,6 @@
       }
     },
     "Apple 登录" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -142,7 +134,6 @@
       }
     },
     "Apple 登录结果不可用。" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -153,7 +144,6 @@
       }
     },
     "Apple 身份令牌格式无效。" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -164,7 +154,6 @@
       }
     },
     "Firebase 没有返回完整的登录结果。" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -175,7 +164,6 @@
       }
     },
     "Firebase 还没有正确初始化。" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -186,7 +174,6 @@
       }
     },
     "HealthKit 同步" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -203,7 +190,6 @@
       }
     },
     "HealthKit 同步失败：" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -214,7 +200,6 @@
       }
     },
     "HealthKit 授权失败：" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -225,7 +210,6 @@
       }
     },
     "REM 时长" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -242,7 +226,6 @@
       }
     },
     "一" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -259,7 +242,6 @@
       }
     },
     "三" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -276,7 +258,6 @@
       }
     },
     "三餐完成率" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -293,7 +274,6 @@
       }
     },
     "主页" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -310,7 +290,6 @@
       }
     },
     "二" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -327,7 +306,6 @@
       }
     },
     "云端偏好同步失败：" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -338,7 +316,6 @@
       }
     },
     "云端同步失败：" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -349,7 +326,6 @@
       }
     },
     "云端记录同步失败：" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -360,7 +336,6 @@
       }
     },
     "五" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -377,7 +352,6 @@
       }
     },
     "仅记录时间" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -411,7 +385,6 @@
       }
     },
     "位置权限" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -445,7 +418,6 @@
       }
     },
     "保存" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -462,7 +434,6 @@
       }
     },
     "保存偏好失败：" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -473,7 +444,6 @@
       }
     },
     "保存记录失败：" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -484,7 +454,6 @@
       }
     },
     "保存餐食失败：" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -495,7 +464,6 @@
       }
     },
     "修改时间" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -512,7 +480,6 @@
       }
     },
     "修改昵称" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -529,7 +496,6 @@
       }
     },
     "修改昵称失败：" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -540,7 +506,6 @@
       }
     },
     "偏好" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -557,7 +522,6 @@
       }
     },
     "入睡" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -574,7 +538,6 @@
       }
     },
     "入睡变化" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -591,7 +554,6 @@
       }
     },
     "入睡时间" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -608,7 +570,6 @@
       }
     },
     "六" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -625,7 +586,6 @@
       }
     },
     "再多记录几天，这里会更有参考价值。" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -642,7 +602,6 @@
       }
     },
     "再记录几餐，这里会看到你的进餐时间分布。" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -659,7 +618,6 @@
       }
     },
     "初始化失败：" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -670,7 +628,6 @@
       }
     },
     "删除照片" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -687,7 +644,6 @@
       }
     },
     "删除照片失败：" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -698,7 +654,6 @@
       }
     },
     "删除记录" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -715,7 +670,6 @@
       }
     },
     "删除记录失败：" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -726,7 +680,6 @@
       }
     },
     "删除餐次" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -743,7 +696,6 @@
       }
     },
     "删除餐食失败：" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -754,7 +706,6 @@
       }
     },
     "前一晚入睡" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -771,7 +722,6 @@
       }
     },
     "加载记录失败：" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -782,7 +732,6 @@
       }
     },
     "加餐" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -799,7 +748,6 @@
       }
     },
     "午餐" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -816,7 +764,6 @@
       }
     },
     "卡片" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -833,7 +780,6 @@
       }
     },
     "取消" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -850,7 +796,6 @@
       }
     },
     "名称" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -867,7 +812,6 @@
       }
     },
     "周一" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -884,7 +828,6 @@
       }
     },
     "周三" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -901,7 +844,6 @@
       }
     },
     "周二" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -918,7 +860,6 @@
       }
     },
     "周五" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -935,7 +876,6 @@
       }
     },
     "周六" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -952,7 +892,6 @@
       }
     },
     "周四" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -969,7 +908,6 @@
       }
     },
     "周日" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -986,7 +924,6 @@
       }
     },
     "四" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1003,7 +940,6 @@
       }
     },
     "图表" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1020,7 +956,6 @@
       }
     },
     "外观" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1037,7 +972,6 @@
       }
     },
     "夜宵" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1054,7 +988,6 @@
       }
     },
     "完成" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1070,8 +1003,23 @@
         }
       }
     },
+    "尚未记录超过7天，请等待使用7天后再来浏览数据趋势哦" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You haven't logged more than 7 days yet. Please come back after 7 days to view your trends."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "尚未记录超过7天，请等待使用7天后再来浏览数据趋势哦"
+          }
+        }
+      }
+    },
     "已记录" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1088,7 +1036,6 @@
       }
     },
     "平均入睡" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1105,7 +1052,6 @@
       }
     },
     "平均时长" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1122,7 +1068,6 @@
       }
     },
     "平均洗澡" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1139,7 +1084,6 @@
       }
     },
     "平均洗澡时间" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1156,7 +1100,6 @@
       }
     },
     "平均睡眠" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1173,7 +1116,6 @@
       }
     },
     "平均起床" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1190,7 +1132,6 @@
       }
     },
     "开始" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1207,7 +1148,6 @@
       }
     },
     "当天起床" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1224,7 +1164,6 @@
       }
     },
     "我" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1241,7 +1180,6 @@
       }
     },
     "我的记录" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1258,7 +1196,6 @@
       }
     },
     "拍照" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1275,7 +1212,6 @@
       }
     },
     "提示" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1292,7 +1228,6 @@
       }
     },
     "数据" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1309,7 +1244,6 @@
       }
     },
     "无记录" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1326,7 +1260,6 @@
       }
     },
     "日" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1343,7 +1276,6 @@
       }
     },
     "早餐" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1360,7 +1292,6 @@
       }
     },
     "时间" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1377,7 +1308,6 @@
       }
     },
     "时间范围" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1394,7 +1324,6 @@
       }
     },
     "昵称" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1411,7 +1340,6 @@
       }
     },
     "晚餐" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1428,7 +1356,6 @@
       }
     },
     "更新餐食失败：" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1439,7 +1366,6 @@
       }
     },
     "未登录" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1456,7 +1382,6 @@
       }
     },
     "未记录" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1489,7 +1414,6 @@
       }
     },
     "洗澡" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1506,7 +1430,6 @@
       }
     },
     "洗澡时间" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1523,7 +1446,6 @@
       }
     },
     "浅睡" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1540,7 +1462,6 @@
       }
     },
     "浅睡时长" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1557,7 +1478,6 @@
       }
     },
     "浅色" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1574,7 +1494,6 @@
       }
     },
     "深睡" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1591,7 +1510,6 @@
       }
     },
     "深睡时长" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1608,7 +1526,6 @@
       }
     },
     "深色" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1625,7 +1542,6 @@
       }
     },
     "添加" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1642,7 +1558,6 @@
       }
     },
     "添加图片" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1659,7 +1574,6 @@
       }
     },
     "添加餐次" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1676,7 +1590,6 @@
       }
     },
     "清醒" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1693,7 +1606,6 @@
       }
     },
     "清除记录" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1710,7 +1622,6 @@
       }
     },
     "游客模式" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1727,7 +1638,6 @@
       }
     },
     "游客模式，本地保存" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1744,7 +1654,6 @@
       }
     },
     "登录失败：" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1755,7 +1664,6 @@
       }
     },
     "登录失败：Apple 登录凭证无效，请重新试一次。" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1766,7 +1674,6 @@
       }
     },
     "登录失败：Firebase Auth 已收到 Apple 登录结果，但服务端配置还不完整。请检查 Firebase Authentication 里是否启用了 Apple，并确认 Apple Team ID、Key ID、Private Key 都已配置。" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1777,7 +1684,6 @@
       }
     },
     "登录失败：Firebase Authentication 里还没有启用 Apple 登录。" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1788,7 +1694,6 @@
       }
     },
     "登录失败：Firebase 已初始化，但 Apple 登录的 Firebase Authentication 配置还不完整。请到 Firebase Console 的 Authentication -> Sign-in method -> Apple，确认已启用，并填写 Apple Team ID、Key ID 和 Private Key。" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1799,7 +1704,6 @@
       }
     },
     "登录失败：当前 App 还没有在 Firebase / Apple 侧完成授权配置。" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1810,7 +1714,6 @@
       }
     },
     "登录失败：登录请求已过期，请重新点一次 Apple 登录。" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1821,7 +1724,6 @@
       }
     },
     "登录请求已失效，请再试一次。" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1832,7 +1734,6 @@
       }
     },
     "目标入睡" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1849,7 +1750,6 @@
       }
     },
     "目标入睡：" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1866,7 +1766,6 @@
       }
     },
     "相册" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1883,7 +1782,6 @@
       }
     },
     "睡眠" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1900,7 +1798,6 @@
       }
     },
     "睡眠时段" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1917,7 +1814,6 @@
       }
     },
     "睡眠记录还不够。" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1934,7 +1830,6 @@
       }
     },
     "睡眠趋势" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1951,7 +1846,6 @@
       }
     },
     "知道了" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1968,7 +1862,6 @@
       }
     },
     "确定" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1985,7 +1878,6 @@
       }
     },
     "第%d次" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2002,7 +1894,6 @@
       }
     },
     "结束" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2019,7 +1910,6 @@
       }
     },
     "结束游客模式" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2053,7 +1943,6 @@
       }
     },
     "编辑照片" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2070,7 +1959,6 @@
       }
     },
     "自动从 Apple Health 同步睡眠数据（含阶段），替代手动输入。" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2087,7 +1975,6 @@
       }
     },
     "自定义" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2104,7 +1991,6 @@
       }
     },
     "范围" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2121,7 +2007,6 @@
       }
     },
     "规律不是为了控制你，而是为了更轻松地生活。" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2138,7 +2023,6 @@
       }
     },
     "记录几天之后，这里会出现睡眠曲线。" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2155,7 +2039,6 @@
       }
     },
     "记录时间" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2172,7 +2055,6 @@
       }
     },
     "设置" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2189,7 +2071,6 @@
       }
     },
     "语言" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2206,7 +2087,6 @@
       }
     },
     "账号" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2223,7 +2103,6 @@
       }
     },
     "起床" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2256,7 +2135,6 @@
       }
     },
     "起床变化" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2273,7 +2151,6 @@
       }
     },
     "起床时间" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2290,7 +2167,6 @@
       }
     },
     "跟随系统" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2307,7 +2183,6 @@
       }
     },
     "跳过" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2324,7 +2199,6 @@
       }
     },
     "输入你想使用的昵称" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2341,7 +2215,6 @@
       }
     },
     "还没有洗澡时间数据。" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2358,7 +2231,6 @@
       }
     },
     "还没有足够的睡眠阶段数据。" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2392,7 +2264,6 @@
       }
     },
     "进入游客模式失败：" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2403,7 +2274,6 @@
       }
     },
     "进餐时间" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2420,7 +2290,6 @@
       }
     },
     "退出失败：" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2431,7 +2300,6 @@
       }
     },
     "退出登录" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2448,7 +2316,6 @@
       }
     },
     "选择日期" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2465,7 +2332,6 @@
       }
     },
     "选择相册照片" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2482,7 +2348,6 @@
       }
     },
     "餐食" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2499,7 +2364,6 @@
       }
     },
     "默认餐次" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {

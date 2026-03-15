@@ -131,13 +131,23 @@ final class LocalAuthService: AuthService {
             let firebaseUser = try await signInToFirebase(with: firebaseCredential)
             let previousUser = persistedSession?.authMode == .apple ? persistedSession : nil
             let fullName = formattedName(from: credential.fullName)
+            let storedProfile = storedProfile(for: firebaseUser.uid)
 
             let user = UserAccount(
                 userID: firebaseUser.uid,
-                displayName: fullName ?? firebaseUser.displayName ?? previousUser?.displayName ?? String(localized: "我的记录"),
-                email: firebaseUser.email ?? credential.email ?? previousUser?.email,
+                displayName: fullName
+                    ?? firebaseUser.displayName
+                    ?? previousUser?.displayName
+                    ?? storedProfile?.displayName
+                    ?? defaultDisplayName(for: .apple),
+                email: firebaseUser.email
+                    ?? credential.email
+                    ?? previousUser?.email
+                    ?? storedProfile?.email,
                 authMode: .apple,
-                createdAt: firebaseUser.creationDate?.startOfDay ?? resolveCreatedAt(for: firebaseUser.uid)
+                createdAt: firebaseUser.creationDate?.startOfDay
+                    ?? storedProfile?.createdAt.startOfDay
+                    ?? resolveCreatedAt(for: firebaseUser.uid)
             )
             let refreshed = try saveProfile(for: user)
             persistSession(refreshed)
@@ -153,7 +163,7 @@ final class LocalAuthService: AuthService {
         }
         let user = UserAccount(
             userID: guestID,
-            displayName: String(localized: "游客模式"),
+            displayName: NSLocalizedString("游客模式", comment: ""),
             email: nil,
             authMode: .guest,
             createdAt: resolveCreatedAt(for: guestID)
@@ -194,17 +204,17 @@ final class LocalAuthService: AuthService {
         var errorDescription: String? {
             switch self {
             case .invalidCredential:
-                String(localized: "Apple 登录结果不可用。")
+                NSLocalizedString("Apple 登录结果不可用。", comment: "")
             case .firebaseUnavailable:
-                String(localized: "Firebase 还没有正确初始化。")
+                NSLocalizedString("Firebase 还没有正确初始化。", comment: "")
             case .missingNonce:
-                String(localized: "登录请求已失效，请再试一次。")
+                NSLocalizedString("登录请求已失效，请再试一次。", comment: "")
             case .missingIdentityToken:
-                String(localized: "Apple 没有返回可用的身份令牌。")
+                NSLocalizedString("Apple 没有返回可用的身份令牌。", comment: "")
             case .invalidIdentityToken:
-                String(localized: "Apple 身份令牌格式无效。")
+                NSLocalizedString("Apple 身份令牌格式无效。", comment: "")
             case .unexpectedAuthResult:
-                String(localized: "Firebase 没有返回完整的登录结果。")
+                NSLocalizedString("Firebase 没有返回完整的登录结果。", comment: "")
             }
         }
     }
@@ -226,16 +236,22 @@ final class LocalAuthService: AuthService {
             if let profile = database.profilesByUser[session.userID] {
                 return UserAccount(
                     userID: session.userID,
-                    displayName: session.displayName,
-                    email: session.email,
-                    authMode: session.authMode,
+                    displayName: resolvedDisplayName(for: session, profile: profile),
+                    email: profile.email ?? session.email,
+                    authMode: profile.authMode ?? session.authMode,
                     createdAt: profile.createdAt
                 )
             }
 
             let fallbackCreatedAt = earliestKnownDate(for: session.userID, database: database) ?? session.createdAt
             var updatedDatabase = database
-            updatedDatabase.profilesByUser[session.userID] = UserProfile(userID: session.userID, createdAt: fallbackCreatedAt.startOfDay)
+            updatedDatabase.profilesByUser[session.userID] = UserProfile(
+                userID: session.userID,
+                displayName: session.displayName,
+                email: session.email,
+                authMode: session.authMode,
+                createdAt: fallbackCreatedAt.startOfDay
+            )
             try store.save(updatedDatabase)
             return UserAccount(
                 userID: session.userID,
@@ -251,17 +267,25 @@ final class LocalAuthService: AuthService {
 
     private func saveProfile(for user: UserAccount) throws -> UserAccount {
         var database = try store.load()
-        let existingCreatedAt = database.profilesByUser[user.userID]?.createdAt
+        let existingProfile = database.profilesByUser[user.userID]
+        let existingCreatedAt = existingProfile?.createdAt
         let earliestCreatedAt = [existingCreatedAt, earliestKnownDate(for: user.userID, database: database), user.createdAt]
             .compactMap { $0 }
             .min()?
             .startOfDay ?? user.createdAt.startOfDay
-        database.profilesByUser[user.userID] = UserProfile(userID: user.userID, createdAt: earliestCreatedAt)
+        let mergedDisplayName = resolvedDisplayName(for: user, profile: existingProfile)
+        database.profilesByUser[user.userID] = UserProfile(
+            userID: user.userID,
+            displayName: mergedDisplayName,
+            email: user.email ?? existingProfile?.email,
+            authMode: user.authMode,
+            createdAt: earliestCreatedAt
+        )
         try store.save(database)
         return UserAccount(
             userID: user.userID,
-            displayName: user.displayName,
-            email: user.email,
+            displayName: mergedDisplayName,
+            email: user.email ?? existingProfile?.email,
             authMode: user.authMode,
             createdAt: earliestCreatedAt
         )
@@ -293,14 +317,68 @@ final class LocalAuthService: AuthService {
     }
 
     private func buildAppleUser(from firebaseUser: FirebaseAuth.User, fallback: UserAccount?) -> UserAccount {
+        let profile = storedProfile(for: firebaseUser.uid)
         let user = UserAccount(
             userID: firebaseUser.uid,
-            displayName: firebaseUser.displayName ?? fallback?.displayName ?? String(localized: "我的记录"),
-            email: firebaseUser.email ?? fallback?.email,
+            displayName: firebaseUser.displayName
+                ?? fallback?.displayName
+                ?? profile?.displayName
+                ?? defaultDisplayName(for: .apple),
+            email: firebaseUser.email ?? fallback?.email ?? profile?.email,
             authMode: .apple,
-            createdAt: firebaseUser.metadata.creationDate?.startOfDay ?? resolveCreatedAt(for: firebaseUser.uid)
+            createdAt: firebaseUser.metadata.creationDate?.startOfDay
+                ?? profile?.createdAt.startOfDay
+                ?? resolveCreatedAt(for: firebaseUser.uid)
         )
         return refreshUser(user) ?? user
+    }
+
+    private func storedProfile(for userID: String) -> UserProfile? {
+        try? store.load().profilesByUser[userID]
+    }
+
+    private func resolvedDisplayName(for user: UserAccount, profile: UserProfile?) -> String {
+        let candidate = user.displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !candidate.isEmpty, !isDefaultDisplayName(candidate, for: user.authMode) {
+            return candidate
+        }
+
+        let storedName = profile?.displayName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if !storedName.isEmpty {
+            return storedName
+        }
+
+        if !candidate.isEmpty {
+            return candidate
+        }
+
+        return defaultDisplayName(for: user.authMode)
+    }
+
+    private func defaultDisplayName(for authMode: AuthMode) -> String {
+        switch authMode {
+        case .apple:
+            NSLocalizedString("我的记录", comment: "")
+        case .guest:
+            NSLocalizedString("游客模式", comment: "")
+        }
+    }
+
+    private func isDefaultDisplayName(_ displayName: String, for authMode: AuthMode) -> Bool {
+        switch authMode {
+        case .apple:
+            return [
+                defaultDisplayName(for: .apple),
+                "我的记录",
+                "My Log"
+            ].contains(displayName)
+        case .guest:
+            return [
+                defaultDisplayName(for: .guest),
+                "游客模式",
+                "Guest Mode"
+            ].contains(displayName)
+        }
     }
 
     private func formattedName(from components: PersonNameComponents?) -> String? {

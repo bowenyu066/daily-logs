@@ -31,7 +31,7 @@ struct HomeView: View {
                     .padding(.vertical, 16)
                 }
             }
-            .navigationTitle(String(localized: "主页"))
+            .navigationTitle(NSLocalizedString("主页", comment: ""))
             .navigationBarTitleDisplayMode(.inline)
             .sheet(isPresented: $showingDatePicker) {
                 DatePickerSheet(
@@ -105,8 +105,8 @@ struct HomeView: View {
                 .presentationDetents([.fraction(0.42)])
                 .presentationBackground(AppTheme.background)
             }
-            .alert(String(localized: "提示"), isPresented: .constant(appViewModel.errorMessage != nil), actions: {
-                Button(String(localized: "知道了")) {
+            .alert(NSLocalizedString("提示", comment: ""), isPresented: .constant(appViewModel.errorMessage != nil), actions: {
+                Button(NSLocalizedString("知道了", comment: "")) {
                     appViewModel.errorMessage = nil
                 }
             }, message: {
@@ -198,14 +198,14 @@ struct HomeView: View {
     private var sleepSection: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .firstTextBaseline) {
-                Text(String(localized: "睡眠"))
+                Text(NSLocalizedString("睡眠", comment: ""))
                     .font(.system(size: 22, weight: .bold, design: .rounded))
                     .foregroundStyle(AppTheme.primaryText)
                 Spacer()
                 Button {
                     showingTargetBedtime = true
                 } label: {
-                    Text(String(localized: "目标入睡：") + appViewModel.formattedTargetBedtime())
+                    Text(NSLocalizedString("目标入睡：", comment: "") + appViewModel.formattedTargetBedtime())
                         .font(.system(size: 14, weight: .semibold, design: .rounded))
                         .foregroundStyle(AppTheme.secondaryText)
                         .lineLimit(1)
@@ -223,7 +223,7 @@ struct HomeView: View {
                     editingSleepTarget = .bedtime
                 } label: {
                     HStack(spacing: 6) {
-                        Text(String(localized: "入睡"))
+                        Text(NSLocalizedString("入睡", comment: ""))
                             .font(.system(size: 14, weight: .semibold, design: .rounded))
                             .foregroundStyle(AppTheme.secondaryText)
                         Text(appViewModel.dailyRecord.sleepRecord.bedtimePreviousNight?.displayClockTime ?? "--:--")
@@ -238,7 +238,7 @@ struct HomeView: View {
                     editingSleepTarget = .wakeTime
                 } label: {
                     HStack(spacing: 6) {
-                        Text(String(localized: "起床"))
+                        Text(NSLocalizedString("起床", comment: ""))
                             .font(.system(size: 14, weight: .semibold, design: .rounded))
                             .foregroundStyle(AppTheme.secondaryText)
                         Text(appViewModel.dailyRecord.sleepRecord.wakeTimeCurrentDay?.displayClockTime ?? "--:--")
@@ -263,7 +263,7 @@ struct HomeView: View {
 
     private var mealSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            SectionHeader(title: String(localized: "餐食"), subtitle: nil)
+            SectionHeader(title: NSLocalizedString("餐食", comment: ""), subtitle: nil)
 
             VStack(spacing: 0) {
                 ForEach(Array(appViewModel.dailyRecord.meals.enumerated()), id: \.element.id) { index, meal in
@@ -279,7 +279,7 @@ struct HomeView: View {
                     editingMealContext = MealEditorContext(
                         entry: MealEntry(
                             mealKind: .custom,
-                            customTitle: String(localized: "加餐"),
+                            customTitle: NSLocalizedString("加餐", comment: ""),
                             status: .logged,
                             time: appViewModel.selectedDate.settingTime(hour: 15, minute: 0),
                             photoURL: nil
@@ -291,7 +291,7 @@ struct HomeView: View {
                         Image(systemName: "plus")
                             .font(.system(size: 16, weight: .semibold))
                             .foregroundStyle(AppTheme.accent)
-                        Text(String(localized: "添加餐次"))
+                        Text(NSLocalizedString("添加餐次", comment: ""))
                             .font(.system(size: 16, weight: .semibold, design: .rounded))
                             .foregroundStyle(AppTheme.accent)
                         Spacer()
@@ -316,58 +316,58 @@ struct HomeView: View {
                 let canDeleteMeal = appViewModel.canDeleteMealEntry(meal)
 
                 if meal.hasPhoto {
-                    Button(String(localized: "编辑照片")) {
+                    Button(NSLocalizedString("编辑照片", comment: "")) {
                         openMealEditor(meal, with: .editPhoto)
                     }
-                    Button(String(localized: "修改时间")) {
+                    Button(NSLocalizedString("修改时间", comment: "")) {
                         openMealEditor(meal, with: .editTime)
                     }
-                    Button(String(localized: "删除照片"), role: .destructive) {
+                    Button(NSLocalizedString("删除照片", comment: ""), role: .destructive) {
                         Task { await appViewModel.removeMealPhoto(meal) }
                     }
                     if canDeleteMeal {
-                        Button(String(localized: "删除餐次"), role: .destructive) {
+                        Button(NSLocalizedString("删除餐次", comment: ""), role: .destructive) {
                             Task { await appViewModel.deleteMeal(meal) }
                         }
                     } else {
-                        Button(String(localized: "删除记录"), role: .destructive) {
+                        Button(NSLocalizedString("删除记录", comment: ""), role: .destructive) {
                             Task { await appViewModel.clearMealRecord(meal) }
                         }
                     }
                 } else if isLogged {
-                    Button(String(localized: "添加图片")) {
+                    Button(NSLocalizedString("添加图片", comment: "")) {
                         openMealEditor(meal, with: .addPhoto)
                     }
-                    Button(String(localized: "修改时间")) {
+                    Button(NSLocalizedString("修改时间", comment: "")) {
                         openMealEditor(meal, with: .editTime)
                     }
                     if canDeleteMeal {
-                        Button(String(localized: "删除餐次"), role: .destructive) {
+                        Button(NSLocalizedString("删除餐次", comment: ""), role: .destructive) {
                             Task { await appViewModel.deleteMeal(meal) }
                         }
                     } else {
-                        Button(String(localized: "删除记录"), role: .destructive) {
+                        Button(NSLocalizedString("删除记录", comment: ""), role: .destructive) {
                             Task { await appViewModel.clearMealRecord(meal) }
                         }
                     }
                 } else {
                     if UIImagePickerController.isSourceTypeAvailable(.camera) {
-                        Button(String(localized: "拍照")) {
+                        Button(NSLocalizedString("拍照", comment: "")) {
                             openMealEditor(meal, with: .camera)
                         }
                     }
-                    Button(String(localized: "选择相册照片")) {
+                    Button(NSLocalizedString("选择相册照片", comment: "")) {
                         openMealEditor(meal, with: .photoLibrary)
                     }
-                    Button(String(localized: "仅记录时间")) {
+                    Button(NSLocalizedString("仅记录时间", comment: "")) {
                         openMealEditor(meal, with: .timeOnly)
                     }
                     if canDeleteMeal {
-                        Button(String(localized: "删除餐次"), role: .destructive) {
+                        Button(NSLocalizedString("删除餐次", comment: ""), role: .destructive) {
                             Task { await appViewModel.deleteMeal(meal) }
                         }
                     }
-                    Button(String(localized: "跳过"), role: .destructive) {
+                    Button(NSLocalizedString("跳过", comment: ""), role: .destructive) {
                         Task { await appViewModel.skipMeal(meal) }
                     }
                 }
@@ -381,16 +381,16 @@ struct HomeView: View {
 
                     switch effectiveStatus {
                     case .logged:
-                        Text(meal.time?.displayClockTime ?? String(localized: "已记录"))
+                        Text(meal.time?.displayClockTime ?? NSLocalizedString("已记录", comment: ""))
                             .font(.system(size: 15, weight: .semibold, design: .rounded))
                             .foregroundStyle(accentColor)
                             .monospacedDigit()
                     case .skipped:
-                        Text(String(localized: "跳过"))
+                        Text(NSLocalizedString("跳过", comment: ""))
                             .font(.system(size: 15, weight: .semibold, design: .rounded))
                             .foregroundStyle(AppTheme.warning)
                     case .empty:
-                        Text(String(localized: "未记录"))
+                        Text(NSLocalizedString("未记录", comment: ""))
                             .font(.system(size: 15, weight: .medium, design: .rounded))
                             .foregroundStyle(AppTheme.secondaryText)
                     }
@@ -420,9 +420,9 @@ struct HomeView: View {
     private var showerSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             SectionHeader(
-                title: String(localized: "洗澡"),
+                title: NSLocalizedString("洗澡", comment: ""),
                 subtitle: nil,
-                actionTitle: appViewModel.canEditSelectedDate ? String(localized: "添加") : nil
+                actionTitle: appViewModel.canEditSelectedDate ? NSLocalizedString("添加", comment: "") : nil
             ) {
                 showingNewShower = true
             }
@@ -432,7 +432,7 @@ struct HomeView: View {
                     Image(systemName: "drop.degreesign")
                         .font(.system(size: 16, weight: .semibold))
                         .foregroundStyle(AppTheme.showerAccent)
-                    Text(String(localized: "无记录"))
+                    Text(NSLocalizedString("无记录", comment: ""))
                         .font(.system(size: 16, weight: .semibold, design: .rounded))
                         .foregroundStyle(AppTheme.secondaryText)
                 }

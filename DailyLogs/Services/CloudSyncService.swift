@@ -1,3 +1,4 @@
+import FirebaseCore
 import FirebaseFirestore
 import FirebaseStorage
 import Foundation
@@ -42,9 +43,35 @@ final class FirebaseCloudSyncService: CloudSyncService {
         return FirebaseBootstrap.isConfigured ? Firestore.firestore() : nil
     }
 
-    private var storage: Storage? {
+    private var storages: [Storage] {
         FirebaseBootstrap.configureIfPossible()
-        return FirebaseBootstrap.isConfigured ? Storage.storage() : nil
+        guard FirebaseBootstrap.isConfigured, let app = FirebaseApp.app() else { return [] }
+
+        var bucketCandidates: [String] = []
+        if let configuredBucket = app.options.storageBucket?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !configuredBucket.isEmpty {
+            bucketCandidates.append(configuredBucket)
+        }
+
+        if let projectID = app.options.projectID {
+            bucketCandidates.append("\(projectID).firebasestorage.app")
+            bucketCandidates.append("\(projectID).appspot.com")
+        }
+
+        var storages: [Storage] = []
+        var seenBucketURLs = Set<String>()
+
+        for bucket in bucketCandidates {
+            let bucketURL = bucket.hasPrefix("gs://") ? bucket : "gs://\(bucket)"
+            guard seenBucketURLs.insert(bucketURL).inserted else { continue }
+            storages.append(Storage.storage(url: bucketURL))
+        }
+
+        if seenBucketURLs.insert("__default__").inserted {
+            storages.append(Storage.storage())
+        }
+
+        return storages
     }
 
     init() {
@@ -64,9 +91,11 @@ final class FirebaseCloudSyncService: CloudSyncService {
         try await upsertProfile(user)
 
         let userRef = db.collection("users").document(user.userID)
+        let profileSnapshot = try await userRef.getDocument()
         let prefsSnapshot = try await userRef.collection("preferences").document("current").getDocument()
         let recordsSnapshot = try await userRef.collection("records").getDocuments()
 
+        let remoteProfile = try profileSnapshot.data().flatMap { try decode(UserProfile.self, from: $0) }
         let remotePreferences = try prefsSnapshot.data().flatMap { try decode(UserPreferences.self, from: $0) }
         let remoteRecords = try recordsSnapshot.documents.compactMap { document in
             try decode(DailyRecord.self, from: document.data())
@@ -84,7 +113,7 @@ final class FirebaseCloudSyncService: CloudSyncService {
         }
 
         return CloudBootstrapPayload(
-            profile: UserProfile(userID: user.userID, createdAt: user.createdAt),
+            profile: remoteProfile,
             preferences: remotePreferences,
             records: remoteRecords
         )
@@ -123,7 +152,7 @@ final class FirebaseCloudSyncService: CloudSyncService {
     }
 
     private func preparedRecord(_ record: DailyRecord, userID: String) async throws -> DailyRecord {
-        guard let storage else { return record }
+        guard !storages.isEmpty else { return record }
         var updated = record
         for index in updated.meals.indices {
             guard let photoURL = updated.meals[index].photoURL else { continue }
@@ -138,25 +167,44 @@ final class FirebaseCloudSyncService: CloudSyncService {
                 let path = "users/\(userID)/meal-photos/\(filename)"
                 let meta = StorageMetadata()
                 meta.contentType = "image/jpeg"
-                let ref = storage.reference(withPath: path)
-                let resultMeta = try await ref.putDataAsync(data, metadata: meta)
-                // Build download URL from the returned metadata to avoid
-                // a separate downloadURL() call that may fail on fresh objects.
-                let storagePath = resultMeta.path ?? path
-                let bucket = resultMeta.bucket ?? storage.reference().bucket
-                let encoded = storagePath.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? storagePath
-                let downloadURL = "https://firebasestorage.googleapis.com/v0/b/\(bucket)/o/\(encoded.replacingOccurrences(of: "/", with: "%2F"))?alt=media"
-                updated.meals[index].photoURL = downloadURL
+                updated.meals[index].photoURL = try await uploadPhoto(
+                    data: data,
+                    storagePath: path,
+                    metadata: meta
+                )
             } catch {
                 // Upload failed — strip local path so it doesn't leak to Firestore.
                 // The record itself still pushes to Firestore (without the photo).
                 #if DEBUG
-                print("CloudSync: photo upload failed for meal \(updated.meals[index].id): \(error)")
+                print(
+                    "CloudSync: photo upload failed for meal \(updated.meals[index].id) " +
+                    "at path users/\(userID)/meal-photos/\(updated.meals[index].id.uuidString).jpg: \(error)"
+                )
                 #endif
                 updated.meals[index].photoURL = nil
             }
         }
         return updated
+    }
+
+    private func uploadPhoto(data: Data, storagePath: String, metadata: StorageMetadata) async throws -> String {
+        var lastError: Error?
+
+        for storage in storages {
+            let ref = storage.reference().child(storagePath)
+            do {
+                _ = try await ref.putDataAsync(data, metadata: metadata)
+                let downloadURL = try await ref.downloadURL()
+                return downloadURL.absoluteString
+            } catch {
+                lastError = error
+                #if DEBUG
+                print("CloudSync: upload attempt failed in bucket \(storage.reference().bucket) for \(storagePath): \(error)")
+                #endif
+            }
+        }
+
+        throw lastError ?? CocoaError(.fileWriteUnknown)
     }
 
     private func encode<T: Encodable>(_ value: T) throws -> [String: Any] {
