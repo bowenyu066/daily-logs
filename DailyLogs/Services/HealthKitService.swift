@@ -1,6 +1,7 @@
 import Foundation
 import HealthKit
 
+@MainActor
 final class HealthKitService: HealthSyncAdapter {
     private let store = HKHealthStore()
 

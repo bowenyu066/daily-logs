@@ -35,6 +35,7 @@ protocol SunTimesService {
     func sunTimes(for date: Date, coordinate: CLLocationCoordinate2D, timeZone: TimeZone) -> SunTimes?
 }
 
+@MainActor
 protocol HealthSyncAdapter {
     func latestSleepSourceHint() -> RecordSource?
     func requestAuthorization() async throws
