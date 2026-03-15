@@ -462,25 +462,36 @@ private struct SleepTrendChart: View {
             PlaceholderCard(text: "记录几天之后，这里会出现睡眠曲线。")
         } else {
             VStack(alignment: .leading, spacing: 12) {
-                if let selectedPoint {
-                    fixedChartCallout {
-                        Text(durationText(selectedPoint.sleepHours))
-                            .font(.system(size: 26, weight: .bold, design: .rounded))
-                            .foregroundStyle(AppTheme.primaryText)
-                        Text(selectedPoint.date, format: .dateTime.month().day())
-                            .font(.system(size: 13, weight: .medium, design: .rounded))
-                            .foregroundStyle(AppTheme.secondaryText)
+                ChartDisplayZone(
+                    ratio: selectedRatio,
+                    cardWidth: 148,
+                    height: 68,
+                    idle: {
+                        AverageTextBlock(
+                            title: "平均睡眠",
+                            value: durationText(averageSleepHours),
+                            tone: AppTheme.accent
+                        )
+                    },
+                    selected: {
+                        fixedChartCallout {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(selectedPoint?.date ?? .now, format: .dateTime.month().day())
+                                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                                    .foregroundStyle(AppTheme.secondaryText)
+                                Text(durationText(selectedPoint?.sleepHours))
+                                    .font(.system(size: 22, weight: .bold, design: .rounded))
+                                    .foregroundStyle(AppTheme.primaryText)
+                            }
+                        }
                     }
-                }
+                )
 
                 Chart {
                     if let averageSleepHours {
                         RuleMark(y: .value("平均", averageSleepHours))
-                            .foregroundStyle(AppTheme.accent.opacity(0.38))
-                            .lineStyle(.init(lineWidth: 1, dash: [5, 4]))
-                            .annotation(position: .leading, spacing: 8) {
-                                averageTag(durationText(averageSleepHours), tone: AppTheme.accent)
-                            }
+                            .foregroundStyle(AppTheme.accent.opacity(0.65))
+                            .lineStyle(.init(lineWidth: 1.4, dash: [5, 4]))
                     }
 
                     ForEach(days) { point in
@@ -507,11 +518,11 @@ private struct SleepTrendChart: View {
 
                             if selectedDate.flatMap({ Calendar.current.isDate($0, inSameDayAs: point.date) ? point : nil }) != nil {
                                 RuleMark(x: .value("日期", point.date))
-                                    .foregroundStyle(AppTheme.primaryText.opacity(0.18))
+                                    .foregroundStyle(AppTheme.primaryText.opacity(0.38))
                                     .lineStyle(.init(lineWidth: 1, dash: [4, 4]))
 
                                 RuleMark(y: .value("睡眠", sleepHours))
-                                    .foregroundStyle(AppTheme.primaryText.opacity(0.18))
+                                    .foregroundStyle(AppTheme.primaryText.opacity(0.38))
                                     .lineStyle(.init(lineWidth: 1, dash: [4, 4]))
 
                                 PointMark(
@@ -525,6 +536,8 @@ private struct SleepTrendChart: View {
                     }
                 }
                 .frame(height: compact ? 240 : 300)
+                .chartYScale(domain: adaptiveDomain)
+                .chartXScale(range: .plotDimension(startPadding: 14, endPadding: 14))
                 .chartYAxis {
                     AxisMarks(position: .leading)
                 }
@@ -560,6 +573,22 @@ private struct SleepTrendChart: View {
         let values = days.compactMap(\.sleepHours)
         guard !values.isEmpty else { return nil }
         return values.reduce(0, +) / Double(values.count)
+    }
+
+    private var selectedRatio: CGFloat? {
+        guard let selectedPoint else { return nil }
+        let points = days.filter { $0.sleepHours != nil }
+        guard let index = points.firstIndex(where: { Calendar.current.isDate($0.date, inSameDayAs: selectedPoint.date) }) else { return nil }
+        return CGFloat(index) / CGFloat(max(points.count - 1, 1))
+    }
+
+    private var adaptiveDomain: ClosedRange<Double> {
+        let values = days.compactMap(\.sleepHours) + (averageSleepHours.map { [$0] } ?? [])
+        let minValue = values.min() ?? 0
+        let maxValue = values.max() ?? 10
+        let lower = max(0, floor((minValue - 0.5) * 2) / 2)
+        let upper = ceil((maxValue + 0.5) * 2) / 2
+        return lower...max(lower + 1, upper)
     }
 
     private func durationText(_ hours: Double?) -> String {
@@ -615,25 +644,36 @@ private struct TimeLineChart: View {
             PlaceholderCard(text: "再多记录几天，这里会更有参考价值。")
         } else {
             VStack(alignment: .leading, spacing: 10) {
-                if let selectedPoint {
-                    fixedChartCallout {
-                        Text(formatClock(selectedPoint.minutes))
-                            .font(.system(size: 26, weight: .bold, design: .rounded))
-                            .foregroundStyle(AppTheme.primaryText)
-                        Text(selectedPoint.date, format: .dateTime.month().day())
-                            .font(.system(size: 13, weight: .medium, design: .rounded))
-                            .foregroundStyle(AppTheme.secondaryText)
+                ChartDisplayZone(
+                    ratio: selectedRatio,
+                    cardWidth: 136,
+                    height: 68,
+                    idle: {
+                        AverageTextBlock(
+                            title: averageTitle,
+                            value: averageMinutes.map(formatClock) ?? "--",
+                            tone: tone
+                        )
+                    },
+                    selected: {
+                        fixedChartCallout {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(selectedPoint?.date ?? .now, format: .dateTime.month().day())
+                                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                                    .foregroundStyle(AppTheme.secondaryText)
+                                Text(selectedPoint.map { formatClock($0.minutes) } ?? "--")
+                                    .font(.system(size: 22, weight: .bold, design: .rounded))
+                                    .foregroundStyle(AppTheme.primaryText)
+                            }
+                        }
                     }
-                }
+                )
 
                 Chart {
                     if let averageMinutes {
                         RuleMark(y: .value("平均", averageMinutes))
-                            .foregroundStyle(tone.opacity(0.38))
-                            .lineStyle(.init(lineWidth: 1, dash: [5, 4]))
-                            .annotation(position: .leading, spacing: 8) {
-                                averageTag(formatClock(averageMinutes), tone: tone)
-                            }
+                            .foregroundStyle(tone.opacity(0.65))
+                            .lineStyle(.init(lineWidth: 1.4, dash: [5, 4]))
                     }
 
                     ForEach(points) { point in
@@ -647,11 +687,11 @@ private struct TimeLineChart: View {
 
                         if selectedDate.flatMap({ Calendar.current.isDate($0, inSameDayAs: point.date) ? point : nil }) != nil {
                             RuleMark(x: .value("日期", point.date))
-                                .foregroundStyle(AppTheme.primaryText.opacity(0.18))
+                                .foregroundStyle(AppTheme.primaryText.opacity(0.38))
                                 .lineStyle(.init(lineWidth: 1, dash: [4, 4]))
 
                             RuleMark(y: .value("时间", point.minutes))
-                                .foregroundStyle(AppTheme.primaryText.opacity(0.18))
+                                .foregroundStyle(AppTheme.primaryText.opacity(0.38))
                                 .lineStyle(.init(lineWidth: 1, dash: [4, 4]))
 
                             PointMark(x: .value("日期", point.date), y: .value("时间", point.minutes))
@@ -662,6 +702,7 @@ private struct TimeLineChart: View {
                 }
                 .frame(height: compact ? 190 : 260)
                 .chartYScale(domain: adaptiveDomain)
+                .chartXScale(range: .plotDimension(startPadding: 14, endPadding: 14))
                 .chartYAxis {
                     AxisMarks(position: .leading, values: axisValues) { value in
                         AxisGridLine()
@@ -698,6 +739,15 @@ private struct TimeLineChart: View {
     private var selectedPoint: ChartTimeValue? {
         guard let selectedDate else { return nil }
         return points.first(where: { Calendar.current.isDate($0.date, inSameDayAs: selectedDate) })
+    }
+
+    private var selectedRatio: CGFloat? {
+        guard let selectedPoint, let index = points.firstIndex(where: { Calendar.current.isDate($0.date, inSameDayAs: selectedPoint.date) }) else { return nil }
+        return CGFloat(index) / CGFloat(max(points.count - 1, 1))
+    }
+
+    private var averageTitle: String {
+        usesWrappedClock ? "平均入睡" : "平均起床"
     }
 
     private var adaptiveDomain: ClosedRange<Double> {
@@ -753,20 +803,30 @@ private struct SleepIntervalChart: View {
             PlaceholderCard(text: "睡眠记录还不够。")
         } else {
             VStack(alignment: .leading, spacing: 10) {
-                if let selectedPoint {
-                    fixedChartCallout {
-                        Text(durationText(selectedPoint.sleepHours))
-                            .font(.system(size: 24, weight: .bold, design: .rounded))
-                            .foregroundStyle(AppTheme.primaryText)
-                        HStack(spacing: 18) {
-                            calloutMetric(label: "入睡", value: labelForSleepClock(selectedPoint.sleepStartMinutes))
-                            calloutMetric(label: "起床", value: labelForSleepClock(selectedPoint.sleepEndMinutes))
+                ChartDisplayZone(
+                    ratio: selectedRatio,
+                    cardWidth: 220,
+                    height: 88,
+                    idle: {
+                        Color.clear
+                    },
+                    selected: {
+                        fixedChartCallout {
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text(selectedPoint?.date ?? .now, format: .dateTime.month().day())
+                                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                                    .foregroundStyle(AppTheme.secondaryText)
+                                Text(durationText(selectedPoint?.sleepHours))
+                                    .font(.system(size: 20, weight: .bold, design: .rounded))
+                                    .foregroundStyle(AppTheme.primaryText)
+                                HStack(spacing: 18) {
+                                    calloutMetric(label: "入睡", value: labelForSleepClock(selectedPoint?.sleepStartMinutes))
+                                    calloutMetric(label: "起床", value: labelForSleepClock(selectedPoint?.sleepEndMinutes))
+                                }
+                            }
                         }
-                        Text(selectedPoint.date, format: .dateTime.month().day())
-                            .font(.system(size: 13, weight: .medium, design: .rounded))
-                            .foregroundStyle(AppTheme.secondaryText)
                     }
-                }
+                )
 
                 Chart {
                     ForEach(days) { point in
@@ -789,11 +849,11 @@ private struct SleepIntervalChart: View {
 
                             if selectedDate.flatMap({ Calendar.current.isDate($0, inSameDayAs: point.date) ? point : nil }) != nil {
                                 RuleMark(x: .value("选中", point.date))
-                                    .foregroundStyle(AppTheme.primaryText.opacity(0.2))
+                                    .foregroundStyle(AppTheme.primaryText.opacity(0.38))
                                     .lineStyle(.init(lineWidth: 1, dash: [4, 4]))
 
                                 RuleMark(y: .value("时刻", plotValue(for: midPoint(start: start, end: end))))
-                                    .foregroundStyle(AppTheme.primaryText.opacity(0.2))
+                                    .foregroundStyle(AppTheme.primaryText.opacity(0.38))
                                     .lineStyle(.init(lineWidth: 1, dash: [4, 4]))
 
                                 PointMark(
@@ -811,6 +871,7 @@ private struct SleepIntervalChart: View {
                     plotArea.padding(.top, compact ? 8 : 12)
                 }
                 .chartYScale(domain: adaptivePlotDomain)
+                .chartXScale(range: .plotDimension(startPadding: 14, endPadding: 14))
                 .chartYAxis {
                     AxisMarks(position: .leading, values: axisValues) { value in
                         AxisGridLine()
@@ -853,6 +914,13 @@ private struct SleepIntervalChart: View {
         guard let sleepHours else { return "--" }
         let minutes = Int((sleepHours * 60).rounded())
         return "\(minutes / 60)小时\(minutes % 60)分"
+    }
+
+    private var selectedRatio: CGFloat? {
+        guard let selectedPoint else { return nil }
+        let points = days.filter { $0.sleepStartMinutes != nil && $0.sleepEndMinutes != nil }
+        guard let index = points.firstIndex(where: { Calendar.current.isDate($0.date, inSameDayAs: selectedPoint.date) }) else { return nil }
+        return CGFloat(index) / CGFloat(max(points.count - 1, 1))
     }
 
     private var sleepValues: [Double] {
@@ -961,28 +1029,38 @@ private struct MealTimingScatterChart: View {
             PlaceholderCard(text: "再记录几餐，这里会看到你的进餐时间分布。")
         } else {
             VStack(alignment: .leading, spacing: 12) {
-                if let selectedItems {
-                    fixedChartCallout {
-                        Text(selectedDate ?? .now, format: .dateTime.month().day())
-                            .font(.system(size: 13, weight: .medium, design: .rounded))
-                            .foregroundStyle(AppTheme.secondaryText)
-                        VStack(alignment: .leading, spacing: 8) {
-                            ForEach(Array(selectedItems.enumerated()), id: \.offset) { _, item in
-                                HStack(spacing: 8) {
-                                    Circle()
-                                        .fill(item.2)
-                                        .frame(width: 8, height: 8)
-                                    Text(item.0)
-                                        .foregroundStyle(AppTheme.secondaryText)
-                                    Spacer(minLength: 10)
-                                    Text(clockText(item.1))
-                                        .foregroundStyle(AppTheme.primaryText)
+                ChartDisplayZone(
+                    ratio: selectedRatio,
+                    cardWidth: 190,
+                    height: 92,
+                    idle: {
+                        averageMealSummary
+                    },
+                    selected: {
+                        fixedChartCallout {
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text(selectedDate ?? .now, format: .dateTime.month().day())
+                                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                                    .foregroundStyle(AppTheme.secondaryText)
+                                VStack(alignment: .leading, spacing: 6) {
+                                    ForEach(Array((selectedItems ?? []).enumerated()), id: \.offset) { _, item in
+                                        HStack(spacing: 8) {
+                                            Circle()
+                                                .fill(item.2)
+                                                .frame(width: 8, height: 8)
+                                            Text(item.0)
+                                                .foregroundStyle(AppTheme.secondaryText)
+                                            Spacer(minLength: 8)
+                                            Text(clockText(item.1))
+                                                .foregroundStyle(AppTheme.primaryText)
+                                        }
+                                        .font(.system(size: 13, weight: .semibold, design: .rounded))
+                                    }
                                 }
-                                .font(.system(size: 14, weight: .semibold, design: .rounded))
                             }
                         }
                     }
-                }
+                )
 
                 Chart {
                     ForEach(series) { item in
@@ -1014,16 +1092,14 @@ private struct MealTimingScatterChart: View {
 
                         if let averageMinutes = item.averageMinutes {
                             RuleMark(y: .value(item.title, averageMinutes))
-                                .foregroundStyle(chartColor(for: item.key).opacity(0.35))
-                                .lineStyle(.init(lineWidth: 1, dash: [4, 4]))
-                                .annotation(position: .leading, spacing: 8) {
-                                    averageTag(clockText(averageMinutes), tone: chartColor(for: item.key))
-                                }
+                                .foregroundStyle(chartColor(for: item.key).opacity(0.65))
+                                .lineStyle(.init(lineWidth: 1.4, dash: [4, 4]))
                         }
                     }
                 }
                 .frame(height: compact ? 200 : 290)
                 .chartYScale(domain: adaptiveDomain)
+                .chartXScale(range: .plotDimension(startPadding: 14, endPadding: 14))
                 .chartYAxis {
                     AxisMarks(position: .leading, values: axisValues) { value in
                         AxisGridLine()
@@ -1064,6 +1140,31 @@ private struct MealTimingScatterChart: View {
             return (item.title, point.minutes, chartColor(for: item.key))
         }
         return items.isEmpty ? nil : items
+    }
+
+    private var selectedRatio: CGFloat? {
+        guard let selectedDate else { return nil }
+        let allDates = series.flatMap { $0.points.map(\.date) }.sorted()
+        guard let index = allDates.firstIndex(where: { Calendar.current.isDate($0, inSameDayAs: selectedDate) }) else { return nil }
+        return CGFloat(index) / CGFloat(max(allDates.count - 1, 1))
+    }
+
+    private var averageMealSummary: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            ForEach(series.filter { $0.averageMinutes != nil }) { item in
+                HStack(spacing: 8) {
+                    Circle()
+                        .fill(chartColor(for: item.key))
+                        .frame(width: 8, height: 8)
+                    Text(item.title)
+                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                        .foregroundStyle(AppTheme.secondaryText)
+                    Text(clockText(item.averageMinutes ?? 0))
+                        .font(.system(size: 14, weight: .bold, design: .rounded))
+                        .foregroundStyle(chartColor(for: item.key))
+                }
+            }
+        }
     }
 
     private func clockText(_ minutes: Double) -> String {
@@ -1116,37 +1217,48 @@ private struct ShowerScatterChart: View {
             PlaceholderCard(text: "还没有洗澡时间数据。")
         } else {
             VStack(alignment: .leading, spacing: 12) {
-                if let selectedItems {
-                    fixedChartCallout {
-                        Text(selectedDate ?? .now, format: .dateTime.month().day())
-                            .font(.system(size: 13, weight: .medium, design: .rounded))
-                            .foregroundStyle(AppTheme.secondaryText)
-                        VStack(alignment: .leading, spacing: 8) {
-                            ForEach(Array(selectedItems.enumerated()), id: \.offset) { index, item in
-                                HStack(spacing: 8) {
-                                    Circle()
-                                        .fill(Color.teal)
-                                        .frame(width: 8, height: 8)
-                                    Text(index == 0 ? "第1次" : "第\(index + 1)次")
-                                        .foregroundStyle(AppTheme.secondaryText)
-                                    Spacer(minLength: 10)
-                                    Text(clockText(item.minutes))
-                                        .foregroundStyle(AppTheme.primaryText)
+                ChartDisplayZone(
+                    ratio: selectedRatio,
+                    cardWidth: 180,
+                    height: 84,
+                    idle: {
+                        AverageTextBlock(
+                            title: "平均洗澡时间",
+                            value: averageMinutes.map(clockText) ?? "--",
+                            tone: .teal
+                        )
+                    },
+                    selected: {
+                        fixedChartCallout {
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text(selectedDate ?? .now, format: .dateTime.month().day())
+                                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                                    .foregroundStyle(AppTheme.secondaryText)
+                                VStack(alignment: .leading, spacing: 6) {
+                                    ForEach(Array((selectedItems ?? []).enumerated()), id: \.offset) { index, item in
+                                        HStack(spacing: 8) {
+                                            Circle()
+                                                .fill(Color.teal)
+                                                .frame(width: 8, height: 8)
+                                            Text(index == 0 ? "第1次" : "第\(index + 1)次")
+                                                .foregroundStyle(AppTheme.secondaryText)
+                                            Spacer(minLength: 8)
+                                            Text(clockText(item.minutes))
+                                                .foregroundStyle(AppTheme.primaryText)
+                                        }
+                                        .font(.system(size: 13, weight: .semibold, design: .rounded))
+                                    }
                                 }
-                                .font(.system(size: 14, weight: .semibold, design: .rounded))
                             }
                         }
                     }
-                }
+                )
 
                 Chart {
                     if let averageMinutes {
                         RuleMark(y: .value("平均", averageMinutes))
-                            .foregroundStyle(Color.teal.opacity(0.35))
-                            .lineStyle(.init(lineWidth: 1, dash: [4, 4]))
-                            .annotation(position: .leading, spacing: 8) {
-                                averageTag(clockText(averageMinutes), tone: .teal)
-                            }
+                            .foregroundStyle(Color.teal.opacity(0.65))
+                            .lineStyle(.init(lineWidth: 1.4, dash: [4, 4]))
                     }
 
                     ForEach(points) { point in
@@ -1177,6 +1289,7 @@ private struct ShowerScatterChart: View {
                 }
                 .frame(height: compact ? 200 : 290)
                 .chartYScale(domain: adaptiveDomain)
+                .chartXScale(range: .plotDimension(startPadding: 14, endPadding: 14))
                 .chartYAxis {
                     AxisMarks(position: .leading, values: axisValues) { value in
                         AxisGridLine()
@@ -1214,6 +1327,11 @@ private struct ShowerScatterChart: View {
         guard let selectedDate else { return nil }
         let items = points.filter { Calendar.current.isDate($0.date, inSameDayAs: selectedDate) }
         return items.isEmpty ? nil : items
+    }
+
+    private var selectedRatio: CGFloat? {
+        guard let selectedDate, let index = points.map(\.date).sorted().firstIndex(where: { Calendar.current.isDate($0, inSameDayAs: selectedDate) }) else { return nil }
+        return CGFloat(index) / CGFloat(max(points.count - 1, 1))
     }
 
     private func clockText(_ minutes: Double) -> String {
@@ -1413,6 +1531,67 @@ private struct AnalyticsDateRangeSheet: View {
             }
         }
         .presentationBackground(AppTheme.background)
+    }
+}
+
+private struct ChartDisplayZone<Idle: View, Selected: View>: View {
+    let ratio: CGFloat?
+    let cardWidth: CGFloat
+    let height: CGFloat
+    let idle: () -> Idle
+    let selected: () -> Selected
+
+    init(
+        ratio: CGFloat?,
+        cardWidth: CGFloat,
+        height: CGFloat,
+        @ViewBuilder idle: @escaping () -> Idle,
+        @ViewBuilder selected: @escaping () -> Selected
+    ) {
+        self.ratio = ratio
+        self.cardWidth = cardWidth
+        self.height = height
+        self.idle = idle
+        self.selected = selected
+    }
+
+    var body: some View {
+        GeometryReader { geometry in
+            ZStack(alignment: .topLeading) {
+                if let ratio {
+                    let width = min(cardWidth, geometry.size.width)
+                    selected()
+                        .frame(width: width)
+                        .offset(x: clampedOffset(width: width, in: geometry.size.width, ratio: ratio))
+                } else {
+                    idle()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+                }
+            }
+        }
+        .frame(height: height)
+    }
+
+    private func clampedOffset(width: CGFloat, in containerWidth: CGFloat, ratio: CGFloat) -> CGFloat {
+        let proposed = containerWidth * ratio - width / 2
+        return min(max(0, proposed), max(0, containerWidth - width))
+    }
+}
+
+private struct AverageTextBlock: View {
+    let title: String
+    let value: String
+    let tone: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title)
+                .font(.system(size: 12, weight: .medium, design: .rounded))
+                .foregroundStyle(AppTheme.secondaryText)
+            Text(value)
+                .font(.system(size: 18, weight: .bold, design: .rounded))
+                .foregroundStyle(tone)
+        }
     }
 }
 
