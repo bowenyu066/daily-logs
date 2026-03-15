@@ -455,6 +455,7 @@ struct MealAnalyticsSeries: Identifiable, Equatable {
     var id: String { key }
     var key: String
     var title: String
+    var showsAverage: Bool
     var completionRate: Double
     var averageMinutes: Double?
     var points: [AnalyticsScatterPoint]

@@ -90,7 +90,8 @@ final class AppViewModel: ObservableObject {
         AnalyticsCalculator.build(
             records: allRecords,
             range: analyticsRange,
-            customRange: analyticsRange == .custom ? analyticsCustomDateRange : nil
+            customRange: analyticsRange == .custom ? analyticsCustomDateRange : nil,
+            defaultMealSlots: preferences.defaultMealSlots
         )
     }
 

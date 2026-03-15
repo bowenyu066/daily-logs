@@ -449,7 +449,12 @@ struct AnalyticsSummary {
 }
 
 enum AnalyticsCalculator {
-    static func build(records: [DailyRecord], range: AnalyticsRange, customRange: ClosedRange<Date>? = nil) -> AnalyticsSummary {
+    static func build(
+        records: [DailyRecord],
+        range: AnalyticsRange,
+        customRange: ClosedRange<Date>? = nil,
+        defaultMealSlots: [MealSlot] = MealSlot.defaults
+    ) -> AnalyticsSummary {
         let calendar = Calendar.current
         let endDate = calendar.startOfDay(for: .now)
         let bounds: ClosedRange<Date> = {
@@ -516,6 +521,15 @@ enum AnalyticsCalculator {
             record.meals.map { (record, $0) }
         }, by: { $0.1.slotKey })
 
+        let defaultMealKeys = Set(defaultMealSlots.map { slot in
+            switch slot.kind {
+            case .custom:
+                return "custom-\(slot.title)"
+            default:
+                return slot.kind.rawValue
+            }
+        })
+
         let mealSeries = groupedMeals.values
             .compactMap { entries -> MealAnalyticsSeries? in
                 guard let sample = entries.first?.1 else { return nil }
@@ -532,6 +546,7 @@ enum AnalyticsCalculator {
                 return MealAnalyticsSeries(
                     key: sample.slotKey,
                     title: sample.displayTitle,
+                    showsAverage: defaultMealKeys.contains(sample.slotKey),
                     completionRate: tracked > 0 ? logged / tracked : 0,
                     averageMinutes: points.map(\.minutes).averageOptional,
                     points: points.sorted { $0.date < $1.date }

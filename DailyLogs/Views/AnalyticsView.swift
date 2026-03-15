@@ -490,8 +490,8 @@ private struct SleepTrendChart: View {
                 Chart {
                     if let averageSleepHours {
                         RuleMark(y: .value("平均", averageSleepHours))
-                            .foregroundStyle(AppTheme.accent.opacity(0.65))
-                            .lineStyle(.init(lineWidth: 1.4, dash: [5, 4]))
+                            .foregroundStyle(AppTheme.accent.opacity(0.72))
+                            .lineStyle(.init(lineWidth: 3, dash: [7, 5]))
                     }
 
                     ForEach(days) { point in
@@ -503,27 +503,14 @@ private struct SleepTrendChart: View {
                             .interpolationMethod(.catmullRom)
                             .foregroundStyle(AppTheme.accent)
 
-                            AreaMark(
-                                x: .value("日期", point.date),
-                                y: .value("睡眠", sleepHours)
-                            )
-                            .interpolationMethod(.catmullRom)
-                            .foregroundStyle(
-                                LinearGradient(
-                                    colors: [AppTheme.accent.opacity(0.24), AppTheme.accent.opacity(0.04)],
-                                    startPoint: .top,
-                                    endPoint: .bottom
-                                )
-                            )
-
                             if selectedDate.flatMap({ Calendar.current.isDate($0, inSameDayAs: point.date) ? point : nil }) != nil {
                                 RuleMark(x: .value("日期", point.date))
-                                    .foregroundStyle(AppTheme.primaryText.opacity(0.38))
-                                    .lineStyle(.init(lineWidth: 1, dash: [4, 4]))
+                                    .foregroundStyle(AppTheme.primaryText.opacity(0.5))
+                                    .lineStyle(.init(lineWidth: 3, dash: [7, 5]))
 
                                 RuleMark(y: .value("睡眠", sleepHours))
-                                    .foregroundStyle(AppTheme.primaryText.opacity(0.38))
-                                    .lineStyle(.init(lineWidth: 1, dash: [4, 4]))
+                                    .foregroundStyle(AppTheme.primaryText.opacity(0.5))
+                                    .lineStyle(.init(lineWidth: 3, dash: [7, 5]))
 
                                 PointMark(
                                     x: .value("日期", point.date),
@@ -672,8 +659,8 @@ private struct TimeLineChart: View {
                 Chart {
                     if let averageMinutes {
                         RuleMark(y: .value("平均", averageMinutes))
-                            .foregroundStyle(tone.opacity(0.65))
-                            .lineStyle(.init(lineWidth: 1.4, dash: [5, 4]))
+                            .foregroundStyle(tone.opacity(0.72))
+                            .lineStyle(.init(lineWidth: 3, dash: [7, 5]))
                     }
 
                     ForEach(points) { point in
@@ -687,12 +674,12 @@ private struct TimeLineChart: View {
 
                         if selectedDate.flatMap({ Calendar.current.isDate($0, inSameDayAs: point.date) ? point : nil }) != nil {
                             RuleMark(x: .value("日期", point.date))
-                                .foregroundStyle(AppTheme.primaryText.opacity(0.38))
-                                .lineStyle(.init(lineWidth: 1, dash: [4, 4]))
+                                .foregroundStyle(AppTheme.primaryText.opacity(0.5))
+                                .lineStyle(.init(lineWidth: 3, dash: [7, 5]))
 
                             RuleMark(y: .value("时间", point.minutes))
-                                .foregroundStyle(AppTheme.primaryText.opacity(0.38))
-                                .lineStyle(.init(lineWidth: 1, dash: [4, 4]))
+                                .foregroundStyle(AppTheme.primaryText.opacity(0.5))
+                                .lineStyle(.init(lineWidth: 3, dash: [7, 5]))
 
                             PointMark(x: .value("日期", point.date), y: .value("时间", point.minutes))
                                 .foregroundStyle(tone)
@@ -802,31 +789,33 @@ private struct SleepIntervalChart: View {
         if days.compactMap(\.sleepStartMinutes).isEmpty {
             PlaceholderCard(text: "睡眠记录还不够。")
         } else {
-            VStack(alignment: .leading, spacing: 10) {
-                ChartDisplayZone(
-                    ratio: selectedRatio,
-                    cardWidth: 220,
-                    height: 88,
-                    idle: {
-                        Color.clear
-                    },
-                    selected: {
-                        fixedChartCallout {
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text(selectedPoint?.date ?? .now, format: .dateTime.month().day())
-                                    .font(.system(size: 12, weight: .medium, design: .rounded))
-                                    .foregroundStyle(AppTheme.secondaryText)
-                                Text(durationText(selectedPoint?.sleepHours))
-                                    .font(.system(size: 20, weight: .bold, design: .rounded))
-                                    .foregroundStyle(AppTheme.primaryText)
-                                HStack(spacing: 18) {
-                                    calloutMetric(label: "入睡", value: labelForSleepClock(selectedPoint?.sleepStartMinutes))
-                                    calloutMetric(label: "起床", value: labelForSleepClock(selectedPoint?.sleepEndMinutes))
+            VStack(alignment: .leading, spacing: selectedPoint == nil ? 2 : 10) {
+                if selectedPoint != nil {
+                    ChartDisplayZone(
+                        ratio: selectedRatio,
+                        cardWidth: 228,
+                        height: compact ? 116 : 126,
+                        idle: {
+                            Color.clear
+                        },
+                        selected: {
+                            fixedChartCallout {
+                                VStack(alignment: .leading, spacing: 6) {
+                                    Text(selectedPoint?.date ?? .now, format: .dateTime.month().day())
+                                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                                        .foregroundStyle(AppTheme.secondaryText)
+                                    Text(durationText(selectedPoint?.sleepHours))
+                                        .font(.system(size: 20, weight: .bold, design: .rounded))
+                                        .foregroundStyle(AppTheme.primaryText)
+                                    HStack(spacing: 18) {
+                                        calloutMetric(label: "入睡", value: labelForSleepClock(selectedPoint?.sleepStartMinutes))
+                                        calloutMetric(label: "起床", value: labelForSleepClock(selectedPoint?.sleepEndMinutes))
+                                    }
                                 }
                             }
                         }
-                    }
-                )
+                    )
+                }
 
                 Chart {
                     ForEach(days) { point in
@@ -849,12 +838,12 @@ private struct SleepIntervalChart: View {
 
                             if selectedDate.flatMap({ Calendar.current.isDate($0, inSameDayAs: point.date) ? point : nil }) != nil {
                                 RuleMark(x: .value("选中", point.date))
-                                    .foregroundStyle(AppTheme.primaryText.opacity(0.38))
-                                    .lineStyle(.init(lineWidth: 1, dash: [4, 4]))
+                                    .foregroundStyle(AppTheme.primaryText.opacity(0.5))
+                                    .lineStyle(.init(lineWidth: 3, dash: [7, 5]))
 
                                 RuleMark(y: .value("时刻", plotValue(for: midPoint(start: start, end: end))))
-                                    .foregroundStyle(AppTheme.primaryText.opacity(0.38))
-                                    .lineStyle(.init(lineWidth: 1, dash: [4, 4]))
+                                    .foregroundStyle(AppTheme.primaryText.opacity(0.5))
+                                    .lineStyle(.init(lineWidth: 3, dash: [7, 5]))
 
                                 PointMark(
                                     x: .value("日期", point.date),
@@ -1031,8 +1020,8 @@ private struct MealTimingScatterChart: View {
             VStack(alignment: .leading, spacing: 12) {
                 ChartDisplayZone(
                     ratio: selectedRatio,
-                    cardWidth: 190,
-                    height: 92,
+                    cardWidth: 184,
+                    height: displayZoneHeight,
                     idle: {
                         averageMealSummary
                     },
@@ -1074,12 +1063,12 @@ private struct MealTimingScatterChart: View {
 
                             if selectedDate.flatMap({ Calendar.current.isDate($0, inSameDayAs: point.date) ? point : nil }) != nil {
                                 RuleMark(x: .value("日期", point.date))
-                                    .foregroundStyle(AppTheme.primaryText.opacity(0.18))
-                                    .lineStyle(.init(lineWidth: 1, dash: [4, 4]))
+                                    .foregroundStyle(AppTheme.primaryText.opacity(0.5))
+                                    .lineStyle(.init(lineWidth: 3, dash: [7, 5]))
 
                                 RuleMark(y: .value("时间", point.minutes))
-                                    .foregroundStyle(AppTheme.primaryText.opacity(0.18))
-                                    .lineStyle(.init(lineWidth: 1, dash: [4, 4]))
+                                    .foregroundStyle(AppTheme.primaryText.opacity(0.5))
+                                    .lineStyle(.init(lineWidth: 3, dash: [7, 5]))
 
                                 PointMark(
                                     x: .value("日期", point.date),
@@ -1090,10 +1079,10 @@ private struct MealTimingScatterChart: View {
                             }
                         }
 
-                        if let averageMinutes = item.averageMinutes {
+                        if item.showsAverage, let averageMinutes = item.averageMinutes {
                             RuleMark(y: .value(item.title, averageMinutes))
-                                .foregroundStyle(chartColor(for: item.key).opacity(0.65))
-                                .lineStyle(.init(lineWidth: 1.4, dash: [4, 4]))
+                                .foregroundStyle(chartColor(for: item.key).opacity(0.72))
+                                .lineStyle(.init(lineWidth: 3, dash: [7, 5]))
                         }
                     }
                 }
@@ -1151,7 +1140,7 @@ private struct MealTimingScatterChart: View {
 
     private var averageMealSummary: some View {
         VStack(alignment: .leading, spacing: 4) {
-            ForEach(series.filter { $0.averageMinutes != nil }) { item in
+            ForEach(averageSeries) { item in
                 HStack(spacing: 8) {
                     Circle()
                         .fill(chartColor(for: item.key))
@@ -1165,6 +1154,19 @@ private struct MealTimingScatterChart: View {
                 }
             }
         }
+    }
+
+    private var averageSeries: [MealAnalyticsSeries] {
+        series.filter { $0.showsAverage && $0.averageMinutes != nil }
+    }
+
+    private var displayZoneHeight: CGFloat {
+        let lineCount = max(
+            selectedItems?.count ?? 0,
+            averageSeries.count
+        )
+        let clampedLines = max(1, min(lineCount, compact ? 5 : 6))
+        return CGFloat(18 + clampedLines * 22)
     }
 
     private func clockText(_ minutes: Double) -> String {
@@ -1257,8 +1259,8 @@ private struct ShowerScatterChart: View {
                 Chart {
                     if let averageMinutes {
                         RuleMark(y: .value("平均", averageMinutes))
-                            .foregroundStyle(Color.teal.opacity(0.65))
-                            .lineStyle(.init(lineWidth: 1.4, dash: [4, 4]))
+                            .foregroundStyle(Color.teal.opacity(0.72))
+                            .lineStyle(.init(lineWidth: 3, dash: [7, 5]))
                     }
 
                     ForEach(points) { point in
@@ -1271,12 +1273,12 @@ private struct ShowerScatterChart: View {
 
                         if selectedDate.flatMap({ Calendar.current.isDate($0, inSameDayAs: point.date) ? point : nil }) != nil {
                             RuleMark(x: .value("日期", point.date))
-                                .foregroundStyle(AppTheme.primaryText.opacity(0.18))
-                                .lineStyle(.init(lineWidth: 1, dash: [4, 4]))
+                                .foregroundStyle(AppTheme.primaryText.opacity(0.5))
+                                .lineStyle(.init(lineWidth: 3, dash: [7, 5]))
 
                             RuleMark(y: .value("时间", point.minutes))
-                                .foregroundStyle(AppTheme.primaryText.opacity(0.18))
-                                .lineStyle(.init(lineWidth: 1, dash: [4, 4]))
+                                .foregroundStyle(AppTheme.primaryText.opacity(0.5))
+                                .lineStyle(.init(lineWidth: 3, dash: [7, 5]))
 
                             PointMark(
                                 x: .value("日期", point.date),
