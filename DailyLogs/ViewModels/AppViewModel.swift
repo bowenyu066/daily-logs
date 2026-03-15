@@ -509,11 +509,7 @@ final class AppViewModel: ObservableObject {
             dailyRecord = DailyRecord.empty(for: selectedDate, preferences: preferences)
             return
         }
-        let sourceHint = healthSyncAdapter.latestSleepSourceHint()
         var record = try repository.loadRecord(for: selectedDate, preferences: preferences, userID: user.userID)
-        if let sourceHint {
-            record.sleepRecord.source = sourceHint
-        }
         record.sleepRecord.targetBedtime = preferences.bedtimeSchedule.target(for: selectedDate)
         dailyRecord = mergedRecord(record, with: preferences)
         updateSunTimesIfPossible()

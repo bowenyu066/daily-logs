@@ -37,7 +37,6 @@ protocol SunTimesService {
 
 @MainActor
 protocol HealthSyncAdapter {
-    func latestSleepSourceHint() -> RecordSource?
     func requestAuthorization() async throws
     func fetchSleepData(for date: Date, after registrationDate: Date) async throws -> SleepRecord?
 }
@@ -473,9 +472,6 @@ final class LocalPhotoStorageService: PhotoStorageService {
 }
 
 final class PlaceholderHealthSyncAdapter: HealthSyncAdapter {
-    func latestSleepSourceHint() -> RecordSource? {
-        nil
-    }
     func requestAuthorization() async throws {}
     func fetchSleepData(for date: Date, after registrationDate: Date) async throws -> SleepRecord? {
         nil

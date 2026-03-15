@@ -5,10 +5,6 @@ import HealthKit
 final class HealthKitService: HealthSyncAdapter {
     private let store = HKHealthStore()
 
-    func latestSleepSourceHint() -> RecordSource? {
-        HKHealthStore.isHealthDataAvailable() ? .healthKit : nil
-    }
-
     func requestAuthorization() async throws {
         guard HKHealthStore.isHealthDataAvailable() else { return }
         let sleepType = HKCategoryType(.sleepAnalysis)
