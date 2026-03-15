@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 
 enum AuthMode: String, Codable, Equatable {
     case apple
@@ -117,16 +118,86 @@ struct SunTimes: Codable, Equatable {
     var sunset: Date
 }
 
+enum SleepStage: String, Codable, CaseIterable {
+    case awake, light, deep, rem
+
+    var title: String {
+        switch self {
+        case .awake: "清醒"
+        case .light: "浅睡"
+        case .deep: "深睡"
+        case .rem: "REM"
+        }
+    }
+
+    var color: SwiftUI.Color {
+        switch self {
+        case .awake: Color(red: 0.90, green: 0.66, blue: 0.26)
+        case .light: Color(red: 0.55, green: 0.68, blue: 0.92)
+        case .deep: Color(red: 0.30, green: 0.40, blue: 0.78)
+        case .rem: Color(red: 0.62, green: 0.44, blue: 0.82)
+        }
+    }
+}
+
+struct SleepStageInterval: Codable, Equatable, Identifiable {
+    var id: UUID = UUID()
+    var stage: SleepStage
+    var start: Date
+    var end: Date
+
+    var duration: TimeInterval {
+        end.timeIntervalSince(start)
+    }
+}
+
 struct SleepRecord: Codable, Equatable {
     var bedtimePreviousNight: Date?
     var wakeTimeCurrentDay: Date?
     var targetBedtime: DateComponents?
     var source: RecordSource = .manual
+    var stageIntervals: [SleepStageInterval] = []
 
     var duration: TimeInterval? {
         guard let bedtimePreviousNight, let wakeTimeCurrentDay else { return nil }
         let duration = wakeTimeCurrentDay.timeIntervalSince(bedtimePreviousNight)
         return duration > 0 ? duration : nil
+    }
+
+    var hasStageData: Bool {
+        !stageIntervals.isEmpty
+    }
+
+    var stageDurations: [SleepStage: TimeInterval] {
+        Dictionary(grouping: stageIntervals, by: \.stage)
+            .mapValues { intervals in intervals.reduce(0) { $0 + $1.duration } }
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case bedtimePreviousNight, wakeTimeCurrentDay, targetBedtime, source, stageIntervals
+    }
+
+    init(
+        bedtimePreviousNight: Date? = nil,
+        wakeTimeCurrentDay: Date? = nil,
+        targetBedtime: DateComponents? = nil,
+        source: RecordSource = .manual,
+        stageIntervals: [SleepStageInterval] = []
+    ) {
+        self.bedtimePreviousNight = bedtimePreviousNight
+        self.wakeTimeCurrentDay = wakeTimeCurrentDay
+        self.targetBedtime = targetBedtime
+        self.source = source
+        self.stageIntervals = stageIntervals
+    }
+
+    init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        bedtimePreviousNight = try container.decodeIfPresent(Date.self, forKey: .bedtimePreviousNight)
+        wakeTimeCurrentDay = try container.decodeIfPresent(Date.self, forKey: .wakeTimeCurrentDay)
+        targetBedtime = try container.decodeIfPresent(DateComponents.self, forKey: .targetBedtime)
+        source = try container.decodeIfPresent(RecordSource.self, forKey: .source) ?? .manual
+        stageIntervals = try container.decodeIfPresent([SleepStageInterval].self, forKey: .stageIntervals) ?? []
     }
 }
 
@@ -297,6 +368,7 @@ struct UserPreferences: Codable, Equatable {
     var locationPermissionState: LocationPermissionState = .notDetermined
     var appearanceMode: AppearanceMode = .system
     var analyticsCustomization: AnalyticsCustomization = .default
+    var healthKitSyncEnabled: Bool = false
 
     enum CodingKeys: String, CodingKey {
         case defaultMealSlots
@@ -304,6 +376,7 @@ struct UserPreferences: Codable, Equatable {
         case locationPermissionState
         case appearanceMode
         case analyticsCustomization
+        case healthKitSyncEnabled
         case targetBedtime
     }
 
@@ -312,13 +385,15 @@ struct UserPreferences: Codable, Equatable {
         bedtimeSchedule: BedtimeSchedule = .default,
         locationPermissionState: LocationPermissionState = .notDetermined,
         appearanceMode: AppearanceMode = .system,
-        analyticsCustomization: AnalyticsCustomization = .default
+        analyticsCustomization: AnalyticsCustomization = .default,
+        healthKitSyncEnabled: Bool = false
     ) {
         self.defaultMealSlots = defaultMealSlots
         self.bedtimeSchedule = bedtimeSchedule
         self.locationPermissionState = locationPermissionState
         self.appearanceMode = appearanceMode
         self.analyticsCustomization = analyticsCustomization
+        self.healthKitSyncEnabled = healthKitSyncEnabled
     }
 
     init(from decoder: any Decoder) throws {
@@ -327,6 +402,7 @@ struct UserPreferences: Codable, Equatable {
         locationPermissionState = try container.decodeIfPresent(LocationPermissionState.self, forKey: .locationPermissionState) ?? .notDetermined
         appearanceMode = try container.decodeIfPresent(AppearanceMode.self, forKey: .appearanceMode) ?? .system
         analyticsCustomization = try container.decodeIfPresent(AnalyticsCustomization.self, forKey: .analyticsCustomization) ?? .default
+        healthKitSyncEnabled = try container.decodeIfPresent(Bool.self, forKey: .healthKitSyncEnabled) ?? false
         if let bedtimeSchedule = try container.decodeIfPresent(BedtimeSchedule.self, forKey: .bedtimeSchedule) {
             self.bedtimeSchedule = bedtimeSchedule
         } else {
@@ -342,6 +418,7 @@ struct UserPreferences: Codable, Equatable {
         try container.encode(locationPermissionState, forKey: .locationPermissionState)
         try container.encode(appearanceMode, forKey: .appearanceMode)
         try container.encode(analyticsCustomization, forKey: .analyticsCustomization)
+        try container.encode(healthKitSyncEnabled, forKey: .healthKitSyncEnabled)
     }
 }
 

@@ -24,7 +24,7 @@ final class AppViewModel: ObservableObject {
     private let preferencesStore: PreferencesStore
     private let photoStorageService: PhotoStorageService
     private let sunTimesService: SunTimesService
-    private let healthSyncAdapter: HealthSyncAdapter
+    private var healthSyncAdapter: HealthSyncAdapter
     private let cloudSyncService: CloudSyncService
 
     static func live() -> AppViewModel {
@@ -36,7 +36,7 @@ final class AppViewModel: ObservableObject {
             preferencesStore: LocalPreferencesStore(store: store),
             photoStorageService: LocalPhotoStorageService(),
             sunTimesService: AstronomySunTimesService(),
-            healthSyncAdapter: PlaceholderHealthSyncAdapter(),
+            healthSyncAdapter: HealthKitService(),
             cloudSyncService: FirebaseCloudSyncService(),
             locationService: LocationService(),
             selectedDate: .now.startOfDay,
@@ -116,7 +116,6 @@ final class AppViewModel: ObservableObject {
             if let user {
                 selectedDate = max(selectedDate, user.createdAt.startOfDay)
                 analyticsCustomDateRange = defaultAnalyticsCustomRange(startingAt: user.createdAt)
-                try seedDemoDataIfNeeded(for: user.userID)
                 try loadAllRecords(for: user.userID)
                 await refreshFromCloudIfNeeded(for: user)
                 try loadSelectedRecord()
@@ -133,7 +132,6 @@ final class AppViewModel: ObservableObject {
             preferences = try preferencesStore.loadPreferences(userID: user?.userID)
             selectedDate = max(Date().startOfDay, availableStartDate)
             analyticsCustomDateRange = defaultAnalyticsCustomRange(startingAt: availableStartDate)
-            try seedDemoDataIfNeeded(for: user?.userID ?? "")
             try loadAllRecords(for: user?.userID ?? "")
             if let user {
                 await refreshFromCloudIfNeeded(for: user)
@@ -154,7 +152,6 @@ final class AppViewModel: ObservableObject {
             preferences = try preferencesStore.loadPreferences(userID: user?.userID)
             selectedDate = max(Date().startOfDay, availableStartDate)
             analyticsCustomDateRange = defaultAnalyticsCustomRange(startingAt: availableStartDate)
-            try seedDemoDataIfNeeded(for: user?.userID ?? "")
             try loadAllRecords(for: user?.userID ?? "")
             if let user {
                 await refreshFromCloudIfNeeded(for: user)
@@ -440,6 +437,49 @@ final class AppViewModel: ObservableObject {
         await syncPreferencesToCloudIfNeeded()
     }
 
+    func toggleHealthKitSync(_ enabled: Bool) async {
+        if enabled {
+            do {
+                try await healthSyncAdapter.requestAuthorization()
+                preferences.healthKitSyncEnabled = true
+                persistPreferences()
+                await syncPreferencesToCloudIfNeeded()
+                await syncHealthKitForCurrentDate()
+            } catch {
+                errorMessage = "HealthKit 授权失败：\(error.localizedDescription)"
+            }
+        } else {
+            preferences.healthKitSyncEnabled = false
+            persistPreferences()
+            await syncPreferencesToCloudIfNeeded()
+        }
+    }
+
+    func syncHealthKitForCurrentDate() async {
+        guard preferences.healthKitSyncEnabled, let user else { return }
+        do {
+            guard let hkSleep = try await healthSyncAdapter.fetchSleepData(
+                for: selectedDate,
+                after: user.createdAt
+            ) else { return }
+
+            let isManualBedtime = dailyRecord.sleepRecord.bedtimePreviousNight != nil && dailyRecord.sleepRecord.source == .manual
+            let isManualWake = dailyRecord.sleepRecord.wakeTimeCurrentDay != nil && dailyRecord.sleepRecord.source == .manual
+
+            if !isManualBedtime {
+                dailyRecord.sleepRecord.bedtimePreviousNight = hkSleep.bedtimePreviousNight
+            }
+            if !isManualWake {
+                dailyRecord.sleepRecord.wakeTimeCurrentDay = hkSleep.wakeTimeCurrentDay
+            }
+            dailyRecord.sleepRecord.stageIntervals = hkSleep.stageIntervals
+            dailyRecord.sleepRecord.source = .healthKit
+            persistCurrentRecord()
+        } catch {
+            errorMessage = "HealthKit 同步失败：\(error.localizedDescription)"
+        }
+    }
+
     func formattedTargetBedtime() -> String {
         preferences.bedtimeSchedule.target(for: selectedDate)?.displayTime ?? "--:--"
     }
@@ -481,88 +521,12 @@ final class AppViewModel: ObservableObject {
         record.sleepRecord.targetBedtime = preferences.bedtimeSchedule.target(for: selectedDate)
         dailyRecord = mergedRecord(record, with: preferences)
         updateSunTimesIfPossible()
+        Task { await syncHealthKitForCurrentDate() }
     }
 
     private func loadAllRecords(for userID: String) throws {
         allRecords = try repository.loadAllRecords(userID: userID)
             .filter { $0.date >= availableStartDate }
-    }
-
-    private func seedDemoDataIfNeeded(for userID: String) throws {
-        #if DEBUG
-        guard !userID.isEmpty else { return }
-        let existing = try repository.loadAllRecords(userID: userID)
-        guard existing.isEmpty else { return }
-
-        let today = Date().startOfDay
-        for offset in stride(from: 44, through: 0, by: -1) {
-            let date = today.adding(days: -offset)
-            var record = DailyRecord.empty(for: date, preferences: preferences)
-
-            let bedtimeHour = 22 + ((offset % 5 == 0 || offset % 6 == 0) ? 1 : 0)
-            let bedtimeMinute = [10, 20, 30, 40, 50, 0, 15][offset % 7]
-            let wakeHour = 6 + (offset % 4 == 0 ? 1 : 0) + (offset % 9 == 0 ? 1 : 0)
-            let wakeMinute = [5, 15, 20, 30, 40, 45, 55][offset % 7]
-            record.sleepRecord.bedtimePreviousNight = date.adding(days: -1).settingTime(hour: bedtimeHour, minute: bedtimeMinute)
-            record.sleepRecord.wakeTimeCurrentDay = date.settingTime(hour: min(wakeHour, 9), minute: wakeMinute)
-            record.sleepRecord.targetBedtime = preferences.bedtimeSchedule.target(for: date)
-
-            for index in record.meals.indices {
-                switch record.meals[index].mealKind {
-                case .breakfast:
-                    if offset % 7 == 0 {
-                        record.meals[index].status = .skipped
-                    } else {
-                        record.meals[index].status = .logged
-                        record.meals[index].time = date.settingTime(hour: 7 + (offset % 2), minute: [12, 18, 24, 31, 40][offset % 5])
-                    }
-                case .lunch:
-                    if offset % 9 == 0 {
-                        record.meals[index].status = .skipped
-                    } else {
-                        record.meals[index].status = .logged
-                        record.meals[index].time = date.settingTime(hour: 12 + (offset % 2), minute: [5, 12, 20, 28, 36][offset % 5])
-                    }
-                case .dinner:
-                    if offset % 11 == 0 {
-                        record.meals[index].status = .empty
-                    } else {
-                        record.meals[index].status = .logged
-                        record.meals[index].time = date.settingTime(hour: 18 + (offset % 2), minute: [0, 10, 18, 26, 35][offset % 5])
-                    }
-                case .custom:
-                    break
-                }
-            }
-
-            if offset % 4 == 0 {
-                record.meals.append(
-                    MealEntry(
-                        mealKind: .custom,
-                        customTitle: offset % 8 == 0 ? "夜宵" : "加餐",
-                        status: .logged,
-                        time: date.settingTime(hour: offset % 8 == 0 ? 22 : 15, minute: [8, 16, 25, 32][offset % 4]),
-                        photoURL: nil
-                    )
-                )
-            }
-
-            let showerTimes: [Date]
-            if offset % 6 == 0 {
-                showerTimes = [
-                    date.settingTime(hour: 8, minute: 10),
-                    date.settingTime(hour: 21, minute: 40)
-                ]
-            } else if offset % 2 == 0 {
-                showerTimes = [date.settingTime(hour: 21, minute: 25)]
-            } else {
-                showerTimes = [date.settingTime(hour: 7, minute: 50)]
-            }
-            record.showers = showerTimes.map { ShowerEntry(time: $0) }
-
-            try repository.saveRecord(record, userID: userID)
-        }
-        #endif
     }
 
     private func persistCurrentRecord() {

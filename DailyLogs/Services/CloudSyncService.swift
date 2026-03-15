@@ -121,7 +121,10 @@ final class FirebaseCloudSyncService: CloudSyncService {
         for index in updated.meals.indices {
             guard let photoURL = updated.meals[index].photoURL else { continue }
             guard !photoURL.hasPrefix("http://"), !photoURL.hasPrefix("https://") else { continue }
-            guard FileManager.default.fileExists(atPath: photoURL) else { continue }
+            guard FileManager.default.fileExists(atPath: photoURL) else {
+                updated.meals[index].photoURL = nil
+                continue
+            }
             let data = try Data(contentsOf: URL(fileURLWithPath: photoURL))
             let path = "users/\(userID)/meal-photos/\(updated.meals[index].id.uuidString).jpg"
             let ref = storage.reference(withPath: path)
