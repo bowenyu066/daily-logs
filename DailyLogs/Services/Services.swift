@@ -1,12 +1,16 @@
 import AuthenticationServices
 import CoreLocation
+import CryptoKit
+import FirebaseAuth
 import Foundation
 import UIKit
 
+@MainActor
 protocol AuthService {
     var currentUser: UserAccount? { get }
     func restoreSession() -> UserAccount?
-    func handleAppleSignIn(result: Result<ASAuthorization, Error>) throws -> UserAccount
+    func prepareAppleSignIn(_ request: ASAuthorizationAppleIDRequest)
+    func handleAppleSignIn(result: Result<ASAuthorization, Error>) async throws -> UserAccount
     func continueAsGuest() throws -> UserAccount
     func signOut() throws
 }
@@ -36,48 +40,101 @@ protocol HealthSyncAdapter {
 }
 
 final class LocalAuthService: AuthService {
+    private struct FirebaseUserSnapshot: Sendable {
+        var uid: String
+        var displayName: String?
+        var email: String?
+        var creationDate: Date?
+    }
+
     private let defaults = UserDefaults.standard
     private let key = "dailylogs.currentUser"
     private let guestID = "guest.local"
     private let store: LocalJSONStore
+    private var currentNonce: String?
 
     init(store: LocalJSONStore) {
         self.store = store
     }
 
     var currentUser: UserAccount? {
-        guard let data = defaults.data(forKey: key) else { return nil }
-        return try? JSONDecoder().decode(UserAccount.self, from: data)
+        if let session = persistedSession, session.isGuest {
+            return session
+        }
+        FirebaseBootstrap.configureIfPossible()
+        guard FirebaseBootstrap.isConfigured, let firebaseUser = Auth.auth().currentUser else {
+            return nil
+        }
+        return buildAppleUser(from: firebaseUser, fallback: persistedSession)
     }
 
     func restoreSession() -> UserAccount? {
-        guard let session = currentUser else { return nil }
-        let refreshed = refreshUser(session)
-        if let refreshed {
-            persistSession(refreshed)
+        if let guestSession = persistedSession, guestSession.isGuest {
+            let refreshed = refreshUser(guestSession)
+            if let refreshed {
+                persistSession(refreshed)
+            }
+            return refreshed
         }
+
+        FirebaseBootstrap.configureIfPossible()
+        guard FirebaseBootstrap.isConfigured, let firebaseUser = Auth.auth().currentUser else {
+            if let session = persistedSession, !session.isGuest {
+                defaults.removeObject(forKey: key)
+            }
+            return nil
+        }
+
+        let user = buildAppleUser(from: firebaseUser, fallback: persistedSession)
+        let refreshed = (try? saveProfile(for: user)) ?? user
+        persistSession(refreshed)
         return refreshed
     }
 
-    func handleAppleSignIn(result: Result<ASAuthorization, Error>) throws -> UserAccount {
+    func prepareAppleSignIn(_ request: ASAuthorizationAppleIDRequest) {
+        let nonce = randomNonceString()
+        currentNonce = nonce
+        request.requestedScopes = [.fullName, .email]
+        request.nonce = sha256(nonce)
+    }
+
+    func handleAppleSignIn(result: Result<ASAuthorization, Error>) async throws -> UserAccount {
+        FirebaseBootstrap.configureIfPossible()
+        guard FirebaseBootstrap.isConfigured else {
+            throw AuthError.firebaseUnavailable
+        }
+        defer { currentNonce = nil }
+
         switch result {
         case .success(let authorization):
             guard let credential = authorization.credential as? ASAuthorizationAppleIDCredential else {
                 throw AuthError.invalidCredential
             }
-            let given = credential.fullName?.givenName ?? ""
-            let family = credential.fullName?.familyName ?? ""
-            let displayName = [given, family]
-                .filter { !$0.isEmpty }
-                .joined(separator: " ")
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            let previousUser = currentUser
+            guard let nonce = currentNonce else {
+                throw AuthError.missingNonce
+            }
+            guard let identityToken = credential.identityToken else {
+                throw AuthError.missingIdentityToken
+            }
+            guard let idTokenString = String(data: identityToken, encoding: .utf8) else {
+                throw AuthError.invalidIdentityToken
+            }
+
+            let firebaseCredential = OAuthProvider.appleCredential(
+                withIDToken: idTokenString,
+                rawNonce: nonce,
+                fullName: credential.fullName
+            )
+            let firebaseUser = try await signInToFirebase(with: firebaseCredential)
+            let previousUser = persistedSession?.authMode == .apple ? persistedSession : nil
+            let fullName = formattedName(from: credential.fullName)
+
             let user = UserAccount(
-                userID: credential.user,
-                displayName: displayName.isEmpty ? (previousUser?.displayName ?? "我的记录") : displayName,
-                email: credential.email ?? previousUser?.email,
+                userID: firebaseUser.uid,
+                displayName: fullName ?? firebaseUser.displayName ?? previousUser?.displayName ?? "我的记录",
+                email: firebaseUser.email ?? credential.email ?? previousUser?.email,
                 authMode: .apple,
-                createdAt: resolveCreatedAt(for: credential.user)
+                createdAt: firebaseUser.creationDate?.startOfDay ?? resolveCreatedAt(for: firebaseUser.uid)
             )
             let refreshed = try saveProfile(for: user)
             persistSession(refreshed)
@@ -88,6 +145,9 @@ final class LocalAuthService: AuthService {
     }
 
     func continueAsGuest() throws -> UserAccount {
+        if FirebaseBootstrap.isConfigured, Auth.auth().currentUser != nil {
+            try Auth.auth().signOut()
+        }
         let user = UserAccount(
             userID: guestID,
             displayName: "游客模式",
@@ -101,15 +161,41 @@ final class LocalAuthService: AuthService {
     }
 
     func signOut() throws {
+        if FirebaseBootstrap.isConfigured, Auth.auth().currentUser != nil {
+            try Auth.auth().signOut()
+        }
         defaults.removeObject(forKey: key)
     }
 
     enum AuthError: LocalizedError {
         case invalidCredential
+        case firebaseUnavailable
+        case missingNonce
+        case missingIdentityToken
+        case invalidIdentityToken
+        case unexpectedAuthResult
 
         var errorDescription: String? {
-            "Apple 登录结果不可用。"
+            switch self {
+            case .invalidCredential:
+                "Apple 登录结果不可用。"
+            case .firebaseUnavailable:
+                "Firebase 还没有正确初始化。"
+            case .missingNonce:
+                "登录请求已失效，请再试一次。"
+            case .missingIdentityToken:
+                "Apple 没有返回可用的身份令牌。"
+            case .invalidIdentityToken:
+                "Apple 身份令牌格式无效。"
+            case .unexpectedAuthResult:
+                "Firebase 没有返回完整的登录结果。"
+            }
         }
+    }
+
+    private var persistedSession: UserAccount? {
+        guard let data = defaults.data(forKey: key) else { return nil }
+        return try? JSONDecoder().decode(UserAccount.self, from: data)
     }
 
     private func persistSession(_ user: UserAccount) {
@@ -188,6 +274,75 @@ final class LocalAuthService: AuthService {
             .values
             .map(\.date)
             .min()
+    }
+
+    private func buildAppleUser(from firebaseUser: FirebaseAuth.User, fallback: UserAccount?) -> UserAccount {
+        let user = UserAccount(
+            userID: firebaseUser.uid,
+            displayName: firebaseUser.displayName ?? fallback?.displayName ?? "我的记录",
+            email: firebaseUser.email ?? fallback?.email,
+            authMode: .apple,
+            createdAt: firebaseUser.metadata.creationDate?.startOfDay ?? resolveCreatedAt(for: firebaseUser.uid)
+        )
+        return refreshUser(user) ?? user
+    }
+
+    private func formattedName(from components: PersonNameComponents?) -> String? {
+        let parts = [components?.givenName, components?.familyName]
+            .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        return parts.isEmpty ? nil : parts.joined(separator: " ")
+    }
+
+    private func randomNonceString(length: Int = 32) -> String {
+        precondition(length > 0)
+        let charset: [Character] = Array("0123456789ABCDEFGHIJKLMNOPQRSTUVXYZabcdefghijklmnopqrstuvwxyz-._")
+        var result = ""
+        var remainingLength = length
+
+        while remainingLength > 0 {
+            var randoms = [UInt8](repeating: 0, count: 16)
+            let status = SecRandomCopyBytes(kSecRandomDefault, randoms.count, &randoms)
+            if status != errSecSuccess {
+                fatalError("Unable to generate nonce. SecRandomCopyBytes failed with OSStatus \(status)")
+            }
+
+            randoms.forEach { random in
+                if remainingLength == 0 {
+                    return
+                }
+                if random < charset.count {
+                    result.append(charset[Int(random)])
+                    remainingLength -= 1
+                }
+            }
+        }
+
+        return result
+    }
+
+    private func sha256(_ input: String) -> String {
+        let digest = SHA256.hash(data: Data(input.utf8))
+        return digest.map { String(format: "%02x", $0) }.joined()
+    }
+
+    private func signInToFirebase(with credential: OAuthCredential) async throws -> FirebaseUserSnapshot {
+        try await withCheckedThrowingContinuation { continuation in
+            Auth.auth().signIn(with: credential) { result, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                } else if let result {
+                    continuation.resume(returning: FirebaseUserSnapshot(
+                        uid: result.user.uid,
+                        displayName: result.user.displayName,
+                        email: result.user.email,
+                        creationDate: result.user.metadata.creationDate
+                    ))
+                } else {
+                    continuation.resume(throwing: AuthError.unexpectedAuthResult)
+                }
+            }
+        }
     }
 }
 

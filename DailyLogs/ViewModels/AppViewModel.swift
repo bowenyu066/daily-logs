@@ -128,7 +128,7 @@ final class AppViewModel: ObservableObject {
 
     func handleAppleSignIn(_ result: Result<ASAuthorization, Error>) async {
         do {
-            user = try authService.handleAppleSignIn(result: result)
+            user = try await authService.handleAppleSignIn(result: result)
             preferences = try preferencesStore.loadPreferences(userID: user?.userID)
             selectedDate = max(Date().startOfDay, availableStartDate)
             analyticsCustomDateRange = defaultAnalyticsCustomRange(startingAt: availableStartDate)
@@ -141,6 +141,10 @@ final class AppViewModel: ObservableObject {
         } catch {
             errorMessage = "登录失败：\(error.localizedDescription)"
         }
+    }
+
+    func prepareAppleSignIn(_ request: ASAuthorizationAppleIDRequest) {
+        authService.prepareAppleSignIn(request)
     }
 
     func continueAsGuest() async {

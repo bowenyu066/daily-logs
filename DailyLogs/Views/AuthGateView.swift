@@ -27,7 +27,7 @@ struct AuthGateView: View {
                 }
 
                 SignInWithAppleButton(.signIn) { request in
-                    request.requestedScopes = [.fullName, .email]
+                    appViewModel.prepareAppleSignIn(request)
                 } onCompletion: { result in
                     Task {
                         await appViewModel.handleAppleSignIn(result)

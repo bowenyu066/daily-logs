@@ -7,13 +7,14 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		0EB6AAA134C908D4A38FF86B /* FirebaseStorage in Frameworks */ = {isa = PBXBuildFile; productRef = E026406DD516C69A4BCDA36B /* FirebaseStorage */; };
+		03A8E9FFD1F055F4BD55E701 /* FirebaseStorage in Frameworks */ = {isa = PBXBuildFile; productRef = E026406DD516C69A4BCDA36B /* FirebaseStorage */; };
+		0EB6AAA134C908D4A38FF86B /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = A72B3275B83AAF39CFE7079A /* FirebaseFirestore */; };
 		0F4D96EB490F357AA03163DB /* AuthGateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0CAE3F01F1BDE18FCC36472 /* AuthGateView.swift */; };
 		2C14620AD9C4B1DF01917190 /* DatePickerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = D93232686CA86483D4885BF9 /* DatePickerSheet.swift */; };
 		3110D21E6C502FB22566E967 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5472D45C0BFA14D1EE95FC70 /* SettingsView.swift */; };
 		33EE19C380FDBA8C2032C9D4 /* SleepEditorSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF5762DCFE4B315E3833D8BC /* SleepEditorSheet.swift */; };
 		37488E578F0831EDC367F502 /* DailyLogsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36526958B7B61CD2ECE3F26D /* DailyLogsTests.swift */; };
-		3D512CFF3C2D0D5257224329 /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = A72B3275B83AAF39CFE7079A /* FirebaseFirestore */; };
+		3D512CFF3C2D0D5257224329 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = 4838E9CE6AD9A49B1CBD28D2 /* FirebaseAuth */; };
 		3F0A3F64BDF1AF401997CFD1 /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF0B19B41CFCCC70905BDEFD /* MainTabView.swift */; };
 		468633C0B0FA173AF55CA2A3 /* icon-1024.png in Resources */ = {isa = PBXBuildFile; fileRef = F64987693C004FE40BE1E072 /* icon-1024.png */; };
 		46DF737EA4B7538B9AA7E595 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 812D9C9DFB290A74333F2355 /* Assets.xcassets */; };
@@ -86,8 +87,9 @@
 			buildActionMask = 2147483647;
 			files = (
 				8C1C37C5B3CEC96338FEC86F /* FirebaseCore in Frameworks */,
-				3D512CFF3C2D0D5257224329 /* FirebaseFirestore in Frameworks */,
-				0EB6AAA134C908D4A38FF86B /* FirebaseStorage in Frameworks */,
+				3D512CFF3C2D0D5257224329 /* FirebaseAuth in Frameworks */,
+				0EB6AAA134C908D4A38FF86B /* FirebaseFirestore in Frameworks */,
+				03A8E9FFD1F055F4BD55E701 /* FirebaseStorage in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -253,6 +255,7 @@
 			name = DailyLogs;
 			packageProductDependencies = (
 				A1E3E2905D2292226E28576F /* FirebaseCore */,
+				4838E9CE6AD9A49B1CBD28D2 /* FirebaseAuth */,
 				A72B3275B83AAF39CFE7079A /* FirebaseFirestore */,
 				E026406DD516C69A4BCDA36B /* FirebaseStorage */,
 			);
@@ -603,6 +606,11 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		4838E9CE6AD9A49B1CBD28D2 /* FirebaseAuth */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 23F98C8001E58D22D91C9AEF /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseAuth;
+		};
 		A1E3E2905D2292226E28576F /* FirebaseCore */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 23F98C8001E58D22D91C9AEF /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
