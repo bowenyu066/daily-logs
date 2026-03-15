@@ -6,6 +6,8 @@ struct DailyLogsApp: App {
     @StateObject private var appViewModel: AppViewModel
 
     init() {
+        Bundle.swizzleLocalizationIfNeeded()
+        AppViewModel.restoreProcessLocale()
         FirebaseBootstrap.configureIfPossible()
         _appViewModel = StateObject(wrappedValue: AppViewModel.live())
     }

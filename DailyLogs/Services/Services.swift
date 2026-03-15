@@ -134,7 +134,7 @@ final class LocalAuthService: AuthService {
 
             let user = UserAccount(
                 userID: firebaseUser.uid,
-                displayName: fullName ?? firebaseUser.displayName ?? previousUser?.displayName ?? "我的记录",
+                displayName: fullName ?? firebaseUser.displayName ?? previousUser?.displayName ?? String(localized: "我的记录"),
                 email: firebaseUser.email ?? credential.email ?? previousUser?.email,
                 authMode: .apple,
                 createdAt: firebaseUser.creationDate?.startOfDay ?? resolveCreatedAt(for: firebaseUser.uid)
@@ -153,7 +153,7 @@ final class LocalAuthService: AuthService {
         }
         let user = UserAccount(
             userID: guestID,
-            displayName: "游客模式",
+            displayName: String(localized: "游客模式"),
             email: nil,
             authMode: .guest,
             createdAt: resolveCreatedAt(for: guestID)
@@ -295,7 +295,7 @@ final class LocalAuthService: AuthService {
     private func buildAppleUser(from firebaseUser: FirebaseAuth.User, fallback: UserAccount?) -> UserAccount {
         let user = UserAccount(
             userID: firebaseUser.uid,
-            displayName: firebaseUser.displayName ?? fallback?.displayName ?? "我的记录",
+            displayName: firebaseUser.displayName ?? fallback?.displayName ?? String(localized: "我的记录"),
             email: firebaseUser.email ?? fallback?.email,
             authMode: .apple,
             createdAt: firebaseUser.metadata.creationDate?.startOfDay ?? resolveCreatedAt(for: firebaseUser.uid)
@@ -610,14 +610,15 @@ private extension Double {
 }
 
 struct AnalyticsSummary {
-    var averageSleepHours: Double
+    var averageSleepHours: Double?
     var averageBedtimeMinutes: Double?
     var averageWakeMinutes: Double?
-    var defaultMealCompletionRate: Double
-    var averageShowers: Double
+    var defaultMealCompletionRate: Double?
+    var averageShowers: Double?
     var averageLightSleepHours: Double?
     var averageDeepSleepHours: Double?
     var averageREMSleepHours: Double?
+    var averageShowerMinutes: Double?
     var days: [AnalyticsDayPoint]
     var mealSeries: [MealAnalyticsSeries]
     var showerPoints: [AnalyticsScatterPoint]
@@ -631,24 +632,23 @@ enum AnalyticsCalculator {
         defaultMealSlots: [MealSlot] = MealSlot.defaults
     ) -> AnalyticsSummary {
         let calendar = Calendar.current
-        // Exclude today from analytics — incomplete day skews averages
-        let endDate = calendar.startOfDay(for: .now).adding(days: -1)
-        let bounds: ClosedRange<Date> = {
+        let today = calendar.startOfDay(for: .now)
+        let chartBounds: ClosedRange<Date> = {
             if range == .custom, let customRange {
                 let lower = customRange.lowerBound.startOfDay
-                let upper = min(customRange.upperBound.startOfDay, endDate)
+                let upper = min(customRange.upperBound.startOfDay, today)
                 return lower...upper
             }
-            let cutoff = endDate.adding(days: -(range.dayCount - 1))
-            return cutoff...endDate
+            let lower = today.adding(days: -(range.dayCount - 1))
+            return lower...today
         }()
-        let filtered = records.filter { $0.date >= bounds.lowerBound && $0.date <= bounds.upperBound }
-        let recordMap = Dictionary(uniqueKeysWithValues: filtered.map { ($0.date.startOfDay, $0) })
-        let daySpan = Calendar.current.dateComponents([.day], from: bounds.lowerBound, to: bounds.upperBound).day ?? 0
+        let chartFiltered = records.filter { $0.date >= chartBounds.lowerBound && $0.date <= chartBounds.upperBound }
+        let chartRecordMap = Dictionary(uniqueKeysWithValues: chartFiltered.map { ($0.date.startOfDay, $0) })
+        let daySpan = calendar.dateComponents([.day], from: chartBounds.lowerBound, to: chartBounds.upperBound).day ?? 0
         let totalDays = max(1, daySpan + 1)
         let days = stride(from: 0, through: totalDays - 1, by: 1).map { offset -> AnalyticsDayPoint in
-            let date = bounds.lowerBound.adding(days: offset)
-            guard let record = recordMap[date] else {
+            let date = chartBounds.lowerBound.adding(days: offset)
+            guard let record = chartRecordMap[date] else {
                 return AnalyticsDayPoint(
                     date: date,
                     sleepHours: nil,
@@ -685,21 +685,35 @@ enum AnalyticsCalculator {
             )
         }
 
-        let averageSleepHours = days.compactMap(\.sleepHours).averageOptional ?? 0
-        let averageBedtimeMinutes = days.compactMap(\.bedtimeMinutes).averageOptional
-        let averageWakeMinutes = days.compactMap(\.wakeMinutes).averageOptional
-        let averageShowers = days.map { Double($0.showers) }.average
+        let historicalUpperBound = min(chartBounds.upperBound, today.adding(days: -1))
+        let historicalBounds: ClosedRange<Date>? = historicalUpperBound >= chartBounds.lowerBound
+            ? chartBounds.lowerBound...historicalUpperBound
+            : nil
+        let historicalDays = historicalBounds.map { bounds in
+            days.filter { $0.date >= bounds.lowerBound && $0.date <= bounds.upperBound }
+        } ?? []
+        let historicalRecords = historicalBounds.map { bounds in
+            chartFiltered.filter { $0.date >= bounds.lowerBound && $0.date <= bounds.upperBound }
+        } ?? []
 
-        let defaultMealEntries = filtered.flatMap { record in
+        let averageSleepHours = historicalDays.compactMap(\.sleepHours).averageOptional
+        let averageBedtimeMinutes = historicalDays.compactMap(\.bedtimeMinutes).averageOptional
+        let averageWakeMinutes = historicalDays.compactMap(\.wakeMinutes).averageOptional
+        let averageShowers = historicalDays.map { Double($0.showers) }.averageOptional
+
+        let defaultMealEntries = historicalRecords.flatMap { record in
             record.meals.filter { [.breakfast, .lunch, .dinner].contains($0.mealKind) }.map { (record, $0) }
         }
         let defaultTrackedMeals = Double(defaultMealEntries.count)
         let defaultLoggedMeals = Double(defaultMealEntries.filter { pair in
             pair.1.effectiveStatus(on: pair.0.date) == .logged
         }.count)
-        let defaultMealCompletionRate = defaultTrackedMeals > 0 ? defaultLoggedMeals / defaultTrackedMeals : 0
+        let defaultMealCompletionRate = defaultTrackedMeals > 0 ? defaultLoggedMeals / defaultTrackedMeals : nil
 
-        let groupedMeals = Dictionary(grouping: filtered.flatMap { record in
+        let chartGroupedMeals = Dictionary(grouping: chartFiltered.flatMap { record in
+            record.meals.map { (record, $0) }
+        }, by: { $0.1.slotKey })
+        let historicalGroupedMeals = Dictionary(grouping: historicalRecords.flatMap { record in
             record.meals.map { (record, $0) }
         }, by: { $0.1.slotKey })
 
@@ -712,10 +726,10 @@ enum AnalyticsCalculator {
             }
         })
 
-        let mealSeries = groupedMeals.values
+        let mealSeries = chartGroupedMeals.values
             .compactMap { entries -> MealAnalyticsSeries? in
                 guard let sample = entries.first?.1 else { return nil }
-                let points = entries.compactMap { record, meal -> AnalyticsScatterPoint? in
+                let chartPoints = entries.compactMap { record, meal -> AnalyticsScatterPoint? in
                     guard meal.effectiveStatus(on: record.date) == .logged, let time = meal.time else { return nil }
                     return AnalyticsScatterPoint(
                         id: "\(record.date.storageKey())-\(meal.slotKey)",
@@ -723,22 +737,31 @@ enum AnalyticsCalculator {
                         minutes: clockMinutes(time)
                     )
                 }
-                let tracked = Double(entries.count)
-                let logged = Double(points.count)
+                let historicalEntries = historicalGroupedMeals[sample.slotKey] ?? []
+                let historicalPoints = historicalEntries.compactMap { record, meal -> AnalyticsScatterPoint? in
+                    guard meal.effectiveStatus(on: record.date) == .logged, let time = meal.time else { return nil }
+                    return AnalyticsScatterPoint(
+                        id: "\(record.date.storageKey())-\(meal.slotKey)",
+                        date: record.date,
+                        minutes: clockMinutes(time)
+                    )
+                }
+                let tracked = Double(historicalEntries.count)
+                let logged = Double(historicalPoints.count)
                 return MealAnalyticsSeries(
                     key: sample.slotKey,
                     title: sample.displayTitle,
                     showsAverage: defaultMealKeys.contains(sample.slotKey),
                     completionRate: tracked > 0 ? logged / tracked : 0,
-                    averageMinutes: points.map(\.minutes).averageOptional,
-                    points: points.sorted { $0.date < $1.date }
+                    averageMinutes: historicalPoints.map(\.minutes).averageOptional,
+                    points: chartPoints.sorted { $0.date < $1.date }
                 )
             }
             .sorted { lhs, rhs in
                 mealSortRank(for: lhs.key, title: lhs.title) < mealSortRank(for: rhs.key, title: rhs.title)
             }
 
-        let showerPoints = filtered.flatMap { record in
+        let showerPoints = chartFiltered.flatMap { record in
             record.showers.enumerated().map { index, shower in
                 AnalyticsScatterPoint(
                     id: "\(record.date.storageKey())-shower-\(index)",
@@ -747,10 +770,14 @@ enum AnalyticsCalculator {
                 )
             }
         }
+        let averageShowerMinutes = historicalRecords
+            .flatMap(\.showers)
+            .map { clockMinutes($0.time) }
+            .averageOptional
 
-        let averageLightSleepHours = days.compactMap(\.lightSleepHours).averageOptional
-        let averageDeepSleepHours = days.compactMap(\.deepSleepHours).averageOptional
-        let averageREMSleepHours = days.compactMap(\.remSleepHours).averageOptional
+        let averageLightSleepHours = historicalDays.compactMap(\.lightSleepHours).averageOptional
+        let averageDeepSleepHours = historicalDays.compactMap(\.deepSleepHours).averageOptional
+        let averageREMSleepHours = historicalDays.compactMap(\.remSleepHours).averageOptional
 
         return AnalyticsSummary(
             averageSleepHours: averageSleepHours,
@@ -761,6 +788,7 @@ enum AnalyticsCalculator {
             averageLightSleepHours: averageLightSleepHours,
             averageDeepSleepHours: averageDeepSleepHours,
             averageREMSleepHours: averageREMSleepHours,
+            averageShowerMinutes: averageShowerMinutes,
             days: days,
             mealSeries: mealSeries,
             showerPoints: showerPoints

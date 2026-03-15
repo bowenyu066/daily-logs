@@ -120,8 +120,13 @@ struct AnalyticsView: View {
 
     private var sleepTrendCard: some View {
         VStack(alignment: .leading, spacing: 14) {
-            SectionHeader(title: "睡眠趋势", subtitle: nil)
-            SleepTrendChart(days: summary.days, selectedDate: $highlightedSleepDate, compact: true)
+            SectionHeader(title: String(localized: "睡眠趋势"), subtitle: nil)
+            SleepTrendChart(
+                days: summary.days,
+                averageSleepHours: summary.averageSleepHours,
+                selectedDate: $highlightedSleepDate,
+                compact: true
+            )
         }
         .sectionStyle()
     }
@@ -164,13 +169,13 @@ struct AnalyticsView: View {
             sleepTrendCard
         case .sleepDuration:
             VStack(alignment: .leading, spacing: 14) {
-                SectionHeader(title: "睡眠时段", subtitle: nil)
+                SectionHeader(title: String(localized: "睡眠时段"), subtitle: nil)
                 SleepIntervalChart(days: summary.days, selectedDate: $highlightedSleepIntervalDate, compact: true)
             }
             .sectionStyle()
         case .wakeTrend:
             VStack(alignment: .leading, spacing: 14) {
-                SectionHeader(title: "起床变化", subtitle: nil)
+                SectionHeader(title: String(localized: "起床变化"), subtitle: nil)
                 TimeLineChart(
                     points: summary.days.compactMap { point in
                         point.wakeMinutes.map { ChartTimeValue(date: point.date, minutes: $0) }
@@ -184,7 +189,7 @@ struct AnalyticsView: View {
             .sectionStyle()
         case .bedtimeTrend:
             VStack(alignment: .leading, spacing: 14) {
-                SectionHeader(title: "入睡变化", subtitle: nil)
+                SectionHeader(title: String(localized: "入睡变化"), subtitle: nil)
                 TimeLineChart(
                     points: summary.days.compactMap { point in
                         point.bedtimeMinutes.map { ChartTimeValue(date: point.date, minutes: wrapForNight($0)) }
@@ -198,27 +203,32 @@ struct AnalyticsView: View {
             }
             .sectionStyle()
         case .lightSleepTrend:
-            sleepStageCard(title: "浅睡时长", keyPath: \.lightSleepHours, average: summary.averageLightSleepHours, tone: SleepStage.light.color, compact: true)
+            sleepStageCard(title: String(localized: "浅睡时长"), keyPath: \.lightSleepHours, average: summary.averageLightSleepHours, tone: SleepStage.light.color, compact: true)
         case .deepSleepTrend:
-            sleepStageCard(title: "深睡时长", keyPath: \.deepSleepHours, average: summary.averageDeepSleepHours, tone: SleepStage.deep.color, compact: true)
+            sleepStageCard(title: String(localized: "深睡时长"), keyPath: \.deepSleepHours, average: summary.averageDeepSleepHours, tone: SleepStage.deep.color, compact: true)
         case .remSleepTrend:
-            sleepStageCard(title: "REM 时长", keyPath: \.remSleepHours, average: summary.averageREMSleepHours, tone: SleepStage.rem.color, compact: true)
+            sleepStageCard(title: String(localized: "REM 时长"), keyPath: \.remSleepHours, average: summary.averageREMSleepHours, tone: SleepStage.rem.color, compact: true)
         case .mealCompletion:
             VStack(alignment: .leading, spacing: 14) {
-                SectionHeader(title: "三餐完成率", subtitle: nil)
+                SectionHeader(title: String(localized: "三餐完成率"), subtitle: nil)
                 MealCompletionBreakdown(series: summary.mealSeries)
             }
             .sectionStyle()
         case .mealTiming:
             VStack(alignment: .leading, spacing: 14) {
-                SectionHeader(title: "进餐时间", subtitle: nil)
+                SectionHeader(title: String(localized: "进餐时间"), subtitle: nil)
                 MealTimingScatterChart(series: summary.mealSeries, selectedDate: $highlightedMealDate, compact: true)
             }
             .sectionStyle()
         case .showerTiming:
             VStack(alignment: .leading, spacing: 14) {
-                SectionHeader(title: "洗澡时间", subtitle: nil)
-                ShowerScatterChart(points: summary.showerPoints, selectedDate: $highlightedShowerDate, compact: true)
+                SectionHeader(title: String(localized: "洗澡时间"), subtitle: nil)
+                ShowerScatterChart(
+                    points: summary.showerPoints,
+                    averageMinutes: summary.averageShowerMinutes,
+                    selectedDate: $highlightedShowerDate,
+                    compact: true
+                )
             }
             .sectionStyle()
         }
@@ -248,9 +258,11 @@ struct AnalyticsView: View {
         case .averageBedtime:
             return formatClock(summary.averageBedtimeMinutes)
         case .mealCompletion:
-            return String(format: "%.0f%%", summary.defaultMealCompletionRate * 100)
+            guard let rate = summary.defaultMealCompletionRate else { return "--" }
+            return String(format: "%.0f%%", rate * 100)
         case .averageShowers:
-            return String(format: String(localized: "%.1f 次/天"), summary.averageShowers)
+            guard let showers = summary.averageShowers else { return "--" }
+            return String(format: String(localized: "%.1f 次/天"), showers)
         }
     }
 
@@ -272,8 +284,8 @@ struct AnalyticsView: View {
         return String(format: "%02d:%02d", hour, minute)
     }
 
-    private func formattedDuration(hours: Double) -> String {
-        guard hours > 0 else { return "--" }
+    private func formattedDuration(hours: Double?) -> String {
+        guard let hours, hours > 0 else { return "--" }
         let totalMinutes = Int((hours * 60).rounded())
         return String(format: String(localized: "%d小时%d分"), totalMinutes / 60, totalMinutes % 60)
     }
@@ -360,17 +372,22 @@ private struct AnalyticsDetailView: View {
             switch widget {
             case .sleepTrend:
                 VStack(alignment: .leading, spacing: 14) {
-                    SectionHeader(title: "睡眠趋势", subtitle: nil)
-                    SleepTrendChart(days: summary.days, selectedDate: $selectedDate, compact: false)
+                    SectionHeader(title: String(localized: "睡眠趋势"), subtitle: nil)
+                    SleepTrendChart(
+                        days: summary.days,
+                        averageSleepHours: summary.averageSleepHours,
+                        selectedDate: $selectedDate,
+                        compact: false
+                    )
                 }
             case .sleepDuration:
                 VStack(alignment: .leading, spacing: 14) {
-                    SectionHeader(title: "睡眠时段", subtitle: nil)
+                    SectionHeader(title: String(localized: "睡眠时段"), subtitle: nil)
                     SleepIntervalChart(days: summary.days, selectedDate: $selectedDate, compact: false)
                 }
             case .wakeTrend:
                 VStack(alignment: .leading, spacing: 14) {
-                    SectionHeader(title: "起床变化", subtitle: nil)
+                    SectionHeader(title: String(localized: "起床变化"), subtitle: nil)
                     TimeLineChart(
                         points: summary.days.compactMap { point in
                             point.wakeMinutes.map { ChartTimeValue(date: point.date, minutes: $0) }
@@ -382,7 +399,7 @@ private struct AnalyticsDetailView: View {
                 }
             case .bedtimeTrend:
                 VStack(alignment: .leading, spacing: 14) {
-                    SectionHeader(title: "入睡变化", subtitle: nil)
+                    SectionHeader(title: String(localized: "入睡变化"), subtitle: nil)
                     TimeLineChart(
                         points: summary.days.compactMap { point in
                             point.bedtimeMinutes.map { ChartTimeValue(date: point.date, minutes: wrapNight($0)) }
@@ -394,14 +411,14 @@ private struct AnalyticsDetailView: View {
                     )
                 }
             case .lightSleepTrend:
-                sleepStageDetailCard(title: "浅睡时长", keyPath: \.lightSleepHours, average: summary.averageLightSleepHours, tone: SleepStage.light.color)
+                sleepStageDetailCard(title: String(localized: "浅睡时长"), keyPath: \.lightSleepHours, average: summary.averageLightSleepHours, tone: SleepStage.light.color)
             case .deepSleepTrend:
-                sleepStageDetailCard(title: "深睡时长", keyPath: \.deepSleepHours, average: summary.averageDeepSleepHours, tone: SleepStage.deep.color)
+                sleepStageDetailCard(title: String(localized: "深睡时长"), keyPath: \.deepSleepHours, average: summary.averageDeepSleepHours, tone: SleepStage.deep.color)
             case .remSleepTrend:
-                sleepStageDetailCard(title: "REM 时长", keyPath: \.remSleepHours, average: summary.averageREMSleepHours, tone: SleepStage.rem.color)
+                sleepStageDetailCard(title: String(localized: "REM 时长"), keyPath: \.remSleepHours, average: summary.averageREMSleepHours, tone: SleepStage.rem.color)
             case .mealCompletion:
                 VStack(alignment: .leading, spacing: 14) {
-                    SectionHeader(title: "三餐完成率", subtitle: nil)
+                    SectionHeader(title: String(localized: "三餐完成率"), subtitle: nil)
                     VStack(alignment: .leading, spacing: 18) {
                         MealCompletionBreakdown(series: summary.mealSeries)
                         Divider()
@@ -411,13 +428,18 @@ private struct AnalyticsDetailView: View {
                 }
             case .mealTiming:
                 VStack(alignment: .leading, spacing: 14) {
-                    SectionHeader(title: "进餐时间", subtitle: nil)
+                    SectionHeader(title: String(localized: "进餐时间"), subtitle: nil)
                     MealTimingScatterChart(series: summary.mealSeries, selectedDate: $selectedDate, compact: false)
                 }
             case .showerTiming:
                 VStack(alignment: .leading, spacing: 14) {
-                    SectionHeader(title: "洗澡时间", subtitle: nil)
-                    ShowerScatterChart(points: summary.showerPoints, selectedDate: $selectedDate, compact: false)
+                    SectionHeader(title: String(localized: "洗澡时间"), subtitle: nil)
+                    ShowerScatterChart(
+                        points: summary.showerPoints,
+                        averageMinutes: summary.averageShowerMinutes,
+                        selectedDate: $selectedDate,
+                        compact: false
+                    )
                 }
             }
         }
@@ -494,6 +516,7 @@ private struct PlaceholderCard: View {
 
 private struct SleepTrendChart: View {
     let days: [AnalyticsDayPoint]
+    let averageSleepHours: Double?
     @Binding var selectedDate: Date?
     var compact: Bool
 
@@ -582,17 +605,11 @@ private struct SleepTrendChart: View {
         return days.first(where: { Calendar.current.isDate($0.date, inSameDayAs: selectedDate) })
     }
 
-    private var averageSleepHours: Double? {
-        let values = days.compactMap(\.sleepHours)
-        guard !values.isEmpty else { return nil }
-        return values.reduce(0, +) / Double(values.count)
-    }
-
     private var selectedRatio: CGFloat? {
-        guard let selectedPoint else { return nil }
-        let points = days.filter { $0.sleepHours != nil }
-        guard let index = points.firstIndex(where: { Calendar.current.isDate($0.date, inSameDayAs: selectedPoint.date) }) else { return nil }
-        return CGFloat(index) / CGFloat(max(points.count - 1, 1))
+        chartSelectionRatio(
+            selectedDate: selectedDate,
+            in: days.compactMap { $0.sleepHours == nil ? nil : $0.date }
+        )
     }
 
     private var adaptiveDomain: ClosedRange<Double> {
@@ -741,8 +758,7 @@ private struct TimeLineChart: View {
     }
 
     private var selectedRatio: CGFloat? {
-        guard let selectedPoint, let index = points.firstIndex(where: { Calendar.current.isDate($0.date, inSameDayAs: selectedPoint.date) }) else { return nil }
-        return CGFloat(index) / CGFloat(max(points.count - 1, 1))
+        chartSelectionRatio(selectedDate: selectedDate, in: points.map(\.date))
     }
 
     private var averageTitle: String {
@@ -851,13 +867,9 @@ private struct SleepIntervalChart: View {
                                     .foregroundStyle(AppTheme.primaryText.opacity(0.5))
                                     .lineStyle(.init(lineWidth: 3, dash: [7, 5]))
 
-                                RuleMark(y: .value("时刻", plotValue(for: midPoint(start: start, end: end))))
-                                    .foregroundStyle(AppTheme.primaryText.opacity(0.5))
-                                    .lineStyle(.init(lineWidth: 3, dash: [7, 5]))
-
                                 PointMark(
                                     x: .value("日期", point.date),
-                                    y: .value("时刻", plotValue(for: midPoint(start: start, end: end)))
+                                    y: .value("时刻", plotValue(for: (start + end) / 2))
                                 )
                                 .foregroundStyle(AppTheme.accent)
                                 .symbolSize(compact ? 50 : 70)
@@ -898,14 +910,14 @@ private struct SleepIntervalChart: View {
     private func durationText(_ sleepHours: Double?) -> String {
         guard let sleepHours else { return "--" }
         let minutes = Int((sleepHours * 60).rounded())
-        return "\(minutes / 60)小时\(minutes % 60)分"
+        return String(format: String(localized: "%d小时%d分"), minutes / 60, minutes % 60)
     }
 
     private var selectedRatio: CGFloat? {
-        guard let selectedPoint else { return nil }
-        let points = days.filter { $0.sleepStartMinutes != nil && $0.sleepEndMinutes != nil }
-        guard let index = points.firstIndex(where: { Calendar.current.isDate($0.date, inSameDayAs: selectedPoint.date) }) else { return nil }
-        return CGFloat(index) / CGFloat(max(points.count - 1, 1))
+        chartSelectionRatio(
+            selectedDate: selectedDate,
+            in: days.compactMap { ($0.sleepStartMinutes != nil && $0.sleepEndMinutes != nil) ? $0.date : nil }
+        )
     }
 
     private var sleepValues: [Double] {
@@ -936,10 +948,6 @@ private struct SleepIntervalChart: View {
 
     private func unplotValue(_ plotted: Double) -> Double {
         42 * 60 - plotted
-    }
-
-    private func midPoint(start: Double, end: Double) -> Double {
-        (start + end) / 2
     }
 
     private func labelForSleepClock(_ minutes: Double?) -> String {
@@ -1114,10 +1122,7 @@ private struct MealTimingScatterChart: View {
     }
 
     private var selectedRatio: CGFloat? {
-        guard let selectedDate else { return nil }
-        let allDates = series.flatMap { $0.points.map(\.date) }.sorted()
-        guard let index = allDates.firstIndex(where: { Calendar.current.isDate($0, inSameDayAs: selectedDate) }) else { return nil }
-        return CGFloat(index) / CGFloat(max(allDates.count - 1, 1))
+        chartSelectionRatio(selectedDate: selectedDate, in: series.flatMap { $0.points.map(\.date) })
     }
 
     private var averageMealSummary: some View {
@@ -1193,6 +1198,7 @@ private struct MealTimingScatterChart: View {
 
 private struct ShowerScatterChart: View {
     let points: [AnalyticsScatterPoint]
+    let averageMinutes: Double?
     @Binding var selectedDate: Date?
     var compact: Bool
 
@@ -1300,8 +1306,7 @@ private struct ShowerScatterChart: View {
     }
 
     private var selectedRatio: CGFloat? {
-        guard let selectedDate, let index = points.map(\.date).sorted().firstIndex(where: { Calendar.current.isDate($0, inSameDayAs: selectedDate) }) else { return nil }
-        return CGFloat(index) / CGFloat(max(points.count - 1, 1))
+        chartSelectionRatio(selectedDate: selectedDate, in: points.map(\.date))
     }
 
     private func clockText(_ minutes: Double) -> String {
@@ -1315,11 +1320,6 @@ private struct ShowerScatterChart: View {
         let lower = max(0, floor((minValue - 30) / 15) * 15)
         let upper = min(24 * 60, ceil((maxValue + 30) / 15) * 15)
         return lower...max(lower + 30, upper)
-    }
-
-    private var averageMinutes: Double? {
-        guard !points.isEmpty else { return nil }
-        return points.map(\.minutes).reduce(0, +) / Double(points.count)
     }
 
     private var axisValues: [Double] {
@@ -1462,6 +1462,7 @@ private struct FlowLayout<Content: View>: View {
 
 private struct AnalyticsDateRangeSheet: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.locale) private var locale
     @State private var startDate: Date
     @State private var endDate: Date
     let allowedRange: ClosedRange<Date>
@@ -1501,6 +1502,7 @@ private struct AnalyticsDateRangeSheet: View {
             }
         }
         .presentationBackground(AppTheme.background)
+        .environment(\.locale, locale)
     }
 }
 
@@ -1628,6 +1630,16 @@ private func nearestDate(to date: Date, in candidates: [Date]) -> Date? {
     candidates.min(by: { abs($0.timeIntervalSince(date)) < abs($1.timeIntervalSince(date)) })
 }
 
+private func chartSelectionRatio(selectedDate: Date?, in dates: [Date]) -> CGFloat? {
+    guard let selectedDate else { return nil }
+    let uniqueDates = Array(Set(dates.map(\.startOfDay))).sorted()
+    guard let index = uniqueDates.firstIndex(where: { Calendar.current.isDate($0, inSameDayAs: selectedDate) }) else {
+        return nil
+    }
+    guard uniqueDates.count > 1 else { return 0.5 }
+    return CGFloat(index) / CGFloat(uniqueDates.count - 1)
+}
+
 private func chartColor(for key: String) -> Color {
     switch key {
     case MealKind.breakfast.rawValue:
@@ -1663,7 +1675,7 @@ private struct DurationLineChart: View {
             VStack(alignment: .leading, spacing: 10) {
                 if let averageHours {
                     AverageTextBlock(
-                        title: "平均时长",
+                        title: String(localized: "平均时长"),
                         value: formatDuration(averageHours),
                         tone: tone
                     )

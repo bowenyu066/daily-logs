@@ -16,6 +16,7 @@ final class AppViewModel: ObservableObject {
     @Published var analyticsCustomDateRange: ClosedRange<Date> = Date().startOfDay.adding(days: -29)...Date().startOfDay
     @Published private(set) var isBootstrapped = false
     @Published var errorMessage: String?
+    @Published var languageRefreshID = UUID()
 
     let locationService: LocationService
 
@@ -113,6 +114,7 @@ final class AppViewModel: ObservableObject {
         user = authService.restoreSession()
         do {
             preferences = try preferencesStore.loadPreferences(userID: user?.userID)
+            applyCurrentLanguage()
             if let user {
                 selectedDate = max(selectedDate, user.createdAt.startOfDay)
                 analyticsCustomDateRange = defaultAnalyticsCustomRange(startingAt: user.createdAt)
@@ -130,6 +132,7 @@ final class AppViewModel: ObservableObject {
         do {
             user = try await authService.handleAppleSignIn(result: result)
             preferences = try preferencesStore.loadPreferences(userID: user?.userID)
+            applyCurrentLanguage()
             selectedDate = max(Date().startOfDay, availableStartDate)
             analyticsCustomDateRange = defaultAnalyticsCustomRange(startingAt: availableStartDate)
             try loadAllRecords(for: user?.userID ?? "")
@@ -150,6 +153,7 @@ final class AppViewModel: ObservableObject {
         do {
             user = try authService.continueAsGuest()
             preferences = try preferencesStore.loadPreferences(userID: user?.userID)
+            applyCurrentLanguage()
             selectedDate = max(Date().startOfDay, availableStartDate)
             analyticsCustomDateRange = defaultAnalyticsCustomRange(startingAt: availableStartDate)
             try loadAllRecords(for: user?.userID ?? "")
@@ -261,8 +265,39 @@ final class AppViewModel: ObservableObject {
 
     func updateAppLanguage(_ language: AppLanguage) async {
         preferences.appLanguage = language
+        applyCurrentLanguage()
         persistPreferences()
         await syncPreferencesToCloudIfNeeded()
+    }
+
+    static func applyProcessLocale(_ language: AppLanguage) {
+        UserDefaults.standard.set(language.rawValue, forKey: "dailylogs.appLanguage")
+        if let codes = language.appleLanguageCode {
+            UserDefaults.standard.set(codes, forKey: "AppleLanguages")
+        } else {
+            UserDefaults.standard.removeObject(forKey: "AppleLanguages")
+        }
+        if let localeIdentifier = language.appleLocaleIdentifier {
+            UserDefaults.standard.set(localeIdentifier, forKey: "AppleLocale")
+        } else {
+            UserDefaults.standard.removeObject(forKey: "AppleLocale")
+        }
+        UserDefaults.standard.synchronize()
+    }
+
+    static func restoreProcessLocale() {
+        guard let raw = UserDefaults.standard.string(forKey: "dailylogs.appLanguage"),
+              let lang = AppLanguage(rawValue: raw) else { return }
+        applyProcessLocale(lang)
+        Bundle.configureLanguageOverride(for: lang)
+    }
+
+    private func applyCurrentLanguage(refreshUI: Bool = true) {
+        Self.applyProcessLocale(preferences.appLanguage)
+        Bundle.configureLanguageOverride(for: preferences.appLanguage)
+        if refreshUI {
+            languageRefreshID = UUID()
+        }
     }
 
     func updateAppearanceMode(_ mode: AppearanceMode) async {
@@ -618,6 +653,7 @@ final class AppViewModel: ObservableObject {
 
             if let remotePreferences = payload.preferences {
                 preferences = remotePreferences
+                applyCurrentLanguage()
                 try preferencesStore.savePreferences(remotePreferences, userID: user.userID)
             }
 

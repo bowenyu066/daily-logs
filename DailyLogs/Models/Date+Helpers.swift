@@ -5,10 +5,10 @@ extension Date {
         Calendar.current.startOfDay(for: self)
     }
 
-    func formattedDayTitle(locale: Locale = Locale(identifier: "zh_CN")) -> String {
+    func formattedDayTitle(locale: Locale = .autoupdatingCurrent) -> String {
         let formatter = DateFormatter()
         formatter.locale = locale
-        formatter.dateFormat = "M月d日 EEEE"
+        formatter.setLocalizedDateFormatFromTemplate("MMMMdEEEE")
         return formatter.string(from: self)
     }
 

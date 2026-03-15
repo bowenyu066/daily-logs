@@ -16,6 +16,7 @@ struct RootView: View {
             }
         }
         .environment(\.locale, resolvedLocale)
+        .id(appViewModel.languageRefreshID)
         .task {
             await appViewModel.bootstrap()
         }

@@ -2,6 +2,7 @@ import SwiftUI
 import UIKit
 
 struct HomeView: View {
+    @Environment(\.locale) private var locale
     @EnvironmentObject private var appViewModel: AppViewModel
     @State private var showingDatePicker = false
     @State private var editingSleepTarget: SleepEditorTarget?
@@ -128,14 +129,14 @@ struct HomeView: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(Calendar.current.isDateInToday(appViewModel.selectedDate) ? String(localized: "今天是") : String(localized: "这一天"))
+                    Text(Calendar.current.isDateInToday(appViewModel.selectedDate) ? LocalizedStringKey("今天是") : LocalizedStringKey("这一天"))
                         .font(.system(size: 18, weight: .semibold, design: .rounded))
                         .foregroundStyle(AppTheme.secondaryText)
                     Button {
                         showingDatePicker = true
                     } label: {
                         HStack(spacing: 6) {
-                            Text(appViewModel.selectedDate.formattedDayTitle())
+                            Text(appViewModel.selectedDate.formattedDayTitle(locale: locale))
                                 .font(.system(size: 34, weight: .bold, design: .rounded))
                                 .foregroundStyle(AppTheme.primaryText)
                             Image(systemName: "chevron.down")
@@ -551,19 +552,21 @@ struct SleepStageBar: View {
             .frame(height: 10)
             .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
 
-            HStack(spacing: 14) {
+            LazyVGrid(
+                columns: [GridItem(.adaptive(minimum: 86), alignment: .leading)],
+                alignment: .leading,
+                spacing: 8
+            ) {
                 ForEach(stageDurations, id: \.stage) { item in
-                    HStack(spacing: 4) {
+                    HStack(spacing: 3) {
                         Circle()
                             .fill(item.stage.color)
-                            .frame(width: 8, height: 8)
-                        Text(item.stage.title)
-                            .font(.system(size: 12, weight: .medium, design: .rounded))
+                            .frame(width: 7, height: 7)
+                        Text("\(item.stage.title) \(formatStageDuration(item.duration))")
+                            .font(.system(size: 11, weight: .semibold, design: .rounded))
                             .foregroundStyle(AppTheme.secondaryText)
-                        Text(formatStageDuration(item.duration))
-                            .font(.system(size: 12, weight: .semibold, design: .rounded))
-                            .foregroundStyle(AppTheme.primaryText)
-                            .monospacedDigit()
+                            .lineLimit(1)
+                            .fixedSize(horizontal: true, vertical: false)
                     }
                 }
             }

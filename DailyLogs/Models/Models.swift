@@ -10,7 +10,7 @@ enum AppLanguage: String, Codable, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .system: String(localized: "跟随系统", defaultValue: "跟随系统")
+        case .system: String(localized: "跟随系统")
         case .zhHans: "中文"
         case .en: "English"
         }
@@ -21,6 +21,22 @@ enum AppLanguage: String, Codable, CaseIterable, Identifiable {
         case .system: nil
         case .zhHans: Locale(identifier: "zh-Hans")
         case .en: Locale(identifier: "en")
+        }
+    }
+
+    var appleLanguageCode: [String]? {
+        switch self {
+        case .system: nil
+        case .zhHans: ["zh-Hans", "zh"]
+        case .en: ["en"]
+        }
+    }
+
+    var appleLocaleIdentifier: String? {
+        switch self {
+        case .system: nil
+        case .zhHans: "zh_CN"
+        case .en: "en_US"
         }
     }
 }
@@ -131,10 +147,14 @@ struct MealSlot: Codable, Equatable, Identifiable {
     var isDefault: Bool = false
 
     static let defaults: [MealSlot] = [
-        MealSlot(kind: .breakfast, title: MealKind.breakfast.title, isDefault: true),
-        MealSlot(kind: .lunch, title: MealKind.lunch.title, isDefault: true),
-        MealSlot(kind: .dinner, title: MealKind.dinner.title, isDefault: true)
+        MealSlot(kind: .breakfast, title: "breakfast", isDefault: true),
+        MealSlot(kind: .lunch, title: "lunch", isDefault: true),
+        MealSlot(kind: .dinner, title: "dinner", isDefault: true)
     ]
+
+    var displayTitle: String {
+        isDefault ? kind.title : title
+    }
 }
 
 struct SunTimes: Codable, Equatable {
@@ -576,4 +596,38 @@ struct MealAnalyticsSeries: Identifiable, Equatable {
     var completionRate: Double
     var averageMinutes: Double?
     var points: [AnalyticsScatterPoint]
+}
+
+// MARK: - Runtime Language Override
+
+import ObjectiveC
+
+extension Bundle {
+    nonisolated(unsafe) private static var _overrideBundle: Bundle?
+    nonisolated(unsafe) private static var _swizzled = false
+
+    static func configureLanguageOverride(for language: AppLanguage) {
+        if let code = language.appleLanguageCode.flatMap({ Bundle.preferredLocalizations(from: $0).first }),
+           let path = Bundle.main.path(forResource: code, ofType: "lproj"),
+           let bundle = Bundle(path: path) {
+            _overrideBundle = bundle
+        } else {
+            _overrideBundle = nil
+        }
+    }
+
+    static func swizzleLocalizationIfNeeded() {
+        guard !_swizzled else { return }
+        _swizzled = true
+        let original = class_getInstanceMethod(Bundle.self, #selector(localizedString(forKey:value:table:)))!
+        let swizzled = class_getInstanceMethod(Bundle.self, #selector(_dl_localizedString(forKey:value:table:)))!
+        method_exchangeImplementations(original, swizzled)
+    }
+
+    @objc private func _dl_localizedString(forKey key: String, value: String?, table tableName: String?) -> String {
+        if let override = Bundle._overrideBundle {
+            return override._dl_localizedString(forKey: key, value: value, table: tableName)
+        }
+        return _dl_localizedString(forKey: key, value: value, table: tableName)
+    }
 }

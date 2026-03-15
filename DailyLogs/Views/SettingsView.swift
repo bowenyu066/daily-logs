@@ -185,7 +185,7 @@ struct SettingsView: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
                         ForEach(appViewModel.preferences.defaultMealSlots) { slot in
-                            Text(slot.title)
+                            Text(slot.displayTitle)
                                 .font(.system(size: 15, weight: .semibold, design: .rounded))
                                 .foregroundStyle(slot.isDefault ? AppTheme.accent : AppTheme.primaryText)
                                 .padding(.horizontal, 14)

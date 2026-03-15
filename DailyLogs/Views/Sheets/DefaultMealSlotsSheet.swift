@@ -13,7 +13,7 @@ struct DefaultMealSlotsSheet: View {
             TagFlowLayout(spacing: 8, lineSpacing: 10) {
                 ForEach(appViewModel.preferences.defaultMealSlots) { slot in
                     MealSlotChip(
-                        title: slot.title,
+                        title: slot.displayTitle,
                         isLocked: slot.isDefault,
                         onDelete: slot.isDefault ? nil : {
                             Task { await appViewModel.deleteDefaultMealSlot(slot) }
