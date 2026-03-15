@@ -1,0 +1,497 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>DailyLogs</title>
+    <meta
+      name="description"
+      content="DailyLogs is an iPhone-first tracker for wake time, sleep, meals, and showers."
+    >
+    <style>
+      :root {
+        --bg: #14171b;
+        --bg-2: #101317;
+        --surface: rgba(31, 35, 42, 0.94);
+        --surface-2: #2a2f38;
+        --border: rgba(255, 255, 255, 0.08);
+        --text: #f2f3f7;
+        --muted: #a9afba;
+        --accent: #3373c2;
+        --accent-soft: #253447;
+        --sleep: #7489e0;
+        --wake: #e4a840;
+        --meal: #3d8f6d;
+        --shower: #4aa0c8;
+        --shadow: 0 24px 60px rgba(0, 0, 0, 0.24);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        min-height: 100%;
+        background:
+          radial-gradient(circle at top right, rgba(58, 92, 148, 0.32), transparent 26rem),
+          radial-gradient(circle at 20% 10%, rgba(90, 128, 196, 0.16), transparent 20rem),
+          linear-gradient(180deg, #171b21 0%, var(--bg-2) 100%);
+        color: var(--text);
+        font-family: "Avenir Next", "Segoe UI", sans-serif;
+      }
+
+      body {
+        padding: 0 0 4rem;
+      }
+
+      a {
+        color: inherit;
+      }
+
+      .wrap {
+        width: min(1120px, calc(100vw - 32px));
+        margin: 0 auto;
+      }
+
+      .hero {
+        display: grid;
+        grid-template-columns: minmax(0, 1.15fr) minmax(300px, 0.85fr);
+        gap: 32px;
+        align-items: center;
+        padding: 40px 0 20px;
+      }
+
+      .kicker {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 16px;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        background: rgba(255, 255, 255, 0.04);
+        color: var(--muted);
+        font-size: 14px;
+        letter-spacing: 0.02em;
+      }
+
+      h1 {
+        margin: 18px 0 14px;
+        font-family: "Avenir Next Rounded", "SF Pro Rounded", "Trebuchet MS", sans-serif;
+        font-size: clamp(46px, 8vw, 90px);
+        line-height: 0.94;
+        letter-spacing: -0.05em;
+      }
+
+      .subtitle {
+        max-width: 640px;
+        margin: 0 0 22px;
+        color: var(--muted);
+        font-size: 19px;
+        line-height: 1.7;
+      }
+
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 14px;
+      }
+
+      .button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 180px;
+        padding: 15px 22px;
+        border-radius: 16px;
+        border: 1px solid var(--border);
+        text-decoration: none;
+        font-weight: 700;
+        transition: transform 0.18s ease, opacity 0.18s ease;
+      }
+
+      .button:hover {
+        transform: translateY(-2px);
+        opacity: 0.96;
+      }
+
+      .button.primary {
+        background: #0b0c10;
+        color: #fff;
+        box-shadow: 0 14px 28px rgba(0, 0, 0, 0.22);
+      }
+
+      .button.secondary {
+        background: rgba(255, 255, 255, 0.06);
+        color: var(--text);
+      }
+
+      .phone {
+        position: relative;
+        justify-self: center;
+        width: min(100%, 350px);
+        padding: 18px;
+        border-radius: 36px;
+        border: 1px solid var(--border);
+        background: linear-gradient(180deg, rgba(42, 47, 56, 0.82), rgba(24, 27, 33, 0.96));
+        box-shadow: var(--shadow);
+      }
+
+      .phone::before {
+        content: "";
+        position: absolute;
+        top: 12px;
+        left: 50%;
+        width: 132px;
+        height: 26px;
+        transform: translateX(-50%);
+        border-radius: 999px;
+        background: rgba(0, 0, 0, 0.66);
+      }
+
+      .phone-screen {
+        min-height: 630px;
+        padding: 58px 18px 18px;
+        border-radius: 28px;
+        background: linear-gradient(180deg, #1a1f28 0%, #151921 100%);
+      }
+
+      .phone-head {
+        display: flex;
+        gap: 14px;
+        align-items: center;
+        margin-bottom: 32px;
+      }
+
+      .phone-head img {
+        width: 54px;
+        height: 54px;
+        border-radius: 16px;
+        box-shadow: 0 12px 20px rgba(0, 0, 0, 0.18);
+      }
+
+      .phone-kicker {
+        font-size: 12px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+
+      .phone-title {
+        margin: 5px 0 0;
+        font-family: "Avenir Next Rounded", "SF Pro Rounded", "Trebuchet MS", sans-serif;
+        font-size: 35px;
+        line-height: 1.04;
+      }
+
+      .mini-card {
+        margin-top: 14px;
+        padding: 16px;
+        border-radius: 20px;
+        border: 1px solid var(--border);
+        background: rgba(255, 255, 255, 0.045);
+      }
+
+      .mini-card h3 {
+        margin: 0 0 6px;
+        font-size: 16px;
+      }
+
+      .mini-card p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 14px;
+        line-height: 1.6;
+      }
+
+      .summary {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 16px;
+        margin-top: 42px;
+      }
+
+      .summary-card,
+      .feature,
+      .step {
+        border-radius: 22px;
+        border: 1px solid var(--border);
+      }
+
+      .summary-card {
+        padding: 18px;
+        background: rgba(255, 255, 255, 0.04);
+      }
+
+      .summary-card span {
+        display: inline-block;
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+
+      .summary-card strong {
+        display: block;
+        margin-top: 10px;
+        font-size: 17px;
+        line-height: 1.55;
+      }
+
+      section {
+        margin-top: 70px;
+      }
+
+      section h2 {
+        margin: 0 0 12px;
+        font-family: "Avenir Next Rounded", "SF Pro Rounded", "Trebuchet MS", sans-serif;
+        font-size: clamp(34px, 5vw, 52px);
+        line-height: 1;
+        letter-spacing: -0.04em;
+      }
+
+      .section-copy {
+        max-width: 700px;
+        margin: 0 0 22px;
+        color: var(--muted);
+        font-size: 17px;
+        line-height: 1.75;
+      }
+
+      .feature-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 16px;
+      }
+
+      .feature {
+        padding: 22px;
+        background: var(--surface);
+        backdrop-filter: blur(10px);
+        box-shadow: 0 18px 38px rgba(0, 0, 0, 0.18);
+      }
+
+      .feature-mark {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 36px;
+        height: 36px;
+        border-radius: 13px;
+        color: white;
+        font-weight: 800;
+        margin-bottom: 14px;
+      }
+
+      .feature h3,
+      .step h3 {
+        margin: 0 0 8px;
+        font-size: 21px;
+      }
+
+      .feature p,
+      .step p {
+        margin: 0;
+        color: var(--muted);
+        line-height: 1.7;
+      }
+
+      .flow {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 16px;
+      }
+
+      .step {
+        padding: 24px;
+        background: linear-gradient(180deg, rgba(38, 43, 51, 0.94), rgba(27, 30, 36, 0.98));
+      }
+
+      .step-number {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 32px;
+        height: 32px;
+        margin-bottom: 16px;
+        border-radius: 999px;
+        background: var(--accent-soft);
+        color: #d9e7fb;
+        font-weight: 800;
+      }
+
+      .footer-card {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 24px;
+        border-radius: 24px;
+        border: 1px solid var(--border);
+        background: linear-gradient(135deg, rgba(38, 52, 71, 0.98), rgba(24, 28, 35, 0.98));
+      }
+
+      .footer-card h3 {
+        margin: 0 0 6px;
+        font-size: 24px;
+      }
+
+      .footer-card p {
+        margin: 0;
+        color: rgba(240, 244, 250, 0.78);
+        line-height: 1.6;
+      }
+
+      @media (max-width: 960px) {
+        .hero,
+        .summary,
+        .feature-grid,
+        .flow {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="wrap">
+      <section class="hero">
+        <div>
+          <div class="kicker">iPhone app · SwiftUI · HealthKit · Firebase</div>
+          <h1>Just a few things each day.</h1>
+          <p class="subtitle">
+            DailyLogs is an iPhone-first tracker for wake time, sleep, meals, and showers. It keeps the logging flow deliberately small, then turns those tiny entries into trends you can actually use.
+          </p>
+          <div class="actions">
+            <a class="button primary" href="https://github.com/bowenyu066/daily-logs">View on GitHub</a>
+            <a class="button secondary" href="mailto:bowenyu@mit.edu?subject=DailyLogs%20beta">Join the beta</a>
+          </div>
+        </div>
+
+        <div class="phone">
+          <div class="phone-screen">
+            <div class="phone-head">
+              <img src="./dailylogs-icon.png" alt="DailyLogs app icon">
+              <div>
+                <div class="phone-kicker">DailyLogs</div>
+                <p class="phone-title">Wake. Sleep. Meals. Shower.</p>
+              </div>
+            </div>
+
+            <div class="mini-card">
+              <h3>Today is Mar 15</h3>
+              <p>See sunrise and sunset, open a day instantly, and keep the timeline focused on one screen.</p>
+            </div>
+
+            <div class="mini-card">
+              <h3>Sleep</h3>
+              <p>Manual bedtime and wake time, or sync stages from Apple Health and review sleep windows over time.</p>
+            </div>
+
+            <div class="mini-card">
+              <h3>Meals</h3>
+              <p>Quick timestamps, optional photos, and just enough structure to build a real habit without friction.</p>
+            </div>
+
+            <div class="mini-card">
+              <h3>Analytics</h3>
+              <p>Only shown after a real streak of records, so trends feel earned instead of noisy.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="summary">
+        <div class="summary-card">
+          <span>Focus</span>
+          <strong>No giant health dashboard. Only the recurring signals that matter every day.</strong>
+        </div>
+        <div class="summary-card">
+          <span>Languages</span>
+          <strong>English, Simplified Chinese, or system language, with runtime switching.</strong>
+        </div>
+        <div class="summary-card">
+          <span>Sync</span>
+          <strong>Firebase-backed records, profile data, and meal photos across sessions.</strong>
+        </div>
+        <div class="summary-card">
+          <span>Privacy</span>
+          <strong>Apple Sign In, guest mode for testing, and explicit HealthKit permissions.</strong>
+        </div>
+      </section>
+
+      <section>
+        <h2>Built around a small routine, not a giant system.</h2>
+        <p class="section-copy">
+          The product direction is intentionally narrow: if the app asks for too many decisions, it gets abandoned. DailyLogs keeps the surface area small enough that daily use still feels lightweight after the novelty is gone.
+        </p>
+
+        <div class="feature-grid">
+          <article class="feature">
+            <div class="feature-mark" style="background: var(--sleep);">S</div>
+            <h3>Sleep that works with reality</h3>
+            <p>Track bedtime and wake time manually, or sync sleep stages from Apple Health. Trend charts stay readable, selection states are clean, and the analytics page only unlocks after seven consecutive logged days.</p>
+          </article>
+
+          <article class="feature">
+            <div class="feature-mark" style="background: var(--wake);">W</div>
+            <h3>Daylight context without clutter</h3>
+            <p>Sunrise and sunset sit right in the daily header when location is available, giving each day a little more context without taking over the interface.</p>
+          </article>
+
+          <article class="feature">
+            <div class="feature-mark" style="background: var(--meal);">M</div>
+            <h3>Meals with optional photos</h3>
+            <p>Breakfast, lunch, dinner, plus custom slots if you want them. You can attach a photo, keep a time, and let cloud sync carry the record across sessions.</p>
+          </article>
+
+          <article class="feature">
+            <div class="feature-mark" style="background: var(--shower);">Q</div>
+            <h3>Quiet, fast maintenance habits</h3>
+            <p>Showers and other lightweight routines are designed to be logged in seconds. The app favors low-friction check-ins over exhaustive form filling.</p>
+          </article>
+        </div>
+      </section>
+
+      <section>
+        <h2>One screen to log, one screen to learn.</h2>
+        <p class="section-copy">
+          Home is for action. Analytics is for reflection. Settings is for the few preferences that actually change behavior. That separation keeps the app simple, especially when used every single day.
+        </p>
+
+        <div class="flow">
+          <article class="step">
+            <div class="step-number">1</div>
+            <h3>Log the day quickly</h3>
+            <p>Open today, tap sleep, meals, or shower, and move on. The app favors rounded controls, direct timestamps, and compact editing sheets.</p>
+          </article>
+
+          <article class="step">
+            <div class="step-number">2</div>
+            <h3>Let the app build context</h3>
+            <p>HealthKit, localized date formatting, language preferences, sunrise and sunset, and cloud sync all work in the background so the logging flow stays small.</p>
+          </article>
+
+          <article class="step">
+            <div class="step-number">3</div>
+            <h3>Review meaningful trends</h3>
+            <p>Once there is enough continuous data, DailyLogs surfaces wake trends, sleep windows, stage durations, meal completion, and other signals without becoming a spreadsheet.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="footer-card">
+        <div>
+          <h3>Currently in TestFlight-style beta</h3>
+          <p>The app is being tested in real daily use before a wider release. Feedback right now is especially helpful for data sync, clarity, and habit retention.</p>
+        </div>
+        <div class="actions">
+          <a class="button primary" href="https://github.com/bowenyu066/daily-logs">Source</a>
+          <a class="button secondary" href="mailto:bowenyu@mit.edu?subject=DailyLogs%20feedback">Send feedback</a>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

@@ -81,7 +81,9 @@ If you plan to distribute in more regions or broaden device support later, you c
 
 A matching product page is published from the GitHub Pages site at:
 
-- [bowenyu066.github.io/dailylogs](https://bowenyu066.github.io/dailylogs/)
+- [bowenyu066.github.io/daily-logs](https://bowenyu066.github.io/daily-logs/)
+
+This repository includes a static GitHub Pages site under [docs](/Users/flyfishyu/Documents/2026/Dev%20Exps/Daily_logs/docs). If GitHub Pages is configured to deploy from the `main` branch `/docs` folder, the product page will publish at the URL above.
 
 ## Credits
 
