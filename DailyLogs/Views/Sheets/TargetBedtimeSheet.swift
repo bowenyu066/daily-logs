@@ -14,71 +14,76 @@ struct TargetBedtimeSheet: View {
 
     var body: some View {
         GeometryReader { proxy in
-            VStack(spacing: 20) {
-                headerBar
-                    .padding(.top, topInset(for: proxy))
+            VStack(spacing: 0) {
+                VStack(spacing: 20) {
+                    headerBar
+                        .padding(.top, topInset(for: proxy))
 
-                HStack(spacing: 10) {
-                    ForEach(Weekday.allCases) { weekday in
-                        Button {
-                            selectedWeekday = weekday
-                        } label: {
-                            Text(weekday.shortLabel)
-                                .font(.system(size: 17, weight: .bold, design: .rounded))
-                                .foregroundStyle(selectedWeekday == weekday ? Color.white : AppTheme.primaryText)
-                                .frame(maxWidth: .infinity)
-                                .frame(height: 42)
-                                .background(selectedWeekday == weekday ? AppTheme.accent : AppTheme.surface)
-                                .clipShape(Circle())
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-
-                Text(selectedTime.displayTime)
-                    .font(.system(size: 42, weight: .bold, design: .rounded))
-                    .foregroundStyle(AppTheme.primaryText)
-
-                DatePicker(
-                    "",
-                    selection: Binding(
-                        get: { selectedDate },
-                        set: { updateSelectedWeekday(with: $0) }
-                    ),
-                    displayedComponents: .hourAndMinute
-                )
-                .datePickerStyle(.wheel)
-                .labelsHidden()
-                .frame(maxHeight: 170)
-                .clipped()
-
-                VStack(spacing: 10) {
-                    ForEach(Weekday.allCases) { weekday in
-                        Button {
-                            selectedWeekday = weekday
-                        } label: {
-                            HStack {
-                                Text(weekday.title)
-                                    .font(.system(size: 16, weight: .semibold, design: .rounded))
-                                    .foregroundStyle(AppTheme.primaryText)
-                                Spacer()
-                                Text(time(for: weekday).displayTime)
-                                    .font(.system(size: 16, weight: .bold, design: .rounded))
-                                    .foregroundStyle(selectedWeekday == weekday ? AppTheme.accent : AppTheme.secondaryText)
+                    HStack(spacing: 10) {
+                        ForEach(Weekday.allCases) { weekday in
+                            Button {
+                                selectedWeekday = weekday
+                            } label: {
+                                Text(weekday.shortLabel)
+                                    .font(.system(size: 17, weight: .bold, design: .rounded))
+                                    .foregroundStyle(selectedWeekday == weekday ? Color.white : AppTheme.primaryText)
+                                    .frame(maxWidth: .infinity)
+                                    .frame(height: 42)
+                                    .background(selectedWeekday == weekday ? AppTheme.accent : AppTheme.surface)
+                                    .clipShape(Circle())
                             }
-                            .padding(.horizontal, 18)
-                            .padding(.vertical, 14)
-                            .background(AppTheme.elevatedSurface)
-                            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                            .buttonStyle(.plain)
                         }
-                        .buttonStyle(.plain)
                     }
-                }
 
-                Spacer(minLength: 0)
+                    Text(selectedTime.displayTime)
+                        .font(.system(size: 42, weight: .bold, design: .rounded))
+                        .foregroundStyle(AppTheme.primaryText)
+
+                    DatePicker(
+                        "",
+                        selection: Binding(
+                            get: { selectedDate },
+                            set: { updateSelectedWeekday(with: $0) }
+                        ),
+                        displayedComponents: .hourAndMinute
+                    )
+                    .datePickerStyle(.wheel)
+                    .labelsHidden()
+                    .frame(maxHeight: 170)
+                    .clipped()
+                }
+                .padding(.horizontal, 24)
+
+                ScrollView(showsIndicators: false) {
+                    VStack(spacing: 10) {
+                        ForEach(Weekday.allCases) { weekday in
+                            Button {
+                                selectedWeekday = weekday
+                            } label: {
+                                HStack {
+                                    Text(weekday.title)
+                                        .font(.system(size: 16, weight: .semibold, design: .rounded))
+                                        .foregroundStyle(AppTheme.primaryText)
+                                    Spacer()
+                                    Text(time(for: weekday).displayTime)
+                                        .font(.system(size: 16, weight: .bold, design: .rounded))
+                                        .foregroundStyle(selectedWeekday == weekday ? AppTheme.accent : AppTheme.secondaryText)
+                                }
+                                .padding(.horizontal, 18)
+                                .padding(.vertical, 14)
+                                .background(AppTheme.elevatedSurface)
+                                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.horizontal, 24)
+                    .padding(.top, 18)
+                    .padding(.bottom, max(proxy.safeAreaInsets.bottom + 24, 36))
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             }
-            .padding(.horizontal, 24)
-            .padding(.bottom, 24)
             .background(AppTheme.background.ignoresSafeArea())
         }
     }
