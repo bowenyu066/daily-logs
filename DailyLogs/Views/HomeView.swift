@@ -309,105 +309,109 @@ struct HomeView: View {
         let effectiveStatus = meal.effectiveStatus(on: appViewModel.selectedDate)
         let accentColor = mealAccentColor(meal)
 
-        return Menu {
-            let isLogged = meal.time != nil || meal.hasPhoto
-            let canDeleteMeal = appViewModel.canDeleteMealEntry(meal)
+        return HStack(spacing: 12) {
+            Menu {
+                let isLogged = meal.time != nil || meal.hasPhoto
+                let canDeleteMeal = appViewModel.canDeleteMealEntry(meal)
 
-            if meal.hasPhoto {
-                Button("编辑照片") {
-                    openMealEditor(meal, with: .editPhoto)
-                }
-                Button("修改时间") {
-                    openMealEditor(meal, with: .editTime)
-                }
-                Button("删除照片", role: .destructive) {
-                    Task { await appViewModel.removeMealPhoto(meal) }
-                }
-                if canDeleteMeal {
-                    Button("删除餐次", role: .destructive) {
-                        Task { await appViewModel.deleteMeal(meal) }
+                if meal.hasPhoto {
+                    Button("编辑照片") {
+                        openMealEditor(meal, with: .editPhoto)
+                    }
+                    Button("修改时间") {
+                        openMealEditor(meal, with: .editTime)
+                    }
+                    Button("删除照片", role: .destructive) {
+                        Task { await appViewModel.removeMealPhoto(meal) }
+                    }
+                    if canDeleteMeal {
+                        Button("删除餐次", role: .destructive) {
+                            Task { await appViewModel.deleteMeal(meal) }
+                        }
+                    } else {
+                        Button("删除记录", role: .destructive) {
+                            Task { await appViewModel.clearMealRecord(meal) }
+                        }
+                    }
+                } else if isLogged {
+                    Button("添加图片") {
+                        openMealEditor(meal, with: .addPhoto)
+                    }
+                    Button("修改时间") {
+                        openMealEditor(meal, with: .editTime)
+                    }
+                    if canDeleteMeal {
+                        Button("删除餐次", role: .destructive) {
+                            Task { await appViewModel.deleteMeal(meal) }
+                        }
+                    } else {
+                        Button("删除记录", role: .destructive) {
+                            Task { await appViewModel.clearMealRecord(meal) }
+                        }
                     }
                 } else {
-                    Button("删除记录", role: .destructive) {
-                        Task { await appViewModel.clearMealRecord(meal) }
+                    if UIImagePickerController.isSourceTypeAvailable(.camera) {
+                        Button("拍照") {
+                            openMealEditor(meal, with: .camera)
+                        }
+                    }
+                    Button("选择相册照片") {
+                        openMealEditor(meal, with: .photoLibrary)
+                    }
+                    Button("仅记录时间") {
+                        openMealEditor(meal, with: .timeOnly)
+                    }
+                    if canDeleteMeal {
+                        Button("删除餐次", role: .destructive) {
+                            Task { await appViewModel.deleteMeal(meal) }
+                        }
+                    }
+                    Button("跳过", role: .destructive) {
+                        Task { await appViewModel.skipMeal(meal) }
                     }
                 }
-            } else if isLogged {
-                Button("添加图片") {
-                    openMealEditor(meal, with: .addPhoto)
-                }
-                Button("修改时间") {
-                    openMealEditor(meal, with: .editTime)
-                }
-                if canDeleteMeal {
-                    Button("删除餐次", role: .destructive) {
-                        Task { await appViewModel.deleteMeal(meal) }
+            } label: {
+                HStack(spacing: 0) {
+                    Text(meal.displayTitle)
+                        .font(.system(size: 17, weight: .bold, design: .rounded))
+                        .foregroundStyle(AppTheme.primaryText)
+
+                    Spacer()
+
+                    switch effectiveStatus {
+                    case .logged:
+                        Text(meal.time?.displayClockTime ?? "已记录")
+                            .font(.system(size: 15, weight: .semibold, design: .rounded))
+                            .foregroundStyle(accentColor)
+                            .monospacedDigit()
+                    case .skipped:
+                        Text("跳过")
+                            .font(.system(size: 15, weight: .semibold, design: .rounded))
+                            .foregroundStyle(AppTheme.warning)
+                    case .empty:
+                        Text("未记录")
+                            .font(.system(size: 15, weight: .medium, design: .rounded))
+                            .foregroundStyle(AppTheme.secondaryText)
                     }
-                } else {
-                    Button("删除记录", role: .destructive) {
-                        Task { await appViewModel.clearMealRecord(meal) }
-                    }
-                }
-            } else {
-                if UIImagePickerController.isSourceTypeAvailable(.camera) {
-                    Button("拍照") {
-                        openMealEditor(meal, with: .camera)
-                    }
-                }
-                Button("选择相册照片") {
-                    openMealEditor(meal, with: .photoLibrary)
-                }
-                Button("仅记录时间") {
-                    openMealEditor(meal, with: .timeOnly)
-                }
-                if canDeleteMeal {
-                    Button("删除餐次", role: .destructive) {
-                        Task { await appViewModel.deleteMeal(meal) }
-                    }
-                }
-                Button("跳过", role: .destructive) {
-                    Task { await appViewModel.skipMeal(meal) }
                 }
             }
-        } label: {
-            HStack(spacing: 12) {
-                Text(meal.displayTitle)
-                    .font(.system(size: 17, weight: .bold, design: .rounded))
-                    .foregroundStyle(AppTheme.primaryText)
+            .buttonStyle(.plain)
+            .disabled(!appViewModel.canEditSelectedDate)
 
-                Spacer()
-
-                if let thumbnail = mealThumbnail(meal) {
+            if let thumbnail = mealThumbnail(meal) {
+                Button {
+                    previewingPhoto = thumbnail
+                } label: {
                     Image(uiImage: thumbnail)
                         .resizable()
                         .scaledToFill()
                         .frame(width: 36, height: 36)
                         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                        .onTapGesture {
-                            previewingPhoto = thumbnail
-                        }
                 }
-
-                switch effectiveStatus {
-                case .logged:
-                    Text(meal.time?.displayClockTime ?? "已记录")
-                        .font(.system(size: 15, weight: .semibold, design: .rounded))
-                        .foregroundStyle(accentColor)
-                        .monospacedDigit()
-                case .skipped:
-                    Text("跳过")
-                        .font(.system(size: 15, weight: .semibold, design: .rounded))
-                        .foregroundStyle(AppTheme.warning)
-                case .empty:
-                    Text("未记录")
-                        .font(.system(size: 15, weight: .medium, design: .rounded))
-                        .foregroundStyle(AppTheme.secondaryText)
-                }
+                .buttonStyle(.plain)
             }
-            .padding(.vertical, 12)
         }
-        .buttonStyle(.plain)
-        .disabled(!appViewModel.canEditSelectedDate)
+        .padding(.vertical, 12)
     }
 
     // MARK: - Showers
