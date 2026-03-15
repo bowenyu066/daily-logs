@@ -125,11 +125,29 @@ final class FirebaseCloudSyncService: CloudSyncService {
                 updated.meals[index].photoURL = nil
                 continue
             }
-            let data = try Data(contentsOf: URL(fileURLWithPath: photoURL))
-            let path = "users/\(userID)/meal-photos/\(updated.meals[index].id.uuidString).jpg"
-            let ref = storage.reference(withPath: path)
-            try await ref.putDataAsync(data, metadata: nil)
-            updated.meals[index].photoURL = try await ref.downloadURL().absoluteString
+            do {
+                let data = try Data(contentsOf: URL(fileURLWithPath: photoURL))
+                let filename = "\(updated.meals[index].id.uuidString).jpg"
+                let path = "users/\(userID)/meal-photos/\(filename)"
+                let meta = StorageMetadata()
+                meta.contentType = "image/jpeg"
+                let ref = storage.reference(withPath: path)
+                let resultMeta = try await ref.putDataAsync(data, metadata: meta)
+                // Build download URL from the returned metadata to avoid
+                // a separate downloadURL() call that may fail on fresh objects.
+                let storagePath = resultMeta.path ?? path
+                let bucket = resultMeta.bucket ?? storage.reference().bucket
+                let encoded = storagePath.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? storagePath
+                let downloadURL = "https://firebasestorage.googleapis.com/v0/b/\(bucket)/o/\(encoded.replacingOccurrences(of: "/", with: "%2F"))?alt=media"
+                updated.meals[index].photoURL = downloadURL
+            } catch {
+                // Upload failed — strip local path so it doesn't leak to Firestore.
+                // The record itself still pushes to Firestore (without the photo).
+                #if DEBUG
+                print("CloudSync: photo upload failed for meal \(updated.meals[index].id): \(error)")
+                #endif
+                updated.meals[index].photoURL = nil
+            }
         }
         return updated
     }
@@ -151,13 +169,21 @@ final class FirebaseCloudSyncService: CloudSyncService {
 
 @MainActor
 private extension StorageReference {
-    func putDataAsync(_ uploadData: Data, metadata: StorageMetadata?) async throws {
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            putData(uploadData, metadata: metadata) { metadata, error in
+    struct UploadResult: Sendable {
+        var path: String?
+        var bucket: String?
+    }
+
+    func putDataAsync(_ uploadData: Data, metadata: StorageMetadata?) async throws -> UploadResult {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<UploadResult, Error>) in
+            putData(uploadData, metadata: metadata) { resultMetadata, error in
                 if let error {
                     continuation.resume(throwing: error)
                 } else {
-                    continuation.resume(returning: ())
+                    continuation.resume(returning: UploadResult(
+                        path: resultMetadata?.path,
+                        bucket: resultMetadata?.bucket
+                    ))
                 }
             }
         }

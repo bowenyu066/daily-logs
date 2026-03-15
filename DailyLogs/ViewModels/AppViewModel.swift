@@ -614,11 +614,31 @@ final class AppViewModel: ObservableObject {
             if !payload.records.isEmpty {
                 let store = LocalJSONStore()
                 var database = try store.load()
-                database.recordsByUser[user.userID] = Dictionary(
+                let localRecordMap = database.recordsByUser[user.userID] ?? [:]
+                let remoteRecordMap = Dictionary(
                     uniqueKeysWithValues: payload.records.map { ($0.date.storageKey(), $0) }
                 )
+                var merged = remoteRecordMap
+                for (key, localRecord) in localRecordMap {
+                    guard let remoteRecord = merged[key] else {
+                        merged[key] = localRecord
+                        continue
+                    }
+                    // Keep local record if it has local photo paths that cloud doesn't have
+                    var mergedRecord = remoteRecord
+                    for i in mergedRecord.meals.indices {
+                        if mergedRecord.meals[i].photoURL == nil,
+                           let localMeal = localRecord.meals.first(where: { $0.id == mergedRecord.meals[i].id }),
+                           let localPhoto = localMeal.photoURL,
+                           FileManager.default.fileExists(atPath: localPhoto) {
+                            mergedRecord.meals[i].photoURL = localPhoto
+                        }
+                    }
+                    merged[key] = mergedRecord
+                }
+                database.recordsByUser[user.userID] = merged
                 try store.save(database)
-                allRecords = payload.records
+                allRecords = merged.values.sorted { $0.date < $1.date }
             }
         } catch {
             errorMessage = "云端同步失败：\(error.localizedDescription)"
