@@ -427,6 +427,23 @@
         }
       }
     },
+    "使用 Apple 登录" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sign in with Apple"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用 Apple 登录"
+          }
+        }
+      }
+    },
     "保存" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1240,22 +1257,6 @@
         }
       }
     },
-    "使用 Apple 登录" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sign in with Apple"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "使用 Apple 登录"
-          }
-        }
-      }
-    },
     "拍照" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2035,6 +2036,7 @@
       }
     },
     "继续作为游客" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {

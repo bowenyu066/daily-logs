@@ -113,7 +113,8 @@ final class AppViewModel: ObservableObject {
         isBootstrapped = true
         user = authService.restoreSession()
         do {
-            preferences = try preferencesStore.loadPreferences(userID: user?.userID)
+            preferences = hydratedPreferences(from: try preferencesStore.loadPreferences(userID: user?.userID))
+            persistPreferences()
             applyCurrentLanguage()
             if let user {
                 selectedDate = max(selectedDate, user.createdAt.startOfDay)
@@ -131,7 +132,8 @@ final class AppViewModel: ObservableObject {
     func handleAppleSignIn(_ result: Result<ASAuthorization, Error>) async {
         do {
             user = try await authService.handleAppleSignIn(result: result)
-            preferences = try preferencesStore.loadPreferences(userID: user?.userID)
+            preferences = hydratedPreferences(from: try preferencesStore.loadPreferences(userID: user?.userID))
+            persistPreferences()
             applyCurrentLanguage()
             selectedDate = max(Date().startOfDay, availableStartDate)
             analyticsCustomDateRange = defaultAnalyticsCustomRange(startingAt: availableStartDate)
@@ -152,7 +154,8 @@ final class AppViewModel: ObservableObject {
     func continueAsGuest() async {
         do {
             user = try authService.continueAsGuest()
-            preferences = try preferencesStore.loadPreferences(userID: user?.userID)
+            preferences = hydratedPreferences(from: try preferencesStore.loadPreferences(userID: user?.userID))
+            persistPreferences()
             applyCurrentLanguage()
             selectedDate = max(Date().startOfDay, availableStartDate)
             analyticsCustomDateRange = defaultAnalyticsCustomRange(startingAt: availableStartDate)
@@ -292,12 +295,25 @@ final class AppViewModel: ObservableObject {
         Bundle.configureLanguageOverride(for: lang)
     }
 
+    static func persistedProcessLanguage() -> AppLanguage? {
+        guard let raw = UserDefaults.standard.string(forKey: "dailylogs.appLanguage") else { return nil }
+        return AppLanguage(rawValue: raw)
+    }
+
     private func applyCurrentLanguage(refreshUI: Bool = true) {
         Self.applyProcessLocale(preferences.appLanguage)
         Bundle.configureLanguageOverride(for: preferences.appLanguage)
         if refreshUI {
             languageRefreshID = UUID()
         }
+    }
+
+    private func hydratedPreferences(from loaded: UserPreferences) -> UserPreferences {
+        var preferences = loaded
+        if let processLanguage = Self.persistedProcessLanguage() {
+            preferences.appLanguage = processLanguage
+        }
+        return preferences
     }
 
     func updateAppearanceMode(_ mode: AppearanceMode) async {
@@ -652,9 +668,9 @@ final class AppViewModel: ObservableObject {
             )
 
             if let remotePreferences = payload.preferences {
-                preferences = remotePreferences
+                preferences = hydratedPreferences(from: remotePreferences)
                 applyCurrentLanguage()
-                try preferencesStore.savePreferences(remotePreferences, userID: user.userID)
+                try preferencesStore.savePreferences(preferences, userID: user.userID)
             }
 
             if !payload.records.isEmpty {
