@@ -29,6 +29,7 @@ targets:
       - path: DailyLogs
     resources:
       - path: DailyLogs/Resources/Assets.xcassets
+      - path: DailyLogs/Resources/GoogleService-Info.plist
     dependencies:
       - package: Firebase
         product: FirebaseCore
