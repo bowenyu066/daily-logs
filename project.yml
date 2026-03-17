@@ -11,7 +11,7 @@ settings:
   base:
     SWIFT_VERSION: 6.0
     PRODUCT_BUNDLE_IDENTIFIER: com.flyfishyu.DailyLogs
-    CURRENT_PROJECT_VERSION: 1
+    CURRENT_PROJECT_VERSION: 2
     MARKETING_VERSION: 1.0
     GENERATE_INFOPLIST_FILE: NO
 targets:
@@ -35,6 +35,7 @@ targets:
     settings:
       base:
         PRODUCT_NAME: DailyLogs
+        DEVELOPMENT_TEAM: FMKLLHVL75
         TARGETED_DEVICE_FAMILY: 1
         SUPPORTS_MACCATALYST: NO
         INFOPLIST_FILE: DailyLogs/Resources/Info.plist
@@ -49,3 +50,6 @@ targets:
       - path: DailyLogsTests
     dependencies:
       - target: DailyLogs
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES

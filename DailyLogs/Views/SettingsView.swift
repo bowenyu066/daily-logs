@@ -148,6 +148,9 @@ struct SettingsView: View {
             SettingsRow(title: NSLocalizedString("目标入睡", comment: ""), value: appViewModel.bedtimeScheduleSummary()) {
                 showingTargetBedtime = true
             }
+
+            timeDisplayModeSection
+
             LocationPermissionToggleRow(
                 isOn: Binding(
                     get: { appViewModel.preferences.locationPermissionState == .authorized },
@@ -165,6 +168,75 @@ struct SettingsView: View {
         }
         .padding(22)
         .appCardStyle()
+    }
+
+    private var timeDisplayModeSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(NSLocalizedString("时间展示方式", comment: ""))
+                    .font(.system(size: 16, weight: .semibold, design: .rounded))
+                    .foregroundStyle(AppTheme.primaryText)
+
+                Text(NSLocalizedString("默认使用记录地原始时间，跨时区后回看旧记录时，仍保持记录当时的本地钟点。", comment: ""))
+                    .font(.system(size: 13, weight: .medium, design: .rounded))
+                    .foregroundStyle(AppTheme.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            VStack(spacing: 10) {
+                timeDisplayModeRow(
+                    mode: .recorded,
+                    title: NSLocalizedString("展示页全部使用记录地原始时间", comment: ""),
+                    subtitle: NSLocalizedString("默认使用原始时间；跨时区后仍显示记录当时的本地时间。", comment: "")
+                )
+
+                timeDisplayModeRow(
+                    mode: .current,
+                    title: NSLocalizedString("展示页使用绝对时间", comment: ""),
+                    subtitle: NSLocalizedString("按你当前所在时区换算显示同一时刻。", comment: "")
+                )
+            }
+        }
+    }
+
+    private func timeDisplayModeRow(mode: TimeDisplayMode, title: String, subtitle: String) -> some View {
+        Button {
+            Task { await appViewModel.updateTimeDisplayMode(mode) }
+        } label: {
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(title)
+                        .font(.system(size: 15, weight: .semibold, design: .rounded))
+                        .foregroundStyle(AppTheme.primaryText)
+                        .multilineTextAlignment(.leading)
+
+                    Text(subtitle)
+                        .font(.system(size: 13, weight: .medium, design: .rounded))
+                        .foregroundStyle(AppTheme.secondaryText)
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer(minLength: 12)
+
+                Image(systemName: appViewModel.preferences.timeDisplayMode == mode ? "checkmark.circle.fill" : "circle")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(appViewModel.preferences.timeDisplayMode == mode ? AppTheme.accent : AppTheme.secondaryText.opacity(0.5))
+                    .padding(.top, 2)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
+            .background(AppTheme.elevatedSurface)
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .stroke(
+                        appViewModel.preferences.timeDisplayMode == mode ? AppTheme.accent.opacity(0.35) : AppTheme.border,
+                        lineWidth: 1
+                    )
+            )
+        }
+        .buttonStyle(.plain)
     }
 
     private var defaultMealsCard: some View {
@@ -187,14 +259,14 @@ struct SettingsView: View {
                         ForEach(appViewModel.preferences.defaultMealSlots) { slot in
                             Text(slot.displayTitle)
                                 .font(.system(size: 15, weight: .semibold, design: .rounded))
-                                .foregroundStyle(slot.isDefault ? AppTheme.accent : AppTheme.primaryText)
+                                .foregroundStyle(AppTheme.primaryText)
                                 .padding(.horizontal, 14)
                                 .padding(.vertical, 10)
-                                .background(slot.isDefault ? AppTheme.accentSoft : AppTheme.surface)
+                                .background(AppTheme.surface)
                                 .clipShape(Capsule())
                                 .overlay(
                                     Capsule()
-                                        .stroke(slot.isDefault ? AppTheme.accentSoft : AppTheme.border, lineWidth: 1)
+                                        .stroke(AppTheme.border, lineWidth: 1)
                                 )
                         }
                     }

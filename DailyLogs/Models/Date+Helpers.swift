@@ -33,16 +33,43 @@ extension Date {
         ) ?? self
     }
 
+    func settingTime(hour: Int, minute: Int, in timeZone: TimeZone) -> Date {
+        var calendar = Calendar.current
+        calendar.timeZone = timeZone
+        let dayComponents = Calendar.current.dateComponents([.year, .month, .day], from: self)
+        let components = DateComponents(
+            timeZone: timeZone,
+            year: dayComponents.year,
+            month: dayComponents.month,
+            day: dayComponents.day,
+            hour: hour,
+            minute: minute,
+            second: 0
+        )
+        return calendar.date(from: components) ?? self
+    }
+
     var isoWeekday: Int {
         let weekday = Calendar.current.component(.weekday, from: self)
         return weekday == 1 ? 7 : weekday - 1
     }
 
     var displayClockTime: String {
+        displayClockTime(in: .autoupdatingCurrent)
+    }
+
+    func displayClockTime(in timeZone: TimeZone) -> String {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = timeZone
         formatter.dateFormat = "HH:mm"
         return formatter.string(from: self)
+    }
+
+    func displayShortTime(in timeZone: TimeZone) -> String {
+        var style = Date.FormatStyle(date: .omitted, time: .shortened)
+        style.timeZone = timeZone
+        return formatted(style)
     }
 
     var displayISO8601: String {

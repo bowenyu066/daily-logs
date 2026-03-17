@@ -13,6 +13,7 @@ enum MealCaptureMode {
 
 struct MealEditorSheet: View {
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var appViewModel: AppViewModel
 
     @State private var draft: MealEntry
     @State private var selectedImage: UIImage?
@@ -117,7 +118,10 @@ struct MealEditorSheet: View {
 
             if showingTimePicker {
                 VStack(spacing: 12) {
-                    Text((draft.time ?? defaultLoggedTime).displayClockTime)
+                    Text(appViewModel.displayedClockTime(
+                        for: draft.time ?? defaultLoggedTime,
+                        recordedTimeZoneIdentifier: draft.timeZoneIdentifier
+                    ))
                         .font(.system(size: 34, weight: .bold, design: .rounded))
                         .foregroundStyle(timeAccent)
                         .monospacedDigit()
@@ -135,6 +139,7 @@ struct MealEditorSheet: View {
                     )
                     .datePickerStyle(.wheel)
                     .labelsHidden()
+                    .environment(\.timeZone, appViewModel.displayedTimeZone(for: draft.timeZoneIdentifier))
                 }
                 .padding(18)
                 .frame(maxWidth: .infinity)
@@ -150,7 +155,10 @@ struct MealEditorSheet: View {
                             .font(.system(size: 16, weight: .semibold, design: .rounded))
                             .foregroundStyle(AppTheme.secondaryText)
                         Spacer()
-                        Text((draft.time ?? defaultLoggedTime).displayClockTime)
+                        Text(appViewModel.displayedClockTime(
+                            for: draft.time ?? defaultLoggedTime,
+                            recordedTimeZoneIdentifier: draft.timeZoneIdentifier
+                        ))
                             .font(.system(size: 22, weight: .bold, design: .rounded))
                             .foregroundStyle(timeAccent)
                             .monospacedDigit()
@@ -168,10 +176,15 @@ struct MealEditorSheet: View {
 
     private var photoSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            if let image = displayImage {
-                image
+            if let selectedImage {
+                Image(uiImage: selectedImage)
                     .resizable()
                     .scaledToFill()
+                    .frame(height: 220)
+                    .frame(maxWidth: .infinity)
+                    .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
+            } else if let photoURL = draft.photoURL {
+                PhotoContentView(photoURL: photoURL, contentMode: .fill)
                     .frame(height: 220)
                     .frame(maxWidth: .infinity)
                     .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
@@ -206,16 +219,6 @@ struct MealEditorSheet: View {
         .disabled(!isEditable)
     }
 
-    private var displayImage: Image? {
-        if let selectedImage {
-            return Image(uiImage: selectedImage)
-        }
-        guard let photoURL = draft.photoURL, let uiImage = UIImage(contentsOfFile: photoURL) else {
-            return nil
-        }
-        return Image(uiImage: uiImage)
-    }
-
     private var shouldShowPhotoSection: Bool {
         switch preferredSource {
         case .timeOnly, .editTime:
@@ -235,24 +238,27 @@ struct MealEditorSheet: View {
         if selectedImage != nil || entry.photoURL != nil || entry.time != nil {
             entry.status = .logged
             entry.time = entry.time ?? defaultLoggedTime
+            entry.timeZoneIdentifier = appViewModel.displayedTimeZone(for: entry.timeZoneIdentifier).identifier
         } else {
             entry.status = .empty
             entry.time = nil
             entry.photoURL = nil
+            entry.timeZoneIdentifier = nil
         }
         return entry
     }
 
     private var defaultLoggedTime: Date {
+        let timeZone = appViewModel.displayedTimeZone(for: draft.timeZoneIdentifier)
         switch draft.mealKind {
         case .breakfast:
-            return baseDate.settingTime(hour: 8, minute: 0)
+            return baseDate.settingTime(hour: 8, minute: 0, in: timeZone)
         case .lunch:
-            return baseDate.settingTime(hour: 12, minute: 30)
+            return baseDate.settingTime(hour: 12, minute: 30, in: timeZone)
         case .dinner:
-            return baseDate.settingTime(hour: 18, minute: 30)
+            return baseDate.settingTime(hour: 18, minute: 30, in: timeZone)
         case .custom:
-            return baseDate.settingTime(hour: 15, minute: 0)
+            return baseDate.settingTime(hour: 15, minute: 0, in: timeZone)
         }
     }
 
@@ -293,8 +299,14 @@ struct MealEditorSheet: View {
 
     private func normalizedPickedDate(_ pickedDate: Date?) -> Date? {
         guard let pickedDate else { return nil }
-        let components = Calendar.current.dateComponents([.hour, .minute], from: pickedDate)
-        return baseDate.settingTime(hour: components.hour ?? 12, minute: components.minute ?? 0)
+        var calendar = Calendar.current
+        calendar.timeZone = appViewModel.displayedTimeZone(for: draft.timeZoneIdentifier)
+        let components = calendar.dateComponents([.hour, .minute], from: pickedDate)
+        return baseDate.settingTime(
+            hour: components.hour ?? 12,
+            minute: components.minute ?? 0,
+            in: appViewModel.displayedTimeZone(for: draft.timeZoneIdentifier)
+        )
     }
 }
 

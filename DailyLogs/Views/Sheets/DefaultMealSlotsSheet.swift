@@ -14,8 +14,8 @@ struct DefaultMealSlotsSheet: View {
                 ForEach(appViewModel.preferences.defaultMealSlots) { slot in
                     MealSlotChip(
                         title: slot.displayTitle,
-                        isLocked: slot.isDefault,
-                        onDelete: slot.isDefault ? nil : {
+                        isLocked: false,
+                        onDelete: {
                             Task { await appViewModel.deleteDefaultMealSlot(slot) }
                         }
                     )

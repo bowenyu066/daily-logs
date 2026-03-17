@@ -589,6 +589,11 @@ final class LocationService: NSObject, ObservableObject, @unchecked Sendable {
         manager.requestLocation()
     }
 
+    func refreshCurrentLocation() {
+        guard permissionState == .authorized else { return }
+        manager.requestLocation()
+    }
+
     private func syncState(from status: CLAuthorizationStatus) {
         switch status {
         case .authorizedAlways, .authorizedWhenInUse:
@@ -637,7 +642,8 @@ struct AstronomySunTimesService: SunTimesService {
 
         return SunTimes(
             sunrise: localDate(for: date, hourFraction: sunriseLocal),
-            sunset: localDate(for: date, hourFraction: sunsetLocal)
+            sunset: localDate(for: date, hourFraction: sunsetLocal),
+            timeZoneIdentifier: timeZone.identifier
         )
     }
 
@@ -741,16 +747,24 @@ enum AnalyticsCalculator {
             }
 
             let loggedMeals = record.meals.filter { $0.effectiveStatus(on: record.date) == .logged }.count
-            let sleepStartMinutes = record.sleepRecord.bedtimePreviousNight.map(chartMinutes)
-            let sleepEndMinutes = record.sleepRecord.wakeTimeCurrentDay.map(chartMinutes)
+            let sleepStartMinutes = record.sleepRecord.bedtimePreviousNight.map {
+                chartMinutes($0, timeZoneIdentifier: record.sleepRecord.timeZoneIdentifier)
+            }
+            let sleepEndMinutes = record.sleepRecord.wakeTimeCurrentDay.map {
+                chartMinutes($0, timeZoneIdentifier: record.sleepRecord.timeZoneIdentifier)
+            }
 
             let stageDurations = record.sleepRecord.hasStageData ? record.sleepRecord.stageDurations : [:]
 
             return AnalyticsDayPoint(
                 date: date,
                 sleepHours: record.sleepRecord.duration.map { $0 / 3600 },
-                bedtimeMinutes: record.sleepRecord.bedtimePreviousNight.map(clockMinutes),
-                wakeMinutes: record.sleepRecord.wakeTimeCurrentDay.map(clockMinutes),
+                bedtimeMinutes: record.sleepRecord.bedtimePreviousNight.map {
+                    clockMinutes($0, timeZoneIdentifier: record.sleepRecord.timeZoneIdentifier)
+                },
+                wakeMinutes: record.sleepRecord.wakeTimeCurrentDay.map {
+                    clockMinutes($0, timeZoneIdentifier: record.sleepRecord.timeZoneIdentifier)
+                },
                 sleepStartMinutes: sleepStartMinutes,
                 sleepEndMinutes: sleepEndMinutes,
                 loggedMeals: loggedMeals,
@@ -812,7 +826,7 @@ enum AnalyticsCalculator {
                     return AnalyticsScatterPoint(
                         id: "\(record.date.storageKey())-\(meal.slotKey)",
                         date: record.date,
-                        minutes: clockMinutes(time)
+                        minutes: clockMinutes(time, timeZoneIdentifier: meal.timeZoneIdentifier)
                     )
                 }
                 let historicalEntries = historicalGroupedMeals[sample.slotKey] ?? []
@@ -821,7 +835,7 @@ enum AnalyticsCalculator {
                     return AnalyticsScatterPoint(
                         id: "\(record.date.storageKey())-\(meal.slotKey)",
                         date: record.date,
-                        minutes: clockMinutes(time)
+                        minutes: clockMinutes(time, timeZoneIdentifier: meal.timeZoneIdentifier)
                     )
                 }
                 let tracked = Double(historicalEntries.count)
@@ -844,13 +858,13 @@ enum AnalyticsCalculator {
                 AnalyticsScatterPoint(
                     id: "\(record.date.storageKey())-shower-\(index)",
                     date: record.date,
-                    minutes: clockMinutes(shower.time)
+                    minutes: clockMinutes(shower.time, timeZoneIdentifier: shower.timeZoneIdentifier)
                 )
             }
         }
         let averageShowerMinutes = historicalRecords
             .flatMap(\.showers)
-            .map { clockMinutes($0.time) }
+            .map { clockMinutes($0.time, timeZoneIdentifier: $0.timeZoneIdentifier) }
             .averageOptional
 
         let averageLightSleepHours = historicalDays.compactMap(\.lightSleepHours).averageOptional
@@ -873,14 +887,17 @@ enum AnalyticsCalculator {
         )
     }
 
-    private static func clockMinutes(_ date: Date) -> Double {
-        let calendar = Calendar.current
+    private static func clockMinutes(_ date: Date, timeZoneIdentifier: String? = nil) -> Double {
+        var calendar = Calendar.current
+        if let timeZoneIdentifier, let timeZone = TimeZone(identifier: timeZoneIdentifier) {
+            calendar.timeZone = timeZone
+        }
         let components = calendar.dateComponents([.hour, .minute], from: date)
         return Double((components.hour ?? 0) * 60 + (components.minute ?? 0))
     }
 
-    private static func chartMinutes(_ date: Date) -> Double {
-        let minutes = clockMinutes(date)
+    private static func chartMinutes(_ date: Date, timeZoneIdentifier: String? = nil) -> Double {
+        let minutes = clockMinutes(date, timeZoneIdentifier: timeZoneIdentifier)
         return minutes < 18 * 60 ? minutes + 24 * 60 : minutes
     }
 

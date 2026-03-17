@@ -111,6 +111,31 @@ enum RecordSource: String, Codable, CaseIterable {
     case healthKit
 }
 
+enum TimeDisplayMode: String, Codable, CaseIterable, Identifiable {
+    case current
+    case recorded
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .current:
+            NSLocalizedString("当前时区", comment: "")
+        case .recorded:
+            NSLocalizedString("记录地", comment: "")
+        }
+    }
+
+    var shortTitle: String {
+        switch self {
+        case .current:
+            NSLocalizedString("当前", comment: "")
+        case .recorded:
+            NSLocalizedString("记录地", comment: "")
+        }
+    }
+}
+
 enum MealKind: String, Codable, CaseIterable, Identifiable {
     case breakfast
     case lunch
@@ -163,6 +188,28 @@ struct MealSlot: Codable, Equatable, Identifiable {
 struct SunTimes: Codable, Equatable {
     var sunrise: Date
     var sunset: Date
+    var timeZoneIdentifier: String?
+
+    enum CodingKeys: String, CodingKey {
+        case sunrise, sunset, timeZoneIdentifier
+    }
+
+    init(
+        sunrise: Date,
+        sunset: Date,
+        timeZoneIdentifier: String? = nil
+    ) {
+        self.sunrise = sunrise
+        self.sunset = sunset
+        self.timeZoneIdentifier = timeZoneIdentifier
+    }
+
+    init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        sunrise = try container.decode(Date.self, forKey: .sunrise)
+        sunset = try container.decode(Date.self, forKey: .sunset)
+        timeZoneIdentifier = try container.decodeIfPresent(String.self, forKey: .timeZoneIdentifier)
+    }
 }
 
 enum SleepStage: String, Codable, CaseIterable {
@@ -204,6 +251,7 @@ struct SleepRecord: Codable, Equatable {
     var targetBedtime: DateComponents?
     var source: RecordSource = .manual
     var stageIntervals: [SleepStageInterval] = []
+    var timeZoneIdentifier: String?
 
     var duration: TimeInterval? {
         guard let bedtimePreviousNight, let wakeTimeCurrentDay else { return nil }
@@ -221,7 +269,7 @@ struct SleepRecord: Codable, Equatable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case bedtimePreviousNight, wakeTimeCurrentDay, targetBedtime, source, stageIntervals
+        case bedtimePreviousNight, wakeTimeCurrentDay, targetBedtime, source, stageIntervals, timeZoneIdentifier
     }
 
     init(
@@ -229,13 +277,15 @@ struct SleepRecord: Codable, Equatable {
         wakeTimeCurrentDay: Date? = nil,
         targetBedtime: DateComponents? = nil,
         source: RecordSource = .manual,
-        stageIntervals: [SleepStageInterval] = []
+        stageIntervals: [SleepStageInterval] = [],
+        timeZoneIdentifier: String? = nil
     ) {
         self.bedtimePreviousNight = bedtimePreviousNight
         self.wakeTimeCurrentDay = wakeTimeCurrentDay
         self.targetBedtime = targetBedtime
         self.source = source
         self.stageIntervals = stageIntervals
+        self.timeZoneIdentifier = timeZoneIdentifier
     }
 
     init(from decoder: any Decoder) throws {
@@ -245,6 +295,7 @@ struct SleepRecord: Codable, Equatable {
         targetBedtime = try container.decodeIfPresent(DateComponents.self, forKey: .targetBedtime)
         source = try container.decodeIfPresent(RecordSource.self, forKey: .source) ?? .manual
         stageIntervals = try container.decodeIfPresent([SleepStageInterval].self, forKey: .stageIntervals) ?? []
+        timeZoneIdentifier = try container.decodeIfPresent(String.self, forKey: .timeZoneIdentifier)
     }
 }
 
@@ -255,6 +306,7 @@ struct MealEntry: Codable, Equatable, Identifiable {
     var status: MealStatus = .empty
     var time: Date?
     var photoURL: String?
+    var timeZoneIdentifier: String?
 
     var displayTitle: String {
         customTitle?.isEmpty == false ? customTitle! : mealKind.title
@@ -282,11 +334,66 @@ struct MealEntry: Codable, Equatable, Identifiable {
         }
         return recordDate.startOfDay < referenceDate.startOfDay ? .skipped : .empty
     }
+
+    enum CodingKeys: String, CodingKey {
+        case id, mealKind, customTitle, status, time, photoURL, timeZoneIdentifier
+    }
+
+    init(
+        id: UUID = UUID(),
+        mealKind: MealKind,
+        customTitle: String? = nil,
+        status: MealStatus = .empty,
+        time: Date? = nil,
+        photoURL: String? = nil,
+        timeZoneIdentifier: String? = nil
+    ) {
+        self.id = id
+        self.mealKind = mealKind
+        self.customTitle = customTitle
+        self.status = status
+        self.time = time
+        self.photoURL = photoURL
+        self.timeZoneIdentifier = timeZoneIdentifier
+    }
+
+    init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        mealKind = try container.decode(MealKind.self, forKey: .mealKind)
+        customTitle = try container.decodeIfPresent(String.self, forKey: .customTitle)
+        status = try container.decodeIfPresent(MealStatus.self, forKey: .status) ?? .empty
+        time = try container.decodeIfPresent(Date.self, forKey: .time)
+        photoURL = try container.decodeIfPresent(String.self, forKey: .photoURL)
+        timeZoneIdentifier = try container.decodeIfPresent(String.self, forKey: .timeZoneIdentifier)
+    }
 }
 
 struct ShowerEntry: Codable, Equatable, Identifiable {
     var id: UUID = UUID()
     var time: Date
+    var timeZoneIdentifier: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id, time, timeZoneIdentifier
+    }
+
+    init(
+        id: UUID = UUID(),
+        time: Date,
+        timeZoneIdentifier: String? = nil
+    ) {
+        self.id = id
+        self.time = time
+        self.timeZoneIdentifier = timeZoneIdentifier
+    }
+
+    init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        time = try container.decode(Date.self, forKey: .time)
+        timeZoneIdentifier = try container.decodeIfPresent(String.self, forKey: .timeZoneIdentifier)
+    }
 }
 
 struct DailyRecord: Codable, Equatable {
@@ -417,6 +524,7 @@ struct UserPreferences: Codable, Equatable {
     var analyticsCustomization: AnalyticsCustomization = .default
     var healthKitSyncEnabled: Bool = false
     var appLanguage: AppLanguage = .system
+    var timeDisplayMode: TimeDisplayMode = .recorded
 
     enum CodingKeys: String, CodingKey {
         case defaultMealSlots
@@ -426,6 +534,7 @@ struct UserPreferences: Codable, Equatable {
         case analyticsCustomization
         case healthKitSyncEnabled
         case appLanguage
+        case timeDisplayMode
         case targetBedtime
     }
 
@@ -436,7 +545,8 @@ struct UserPreferences: Codable, Equatable {
         appearanceMode: AppearanceMode = .system,
         analyticsCustomization: AnalyticsCustomization = .default,
         healthKitSyncEnabled: Bool = false,
-        appLanguage: AppLanguage = .system
+        appLanguage: AppLanguage = .system,
+        timeDisplayMode: TimeDisplayMode = .recorded
     ) {
         self.defaultMealSlots = defaultMealSlots
         self.bedtimeSchedule = bedtimeSchedule
@@ -445,6 +555,7 @@ struct UserPreferences: Codable, Equatable {
         self.analyticsCustomization = analyticsCustomization
         self.healthKitSyncEnabled = healthKitSyncEnabled
         self.appLanguage = appLanguage
+        self.timeDisplayMode = timeDisplayMode
     }
 
     init(from decoder: any Decoder) throws {
@@ -455,6 +566,7 @@ struct UserPreferences: Codable, Equatable {
         analyticsCustomization = try container.decodeIfPresent(AnalyticsCustomization.self, forKey: .analyticsCustomization) ?? .default
         healthKitSyncEnabled = try container.decodeIfPresent(Bool.self, forKey: .healthKitSyncEnabled) ?? false
         appLanguage = try container.decodeIfPresent(AppLanguage.self, forKey: .appLanguage) ?? .system
+        timeDisplayMode = try container.decodeIfPresent(TimeDisplayMode.self, forKey: .timeDisplayMode) ?? .recorded
         if let bedtimeSchedule = try container.decodeIfPresent(BedtimeSchedule.self, forKey: .bedtimeSchedule) {
             self.bedtimeSchedule = bedtimeSchedule
         } else {
@@ -472,6 +584,85 @@ struct UserPreferences: Codable, Equatable {
         try container.encode(analyticsCustomization, forKey: .analyticsCustomization)
         try container.encode(healthKitSyncEnabled, forKey: .healthKitSyncEnabled)
         try container.encode(appLanguage, forKey: .appLanguage)
+        try container.encode(timeDisplayMode, forKey: .timeDisplayMode)
+    }
+}
+
+extension SleepRecord {
+    var hasUserEnteredSleepData: Bool {
+        bedtimePreviousNight != nil || wakeTimeCurrentDay != nil || !stageIntervals.isEmpty
+    }
+
+    var blocksHealthKitSync: Bool {
+        source == .manual && hasUserEnteredSleepData
+    }
+
+    var needsRecordedTimeZoneMigration: Bool {
+        hasUserEnteredSleepData && timeZoneIdentifier == nil
+    }
+
+    func backfillingRecordedTimeZone(_ identifier: String) -> SleepRecord {
+        guard needsRecordedTimeZoneMigration else { return self }
+        var updated = self
+        updated.timeZoneIdentifier = identifier
+        return updated
+    }
+}
+
+extension MealEntry {
+    var needsRecordedTimeZoneMigration: Bool {
+        time != nil && timeZoneIdentifier == nil
+    }
+
+    func backfillingRecordedTimeZone(_ identifier: String) -> MealEntry {
+        guard needsRecordedTimeZoneMigration else { return self }
+        var updated = self
+        updated.timeZoneIdentifier = identifier
+        return updated
+    }
+}
+
+extension ShowerEntry {
+    var needsRecordedTimeZoneMigration: Bool {
+        timeZoneIdentifier == nil
+    }
+
+    func backfillingRecordedTimeZone(_ identifier: String) -> ShowerEntry {
+        guard needsRecordedTimeZoneMigration else { return self }
+        var updated = self
+        updated.timeZoneIdentifier = identifier
+        return updated
+    }
+}
+
+extension SunTimes {
+    var needsRecordedTimeZoneMigration: Bool {
+        timeZoneIdentifier == nil
+    }
+
+    func backfillingRecordedTimeZone(_ identifier: String) -> SunTimes {
+        guard needsRecordedTimeZoneMigration else { return self }
+        var updated = self
+        updated.timeZoneIdentifier = identifier
+        return updated
+    }
+}
+
+extension DailyRecord {
+    var needsRecordedTimeZoneMigration: Bool {
+        sleepRecord.needsRecordedTimeZoneMigration
+            || meals.contains(where: \.needsRecordedTimeZoneMigration)
+            || showers.contains(where: \.needsRecordedTimeZoneMigration)
+            || sunTimes?.needsRecordedTimeZoneMigration == true
+    }
+
+    func backfillingRecordedTimeZones(_ identifier: String) -> DailyRecord {
+        var updated = self
+        updated.sleepRecord = sleepRecord.backfillingRecordedTimeZone(identifier)
+        updated.meals = meals.map { $0.backfillingRecordedTimeZone(identifier) }
+        updated.showers = showers.map { $0.backfillingRecordedTimeZone(identifier) }
+        updated.sunTimes = sunTimes?.backfillingRecordedTimeZone(identifier)
+        return updated
     }
 }
 

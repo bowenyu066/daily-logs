@@ -1,4 +1,5 @@
 import AuthenticationServices
+import Combine
 import CoreLocation
 import FirebaseAuth
 import Foundation
@@ -8,6 +9,7 @@ import UIKit
 @MainActor
 final class AppViewModel: ObservableObject {
     private static let minimumAnalyticsRecordStreak = 7
+    private static let didMigrateTimeDisplayModeDefaultKey = "dailylogs.didMigrateTimeDisplayModeDefault"
 
     @Published private(set) var user: UserAccount?
     @Published var selectedDate: Date
@@ -29,6 +31,7 @@ final class AppViewModel: ObservableObject {
     private let sunTimesService: SunTimesService
     private var healthSyncAdapter: HealthSyncAdapter
     private let cloudSyncService: CloudSyncService
+    private var cancellables = Set<AnyCancellable>()
 
     static func live() -> AppViewModel {
         let store = LocalJSONStore()
@@ -72,6 +75,7 @@ final class AppViewModel: ObservableObject {
         self.selectedDate = selectedDate.startOfDay
         self.dailyRecord = dailyRecord
         self.preferences = preferences
+        bindLocationService()
     }
 
     var isAuthenticated: Bool {
@@ -133,6 +137,7 @@ final class AppViewModel: ObservableObject {
                 await refreshFromCloudIfNeeded(for: user)
                 try loadSelectedRecord()
                 updateSunTimesIfPossible()
+                refreshLocationIfAuthorized()
             }
         } catch {
             errorMessage = NSLocalizedString("初始化失败：", comment: "") + error.localizedDescription
@@ -251,6 +256,9 @@ final class AppViewModel: ObservableObject {
         dailyRecord.sleepRecord.bedtimePreviousNight = bedtime
         dailyRecord.sleepRecord.wakeTimeCurrentDay = wakeTime
         dailyRecord.sleepRecord.source = .manual
+        dailyRecord.sleepRecord.timeZoneIdentifier = (bedtime != nil || wakeTime != nil)
+            ? editedTimeZoneIdentifier(for: dailyRecord.sleepRecord.timeZoneIdentifier)
+            : nil
         persistCurrentRecord()
         await syncCurrentRecordToCloudIfNeeded()
     }
@@ -324,6 +332,10 @@ final class AppViewModel: ObservableObject {
         if let processLanguage = Self.persistedProcessLanguage() {
             preferences.appLanguage = processLanguage
         }
+        if !UserDefaults.standard.bool(forKey: Self.didMigrateTimeDisplayModeDefaultKey) {
+            preferences.timeDisplayMode = .recorded
+            UserDefaults.standard.set(true, forKey: Self.didMigrateTimeDisplayModeDefaultKey)
+        }
         return preferences
     }
 
@@ -339,6 +351,13 @@ final class AppViewModel: ObservableObject {
         await syncPreferencesToCloudIfNeeded()
     }
 
+    func updateTimeDisplayMode(_ mode: TimeDisplayMode) async {
+        guard preferences.timeDisplayMode != mode else { return }
+        preferences.timeDisplayMode = mode
+        persistPreferences()
+        await syncPreferencesToCloudIfNeeded()
+    }
+
     func saveMeal(_ entry: MealEntry, image: UIImage?) async {
         guard canEditSelectedDate else { return }
         var updatedEntry = entry
@@ -346,15 +365,16 @@ final class AppViewModel: ObservableObject {
             let existingEntry = dailyRecord.meals.first(where: { $0.id == updatedEntry.id })
             if let image {
                 if let path = existingEntry?.photoURL {
-                    try photoStorageService.deletePhoto(at: path)
+                    try deletePhotoIfLocal(at: path)
                 }
                 updatedEntry.photoURL = try photoStorageService.savePhoto(image)
             } else if let oldPhotoURL = existingEntry?.photoURL, updatedEntry.photoURL == nil {
-                try photoStorageService.deletePhoto(at: oldPhotoURL)
+                try deletePhotoIfLocal(at: oldPhotoURL)
             }
 
             if updatedEntry.time != nil || updatedEntry.hasPhoto {
                 updatedEntry.status = .logged
+                updatedEntry.timeZoneIdentifier = editedTimeZoneIdentifier(for: existingEntry?.timeZoneIdentifier ?? updatedEntry.timeZoneIdentifier)
             }
             if let index = dailyRecord.meals.firstIndex(where: { $0.id == updatedEntry.id }) {
                 dailyRecord.meals[index] = updatedEntry
@@ -376,7 +396,7 @@ final class AppViewModel: ObservableObject {
         guard canEditSelectedDate, canDeleteMealEntry(entry) else { return }
         do {
             if let photoURL = entry.photoURL {
-                try photoStorageService.deletePhoto(at: photoURL)
+                try deletePhotoIfLocal(at: photoURL)
             }
             dailyRecord.meals.removeAll { $0.id == entry.id }
             persistCurrentRecord()
@@ -390,7 +410,7 @@ final class AppViewModel: ObservableObject {
         guard canEditSelectedDate else { return }
         do {
             if let photoURL = entry.photoURL {
-                try photoStorageService.deletePhoto(at: photoURL)
+                try deletePhotoIfLocal(at: photoURL)
             }
             if canDeleteMealEntry(entry) {
                 dailyRecord.meals.removeAll { $0.id == entry.id }
@@ -402,6 +422,7 @@ final class AppViewModel: ObservableObject {
             updatedEntry.status = .empty
             updatedEntry.time = nil
             updatedEntry.photoURL = nil
+            updatedEntry.timeZoneIdentifier = nil
             if let index = dailyRecord.meals.firstIndex(where: { $0.id == updatedEntry.id }) {
                 dailyRecord.meals[index] = updatedEntry
             } else {
@@ -418,7 +439,7 @@ final class AppViewModel: ObservableObject {
         guard canEditSelectedDate else { return }
         do {
             if let photoURL = entry.photoURL {
-                try photoStorageService.deletePhoto(at: photoURL)
+                try deletePhotoIfLocal(at: photoURL)
             }
             var updatedEntry = entry
             updatedEntry.photoURL = nil
@@ -439,12 +460,13 @@ final class AppViewModel: ObservableObject {
         guard canEditSelectedDate else { return }
         do {
             if let photoURL = entry.photoURL {
-                try photoStorageService.deletePhoto(at: photoURL)
+                try deletePhotoIfLocal(at: photoURL)
             }
             var updatedEntry = entry
             updatedEntry.status = .skipped
             updatedEntry.time = nil
             updatedEntry.photoURL = nil
+            updatedEntry.timeZoneIdentifier = nil
             if let index = dailyRecord.meals.firstIndex(where: { $0.id == updatedEntry.id }) {
                 dailyRecord.meals[index] = updatedEntry
             } else {
@@ -459,10 +481,12 @@ final class AppViewModel: ObservableObject {
 
     func saveShower(_ shower: ShowerEntry) async {
         guard canEditSelectedDate else { return }
+        var updatedShower = shower
+        updatedShower.timeZoneIdentifier = editedTimeZoneIdentifier(for: shower.timeZoneIdentifier)
         if let index = dailyRecord.showers.firstIndex(where: { $0.id == shower.id }) {
-            dailyRecord.showers[index] = shower
+            dailyRecord.showers[index] = updatedShower
         } else {
-            dailyRecord.showers.append(shower)
+            dailyRecord.showers.append(updatedShower)
             dailyRecord.showers.sort { $0.time < $1.time }
         }
         persistCurrentRecord()
@@ -491,9 +515,10 @@ final class AppViewModel: ObservableObject {
     }
 
     func deleteDefaultMealSlot(_ slot: MealSlot) async {
-        guard !slot.isDefault else { return }
         preferences.defaultMealSlots.removeAll { $0.id == slot.id }
-        dailyRecord.meals.removeAll { $0.mealKind == .custom && $0.customTitle == slot.title && $0.status == .empty }
+        dailyRecord.meals.removeAll {
+            mealEntry($0, matches: slot) && $0.status == .empty
+        }
         persistPreferences()
         persistCurrentRecord()
         await syncPreferencesToCloudIfNeeded()
@@ -503,19 +528,29 @@ final class AppViewModel: ObservableObject {
     func requestLocationAccess() {
         locationService.requestAccess()
         preferences.locationPermissionState = locationService.permissionState
-        Task {
-            persistPreferences()
-            try? await Task.sleep(for: .seconds(1))
-            await refreshSunTimes()
-        }
+        persistPreferences()
     }
 
     func refreshSunTimes() async {
+        refreshLocationIfAuthorized()
         updateSunTimesIfPossible()
         persistCurrentRecord()
         persistPreferences()
         await syncCurrentRecordToCloudIfNeeded()
         await syncPreferencesToCloudIfNeeded()
+    }
+
+    func refreshHomeData() async {
+        if let user {
+            await refreshFromCloudIfNeeded(for: user)
+        }
+        do {
+            try loadSelectedRecord()
+        } catch {
+            errorMessage = NSLocalizedString("刷新记录失败：", comment: "") + error.localizedDescription
+        }
+        refreshLocationIfAuthorized()
+        await syncHealthKitForCurrentDate()
     }
 
     func toggleHealthKitSync(_ enabled: Bool) async {
@@ -538,8 +573,7 @@ final class AppViewModel: ObservableObject {
 
     func syncHealthKitForCurrentDate() async {
         guard preferences.healthKitSyncEnabled, let user else { return }
-        // Don't overwrite user's manual edits
-        guard dailyRecord.sleepRecord.source != .manual else { return }
+        guard !dailyRecord.sleepRecord.blocksHealthKitSync else { return }
         do {
             guard let hkSleep = try await healthSyncAdapter.fetchSleepData(
                 for: selectedDate,
@@ -550,6 +584,7 @@ final class AppViewModel: ObservableObject {
             dailyRecord.sleepRecord.wakeTimeCurrentDay = hkSleep.wakeTimeCurrentDay
             dailyRecord.sleepRecord.stageIntervals = hkSleep.stageIntervals
             dailyRecord.sleepRecord.source = .healthKit
+            dailyRecord.sleepRecord.timeZoneIdentifier = TimeZone.autoupdatingCurrent.identifier
             persistCurrentRecord()
             await syncCurrentRecordToCloudIfNeeded()
         } catch {
@@ -577,12 +612,7 @@ final class AppViewModel: ObservableObject {
     }
 
     private func isDefaultMealEntry(_ entry: MealEntry) -> Bool {
-        preferences.defaultMealSlots.contains { slot in
-            if slot.kind == .custom {
-                return entry.mealKind == .custom && entry.customTitle == slot.title
-            }
-            return entry.mealKind == slot.kind
-        }
+        preferences.defaultMealSlots.contains { mealEntry(entry, matches: $0) }
     }
 
     private func loadSelectedRecord() throws {
@@ -591,15 +621,18 @@ final class AppViewModel: ObservableObject {
             return
         }
         var record = try repository.loadRecord(for: selectedDate, preferences: preferences, userID: user.userID)
+        record = record.backfillingRecordedTimeZones(TimeZone.autoupdatingCurrent.identifier)
         record.sleepRecord.targetBedtime = preferences.bedtimeSchedule.target(for: selectedDate)
         dailyRecord = mergedRecord(record, with: preferences)
         updateSunTimesIfPossible()
+        refreshLocationIfAuthorized()
         Task { await syncHealthKitForCurrentDate() }
     }
 
     private func loadAllRecords(for userID: String) throws {
-        allRecords = try repository.loadAllRecords(userID: userID)
+        let records = try repository.loadAllRecords(userID: userID)
             .filter { $0.date >= availableStartDate }
+        allRecords = try migrateRecordedTimeZonesIfNeeded(in: records, userID: userID)
     }
 
     private func persistCurrentRecord() {
@@ -696,9 +729,7 @@ final class AppViewModel: ObservableObject {
                 let store = LocalJSONStore()
                 var database = try store.load()
                 let localRecordMap = database.recordsByUser[user.userID] ?? [:]
-                let remoteRecordMap = Dictionary(
-                    uniqueKeysWithValues: payload.records.map { ($0.date.storageKey(), $0) }
-                )
+                let remoteRecordMap = Self.recordsByStorageKey(payload.records)
                 var merged = remoteRecordMap
                 for (key, localRecord) in localRecordMap {
                     guard let remoteRecord = merged[key] else {
@@ -720,11 +751,13 @@ final class AppViewModel: ObservableObject {
                             mergedRecord.meals[i].photoURL = remotePhoto
                         }
                     }
-                    merged[key] = mergedRecord
+                    merged[key] = mergedRecord.backfillingRecordedTimeZones(TimeZone.autoupdatingCurrent.identifier)
                 }
-                database.recordsByUser[user.userID] = merged
+                database.recordsByUser[user.userID] = merged.mapValues {
+                    $0.backfillingRecordedTimeZones(TimeZone.autoupdatingCurrent.identifier)
+                }
                 try store.save(database)
-                allRecords = merged.values.sorted { $0.date < $1.date }
+                allRecords = database.recordsByUser[user.userID]?.values.sorted { $0.date < $1.date } ?? []
             }
         } catch {
             errorMessage = NSLocalizedString("云端同步失败：", comment: "") + error.localizedDescription
@@ -771,5 +804,153 @@ final class AppViewModel: ObservableObject {
         }
 
         return longest
+    }
+
+    nonisolated static func recordsByStorageKey(_ records: [DailyRecord]) -> [String: DailyRecord] {
+        records.reduce(into: [:]) { partialResult, record in
+            let normalized = normalizedRecord(record)
+            let key = normalized.date.storageKey()
+
+            if let existing = partialResult[key] {
+                partialResult[key] = preferredRecord(between: existing, and: normalized)
+            } else {
+                partialResult[key] = normalized
+            }
+        }
+    }
+
+    private nonisolated static func normalizedRecord(_ record: DailyRecord) -> DailyRecord {
+        var normalized = record
+        normalized.date = record.date.startOfDay
+        return normalized
+    }
+
+    private nonisolated static func preferredRecord(between lhs: DailyRecord, and rhs: DailyRecord) -> DailyRecord {
+        let lhsScore = completenessScore(for: lhs)
+        let rhsScore = completenessScore(for: rhs)
+
+        if lhsScore != rhsScore {
+            return lhsScore > rhsScore ? lhs : rhs
+        }
+
+        return lhs.date >= rhs.date ? lhs : rhs
+    }
+
+    private nonisolated static func completenessScore(for record: DailyRecord) -> Int {
+        var score = 0
+
+        if record.sleepRecord.bedtimePreviousNight != nil {
+            score += 2
+        }
+        if record.sleepRecord.wakeTimeCurrentDay != nil {
+            score += 2
+        }
+        score += record.sleepRecord.stageIntervals.count * 2
+        score += record.showers.count
+
+        for meal in record.meals {
+            switch meal.status {
+            case .logged:
+                score += 2
+            case .skipped:
+                score += 1
+            case .empty:
+                break
+            }
+
+            if meal.time != nil {
+                score += 1
+            }
+            if meal.photoURL?.isEmpty == false {
+                score += 1
+            }
+        }
+
+        if record.sunTimes != nil {
+            score += 1
+        }
+
+        return score
+    }
+
+    private func bindLocationService() {
+        Publishers.CombineLatest3(
+            locationService.$latestLocation,
+            locationService.$detectedTimeZone,
+            locationService.$permissionState
+        )
+        .receive(on: RunLoop.main)
+        .sink { [weak self] _, _, permissionState in
+            guard let self else { return }
+            self.preferences.locationPermissionState = permissionState
+            guard permissionState == .authorized else {
+                self.dailyRecord.sunTimes = nil
+                return
+            }
+            self.updateSunTimesIfPossible()
+        }
+        .store(in: &cancellables)
+    }
+
+    private func refreshLocationIfAuthorized() {
+        guard locationService.permissionState == .authorized else { return }
+        locationService.refreshCurrentLocation()
+    }
+
+    private func migrateRecordedTimeZonesIfNeeded(in records: [DailyRecord], userID: String) throws -> [DailyRecord] {
+        let identifier = TimeZone.autoupdatingCurrent.identifier
+        let migrated = records.map { $0.backfillingRecordedTimeZones(identifier) }
+        guard migrated != records else { return migrated.sorted { $0.date < $1.date } }
+        for record in migrated {
+            try repository.saveRecord(record, userID: userID)
+        }
+        return migrated.sorted { $0.date < $1.date }
+    }
+
+    private func mealEntry(_ entry: MealEntry, matches slot: MealSlot) -> Bool {
+        if slot.kind == .custom {
+            return entry.mealKind == .custom && entry.customTitle == slot.title
+        }
+        return entry.mealKind == slot.kind
+    }
+
+    private func deletePhotoIfLocal(at path: String) throws {
+        guard !Self.isRemotePhotoURL(path) else { return }
+        try photoStorageService.deletePhoto(at: path)
+    }
+
+    func displayedTimeZone(for recordedTimeZoneIdentifier: String?) -> TimeZone {
+        switch preferences.timeDisplayMode {
+        case .current:
+            return .autoupdatingCurrent
+        case .recorded:
+            if let recordedTimeZoneIdentifier,
+               let timeZone = TimeZone(identifier: recordedTimeZoneIdentifier) {
+                return timeZone
+            }
+            return .autoupdatingCurrent
+        }
+    }
+
+    func displayedClockTime(for date: Date?, recordedTimeZoneIdentifier: String?) -> String {
+        guard let date else { return "--:--" }
+        return date.displayClockTime(in: displayedTimeZone(for: recordedTimeZoneIdentifier))
+    }
+
+    func displayedShortTime(for date: Date, recordedTimeZoneIdentifier: String?) -> String {
+        date.displayShortTime(in: displayedTimeZone(for: recordedTimeZoneIdentifier))
+    }
+
+    private func editedTimeZoneIdentifier(for recordedTimeZoneIdentifier: String?) -> String {
+        switch preferences.timeDisplayMode {
+        case .current:
+            return TimeZone.autoupdatingCurrent.identifier
+        case .recorded:
+            return recordedTimeZoneIdentifier ?? TimeZone.autoupdatingCurrent.identifier
+        }
+    }
+
+    private nonisolated static func isRemotePhotoURL(_ path: String) -> Bool {
+        path.hasPrefix("http://") || path.hasPrefix("https://")
     }
 }

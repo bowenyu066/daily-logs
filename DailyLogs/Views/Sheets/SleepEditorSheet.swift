@@ -23,6 +23,7 @@ enum SleepEditorTarget: String, Identifiable {
 
 struct SleepEditorSheet: View {
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var appViewModel: AppViewModel
 
     @State private var selectedTime: Date
 
@@ -61,7 +62,10 @@ struct SleepEditorSheet: View {
                     .font(.system(size: 18, weight: .semibold, design: .rounded))
                     .foregroundStyle(AppTheme.secondaryText)
 
-                Text(selectedTime.displayClockTime)
+                Text(appViewModel.displayedClockTime(
+                    for: selectedTime,
+                    recordedTimeZoneIdentifier: appViewModel.dailyRecord.sleepRecord.timeZoneIdentifier
+                ))
                     .font(.system(size: 46, weight: .bold, design: .rounded))
                     .foregroundStyle(target.accent)
                     .monospacedDigit()
@@ -74,6 +78,7 @@ struct SleepEditorSheet: View {
             )
             .datePickerStyle(.wheel)
             .labelsHidden()
+            .environment(\.timeZone, appViewModel.displayedTimeZone(for: appViewModel.dailyRecord.sleepRecord.timeZoneIdentifier))
 
             if hasExistingValue {
                 Button(NSLocalizedString("清除记录", comment: ""), role: .destructive) {
@@ -113,19 +118,22 @@ struct SleepEditorSheet: View {
     }
 
     private var normalizedTime: Date {
-        let components = Calendar.current.dateComponents([.hour, .minute], from: selectedTime)
+        let timeZone = appViewModel.displayedTimeZone(for: appViewModel.dailyRecord.sleepRecord.timeZoneIdentifier)
+        var calendar = Calendar.current
+        calendar.timeZone = timeZone
+        let components = calendar.dateComponents([.hour, .minute], from: selectedTime)
         let hour = components.hour ?? 23
         let minute = components.minute ?? 30
 
         switch target {
         case .bedtime:
             if hour >= 12 {
-                return baseDate.adding(days: -1).settingTime(hour: hour, minute: minute)
+                return baseDate.adding(days: -1).settingTime(hour: hour, minute: minute, in: timeZone)
             } else {
-                return baseDate.settingTime(hour: hour, minute: minute)
+                return baseDate.settingTime(hour: hour, minute: minute, in: timeZone)
             }
         case .wakeTime:
-            return baseDate.settingTime(hour: hour, minute: minute)
+            return baseDate.settingTime(hour: hour, minute: minute, in: timeZone)
         }
     }
 }

@@ -10,7 +10,7 @@ struct HomeView: View {
     @State private var editingMealContext: MealEditorContext?
     @State private var editingShower: ShowerEntry?
     @State private var showingNewShower = false
-    @State private var previewingPhoto: UIImage?
+    @State private var previewingPhotoURL: String?
 
     var body: some View {
         NavigationStack {
@@ -29,6 +29,9 @@ struct HomeView: View {
                     }
                     .padding(.horizontal, 18)
                     .padding(.vertical, 16)
+                }
+                .refreshable {
+                    await appViewModel.refreshHomeData()
                 }
             }
             .navigationTitle(NSLocalizedString("主页", comment: ""))
@@ -94,7 +97,13 @@ struct HomeView: View {
             }
             .sheet(isPresented: $showingNewShower) {
                 ShowerEditorSheet(
-                    initialValue: ShowerEntry(time: appViewModel.selectedDate.settingTime(hour: 21, minute: 30)),
+                    initialValue: ShowerEntry(
+                        time: appViewModel.selectedDate.settingTime(
+                            hour: 21,
+                            minute: 30,
+                            in: appViewModel.displayedTimeZone(for: nil)
+                        )
+                    ),
                     baseDate: appViewModel.selectedDate,
                     isEditable: appViewModel.canEditSelectedDate,
                     onSave: { updated in
@@ -113,11 +122,11 @@ struct HomeView: View {
                 Text(appViewModel.errorMessage ?? "")
             })
             .fullScreenCover(item: Binding(
-                get: { previewingPhoto.map { IdentifiableImage(image: $0) } },
-                set: { if $0 == nil { previewingPhoto = nil } }
+                get: { previewingPhotoURL.map { IdentifiablePhoto(url: $0) } },
+                set: { if $0 == nil { previewingPhotoURL = nil } }
             )) { item in
-                PhotoPreviewOverlay(image: item.image) {
-                    previewingPhoto = nil
+                PhotoPreviewOverlay(photoURL: item.url) {
+                    previewingPhotoURL = nil
                 }
             }
         }
@@ -168,7 +177,10 @@ struct HomeView: View {
 
             HStack(spacing: 16) {
                 Label {
-                    Text(formattedSun(appViewModel.dailyRecord.sunTimes?.sunrise))
+                    Text(formattedSun(
+                        appViewModel.dailyRecord.sunTimes?.sunrise,
+                        timeZoneIdentifier: appViewModel.dailyRecord.sunTimes?.timeZoneIdentifier
+                    ))
                         .font(.system(size: 15, weight: .semibold, design: .rounded))
                         .foregroundStyle(AppTheme.primaryText)
                         .monospacedDigit()
@@ -179,7 +191,10 @@ struct HomeView: View {
                 }
 
                 Label {
-                    Text(formattedSun(appViewModel.dailyRecord.sunTimes?.sunset))
+                    Text(formattedSun(
+                        appViewModel.dailyRecord.sunTimes?.sunset,
+                        timeZoneIdentifier: appViewModel.dailyRecord.sunTimes?.timeZoneIdentifier
+                    ))
                         .font(.system(size: 15, weight: .semibold, design: .rounded))
                         .foregroundStyle(AppTheme.primaryText)
                         .monospacedDigit()
@@ -226,7 +241,10 @@ struct HomeView: View {
                         Text(NSLocalizedString("入睡", comment: ""))
                             .font(.system(size: 14, weight: .semibold, design: .rounded))
                             .foregroundStyle(AppTheme.secondaryText)
-                        Text(appViewModel.dailyRecord.sleepRecord.bedtimePreviousNight?.displayClockTime ?? "--:--")
+                        Text(appViewModel.displayedClockTime(
+                            for: appViewModel.dailyRecord.sleepRecord.bedtimePreviousNight,
+                            recordedTimeZoneIdentifier: appViewModel.dailyRecord.sleepRecord.timeZoneIdentifier
+                        ))
                             .font(.system(size: 18, weight: .bold, design: .rounded))
                             .foregroundStyle(AppTheme.sleepAccent)
                             .monospacedDigit()
@@ -241,7 +259,10 @@ struct HomeView: View {
                         Text(NSLocalizedString("起床", comment: ""))
                             .font(.system(size: 14, weight: .semibold, design: .rounded))
                             .foregroundStyle(AppTheme.secondaryText)
-                        Text(appViewModel.dailyRecord.sleepRecord.wakeTimeCurrentDay?.displayClockTime ?? "--:--")
+                        Text(appViewModel.displayedClockTime(
+                            for: appViewModel.dailyRecord.sleepRecord.wakeTimeCurrentDay,
+                            recordedTimeZoneIdentifier: appViewModel.dailyRecord.sleepRecord.timeZoneIdentifier
+                        ))
                             .font(.system(size: 18, weight: .bold, design: .rounded))
                             .foregroundStyle(AppTheme.wakeAccent)
                             .monospacedDigit()
@@ -263,7 +284,12 @@ struct HomeView: View {
 
     private var mealSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            SectionHeader(title: NSLocalizedString("餐食", comment: ""), subtitle: nil)
+            HStack {
+                Text(NSLocalizedString("餐食", comment: ""))
+                    .font(.system(size: 22, weight: .bold, design: .rounded))
+                    .foregroundStyle(AppTheme.primaryText)
+                Spacer()
+            }
 
             VStack(spacing: 0) {
                 ForEach(Array(appViewModel.dailyRecord.meals.enumerated()), id: \.element.id) { index, meal in
@@ -281,7 +307,11 @@ struct HomeView: View {
                             mealKind: .custom,
                             customTitle: NSLocalizedString("加餐", comment: ""),
                             status: .logged,
-                            time: appViewModel.selectedDate.settingTime(hour: 15, minute: 0),
+                            time: appViewModel.selectedDate.settingTime(
+                                hour: 15,
+                                minute: 0,
+                                in: appViewModel.displayedTimeZone(for: nil)
+                            ),
                             photoURL: nil
                         ),
                         preferredSource: .timeOnly
@@ -381,7 +411,12 @@ struct HomeView: View {
 
                     switch effectiveStatus {
                     case .logged:
-                        Text(meal.time?.displayClockTime ?? NSLocalizedString("已记录", comment: ""))
+                        Text(meal.time.map {
+                            appViewModel.displayedClockTime(
+                                for: $0,
+                                recordedTimeZoneIdentifier: meal.timeZoneIdentifier
+                            )
+                        } ?? NSLocalizedString("已记录", comment: ""))
                             .font(.system(size: 15, weight: .semibold, design: .rounded))
                             .foregroundStyle(accentColor)
                             .monospacedDigit()
@@ -399,13 +434,11 @@ struct HomeView: View {
             .buttonStyle(.plain)
             .disabled(!appViewModel.canEditSelectedDate)
 
-            if let thumbnail = mealThumbnail(meal) {
+            if let photoURL = meal.photoURL {
                 Button {
-                    previewingPhoto = thumbnail
+                    previewingPhotoURL = photoURL
                 } label: {
-                    Image(uiImage: thumbnail)
-                        .resizable()
-                        .scaledToFill()
+                    PhotoContentView(photoURL: photoURL, contentMode: .fill)
                         .frame(width: 36, height: 36)
                         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                 }
@@ -419,12 +452,23 @@ struct HomeView: View {
 
     private var showerSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            SectionHeader(
-                title: NSLocalizedString("洗澡", comment: ""),
-                subtitle: nil,
-                actionTitle: appViewModel.canEditSelectedDate ? NSLocalizedString("添加", comment: "") : nil
-            ) {
-                showingNewShower = true
+            HStack(alignment: .center) {
+                Text(NSLocalizedString("洗澡", comment: ""))
+                    .font(.system(size: 22, weight: .bold, design: .rounded))
+                    .foregroundStyle(AppTheme.primaryText)
+
+                if appViewModel.canEditSelectedDate {
+                    Button(NSLocalizedString("添加", comment: "")) {
+                        showingNewShower = true
+                    }
+                    .font(.system(size: 14, weight: .semibold, design: .rounded))
+                    .foregroundStyle(AppTheme.accent)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(AppTheme.accentSoft)
+                    .clipShape(Capsule())
+                }
+                Spacer()
             }
 
             if appViewModel.dailyRecord.showers.isEmpty {
@@ -447,7 +491,10 @@ struct HomeView: View {
                             Button {
                                 editingShower = shower
                             } label: {
-                                Text(shower.time.formatted(date: .omitted, time: .shortened))
+                                Text(appViewModel.displayedShortTime(
+                                    for: shower.time,
+                                    recordedTimeZoneIdentifier: shower.timeZoneIdentifier
+                                ))
                                     .font(.system(size: 17, weight: .bold, design: .rounded))
                                     .foregroundStyle(AppTheme.showerAccent)
                                     .monospacedDigit()
@@ -485,8 +532,8 @@ struct HomeView: View {
         return "\(hours) h \(minutes) m"
     }
 
-    private func formattedSun(_ date: Date?) -> String {
-        date?.displayClockTime ?? "--:--"
+    private func formattedSun(_ date: Date?, timeZoneIdentifier: String?) -> String {
+        appViewModel.displayedClockTime(for: date, recordedTimeZoneIdentifier: timeZoneIdentifier)
     }
 
     private func mealAccentColor(_ meal: MealEntry) -> Color {
@@ -496,11 +543,6 @@ struct HomeView: View {
         case .dinner: AppTheme.sleepAccent
         case .custom: AppTheme.sunriseAccent
         }
-    }
-
-    private func mealThumbnail(_ meal: MealEntry) -> UIImage? {
-        guard let photoURL = meal.photoURL else { return nil }
-        return UIImage(contentsOfFile: photoURL)
     }
 
     private func openMealEditor(_ meal: MealEntry, with source: MealCaptureMode) {
@@ -585,22 +627,20 @@ struct SleepStageBar: View {
 
 // MARK: - Photo Preview
 
-private struct IdentifiableImage: Identifiable {
+private struct IdentifiablePhoto: Identifiable {
     let id = UUID()
-    let image: UIImage
+    let url: String
 }
 
 struct PhotoPreviewOverlay: View {
-    let image: UIImage
+    let photoURL: String
     let onDismiss: () -> Void
 
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
 
-            Image(uiImage: image)
-                .resizable()
-                .scaledToFit()
+            PhotoContentView(photoURL: photoURL, contentMode: .fit)
                 .ignoresSafeArea()
         }
         .overlay(alignment: .topLeading) {

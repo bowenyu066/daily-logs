@@ -1,34 +1,113 @@
 {
   "sourceLanguage" : "zh-Hans",
   "strings" : {
-    "NSHealthShareUsageDescription" : {
+    "CFBundleName" : {
+      "comment" : "Bundle name",
+      "extractionState" : "extracted_with_value",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Used to automatically sync your sleep data, replacing manual input." } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "用于自动同步你的睡眠数据，替代手动输入。" } }
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "DailyLogs"
+          }
+        }
       }
     },
     "NSCameraUsageDescription" : {
+      "comment" : "Privacy - Camera Usage Description",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Used to take photos for meal records." } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "用于为餐食记录拍照。" } }
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Used to take photos for meal records."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用于为餐食记录拍照。"
+          }
+        }
+      }
+    },
+    "NSHealthShareUsageDescription" : {
+      "comment" : "Privacy - Health Share Usage Description",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Used to automatically sync your sleep data, replacing manual input."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用于自动同步你的睡眠数据，替代手动输入。"
+          }
+        }
+      }
+    },
+    "NSHealthUpdateUsageDescription" : {
+      "comment" : "Privacy - Health Update Usage Description",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "用于在你手动记录或修正睡眠数据时，与 Apple Health 保持一致。"
+          }
+        }
       }
     },
     "NSLocationWhenInUseUsageDescription" : {
+      "comment" : "Privacy - Location When In Use Usage Description",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Used to display sunrise and sunset times for your area." } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "用于显示你所在地区的日出日落时间。" } }
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Used to display sunrise and sunset times for your area."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用于显示你所在地区的日出日落时间。"
+          }
+        }
       }
     },
     "NSPhotoLibraryAddUsageDescription" : {
+      "comment" : "Privacy - Photo Library Additions Usage Description",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Used to save meal photos you have taken." } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "用于保存你拍摄的餐食照片。" } }
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Used to save meal photos you have taken."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用于保存你拍摄的餐食照片。"
+          }
+        }
       }
     },
     "NSPhotoLibraryUsageDescription" : {
+      "comment" : "Privacy - Photo Library Usage Description",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Used to select meal photos from your photo library." } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "用于从相册选择餐食照片。" } }
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Used to select meal photos from your photo library."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用于从相册选择餐食照片。"
+          }
+        }
       }
     }
   },
