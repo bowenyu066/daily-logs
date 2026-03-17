@@ -11,6 +11,7 @@ struct HomeView: View {
     @State private var editingShower: ShowerEntry?
     @State private var showingNewShower = false
     @State private var previewingPhotoURL: String?
+    @State private var showingHealthKitSyncConfirmation = false
 
     var body: some View {
         NavigationStack {
@@ -121,6 +122,14 @@ struct HomeView: View {
             }, message: {
                 Text(appViewModel.errorMessage ?? "")
             })
+            .alert(NSLocalizedString("是否从 Apple Health 同步数据？", comment: ""), isPresented: $showingHealthKitSyncConfirmation) {
+                Button(NSLocalizedString("取消", comment: ""), role: .cancel) {}
+                Button(NSLocalizedString("确认", comment: "")) {
+                    Task { await appViewModel.overwriteSleepWithHealthKit() }
+                }
+            } message: {
+                Text(NSLocalizedString("此操作将会覆盖已有数据。", comment: ""))
+            }
             .fullScreenCover(item: Binding(
                 get: { previewingPhotoURL.map { IdentifiablePhoto(url: $0) } },
                 set: { if $0 == nil { previewingPhotoURL = nil } }
@@ -217,6 +226,20 @@ struct HomeView: View {
                     .font(.system(size: 22, weight: .bold, design: .rounded))
                     .foregroundStyle(AppTheme.primaryText)
                 Spacer()
+                if appViewModel.preferences.healthKitSyncEnabled {
+                    Button {
+                        showingHealthKitSyncConfirmation = true
+                    } label: {
+                        Label(NSLocalizedString("同步", comment: ""), systemImage: "arrow.triangle.2.circlepath")
+                            .font(.system(size: 13, weight: .semibold, design: .rounded))
+                            .foregroundStyle(AppTheme.accent)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 7)
+                            .background(AppTheme.accentSoft)
+                            .clipShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                }
                 Button {
                     showingTargetBedtime = true
                 } label: {

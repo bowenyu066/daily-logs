@@ -571,9 +571,9 @@ final class AppViewModel: ObservableObject {
         }
     }
 
-    func syncHealthKitForCurrentDate() async {
+    func syncHealthKitForCurrentDate(overwritingExistingData: Bool = false) async {
         guard preferences.healthKitSyncEnabled, let user else { return }
-        guard !dailyRecord.sleepRecord.blocksHealthKitSync else { return }
+        guard overwritingExistingData || !dailyRecord.sleepRecord.blocksHealthKitSync else { return }
         do {
             guard let hkSleep = try await healthSyncAdapter.fetchSleepData(
                 for: selectedDate,
@@ -590,6 +590,10 @@ final class AppViewModel: ObservableObject {
         } catch {
             errorMessage = NSLocalizedString("HealthKit 同步失败：", comment: "") + error.localizedDescription
         }
+    }
+
+    func overwriteSleepWithHealthKit() async {
+        await syncHealthKitForCurrentDate(overwritingExistingData: true)
     }
 
     func formattedTargetBedtime() -> String {
