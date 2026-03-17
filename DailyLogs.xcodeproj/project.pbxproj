@@ -42,6 +42,7 @@
 		DEAFBF139E59BF3CD1C66C1A /* SectionHeader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 432E478CA32978E10CBE8E93 /* SectionHeader.swift */; };
 		EBAD80E1B4B1CBBB28DBAC22 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12C02AFAD5427640EE2B07E9 /* RootView.swift */; };
 		FAA742A273B4A2565F8E72C3 /* DefaultMealSlotsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0EE15D79A393C8AB962EBC89 /* DefaultMealSlotsSheet.swift */; };
+		FF08C0273CB48779032AC8FC /* RemotePhotoCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 189BC1E086E2F96A134F1D4D /* RemotePhotoCache.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -58,6 +59,7 @@
 		0AB65DE0793FD9C1F33F55FA /* HealthKitService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthKitService.swift; sourceTree = "<group>"; };
 		0EE15D79A393C8AB962EBC89 /* DefaultMealSlotsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefaultMealSlotsSheet.swift; sourceTree = "<group>"; };
 		12C02AFAD5427640EE2B07E9 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
+		189BC1E086E2F96A134F1D4D /* RemotePhotoCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemotePhotoCache.swift; sourceTree = "<group>"; };
 		1952A565E83EBA9DBEAAB3EB /* ShowerEditorSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShowerEditorSheet.swift; sourceTree = "<group>"; };
 		1D722F3BE20818A492AAE8CF /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		24911E06DE213238FD9EC904 /* TargetBedtimeSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TargetBedtimeSheet.swift; sourceTree = "<group>"; };
@@ -200,6 +202,7 @@
 			children = (
 				6CDD5864423CDE853439D36C /* CloudSyncService.swift */,
 				0AB65DE0793FD9C1F33F55FA /* HealthKitService.swift */,
+				189BC1E086E2F96A134F1D4D /* RemotePhotoCache.swift */,
 				829D2D327EEAB6E3CF6799DA /* Services.swift */,
 			);
 			path = Services;
@@ -288,6 +291,11 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					C5251B84CC15BB41A0582704 = {
+						DevelopmentTeam = FMKLLHVL75;
+					};
+				};
 			};
 			buildConfigurationList = D4929F87BCBFBB48CED770A4 /* Build configuration list for PBXProject "DailyLogs" */;
 			compatibilityVersion = "Xcode 14.0";
@@ -350,6 +358,7 @@
 				D945D660D8D556FA0B7E6900 /* MealEditorSheet.swift in Sources */,
 				A689B0A49862ECE1CD6E0896 /* Models.swift in Sources */,
 				94B70837350058DC1C22E8A5 /* PhotoContentView.swift in Sources */,
+				FF08C0273CB48779032AC8FC /* RemotePhotoCache.swift in Sources */,
 				EBAD80E1B4B1CBBB28DBAC22 /* RootView.swift in Sources */,
 				DEAFBF139E59BF3CD1C66C1A /* SectionHeader.swift in Sources */,
 				C856BAB61B27C87C412FA4E4 /* Services.swift in Sources */,

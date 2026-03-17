@@ -5,27 +5,28 @@ struct PhotoContentView: View {
     let photoURL: String
     var contentMode: ContentMode = .fill
 
+    @State private var remoteUIImage: UIImage?
+    @State private var isLoadingRemoteImage = false
+    @State private var loadedRemotePhotoURL: String?
+
     var body: some View {
-        if let remoteURL = remoteURL {
-            AsyncImage(url: remoteURL) { phase in
-                switch phase {
-                case .success(let image):
-                    configured(image)
-                case .failure:
-                    placeholder
-                case .empty:
-                    ZStack {
-                        placeholder
-                        ProgressView()
-                    }
-                @unknown default:
-                    placeholder
-                }
+        Group {
+            if remoteURL != nil {
+                remoteContent
+            } else if let uiImage = UIImage(contentsOfFile: photoURL) {
+                configured(Image(uiImage: uiImage))
+            } else {
+                placeholder
             }
-        } else if let uiImage = UIImage(contentsOfFile: photoURL) {
-            configured(Image(uiImage: uiImage))
-        } else {
-            placeholder
+        }
+        .task(id: photoURL) {
+            guard let remoteURL else {
+                remoteUIImage = nil
+                loadedRemotePhotoURL = nil
+                isLoadingRemoteImage = false
+                return
+            }
+            await loadRemoteImage(from: remoteURL)
         }
     }
 
@@ -40,6 +41,20 @@ struct PhotoContentView: View {
             .aspectRatio(contentMode: contentMode)
     }
 
+    @ViewBuilder
+    private var remoteContent: some View {
+        if let remoteUIImage {
+            configured(Image(uiImage: remoteUIImage))
+        } else if isLoadingRemoteImage {
+            ZStack {
+                placeholder
+                ProgressView()
+            }
+        } else {
+            placeholder
+        }
+    }
+
     private var placeholder: some View {
         RoundedRectangle(cornerRadius: 18, style: .continuous)
             .fill(AppTheme.surface)
@@ -48,5 +63,15 @@ struct PhotoContentView: View {
                     .font(.system(size: 24, weight: .semibold))
                     .foregroundStyle(AppTheme.secondaryText)
             }
+    }
+
+    @MainActor
+    private func loadRemoteImage(from remoteURL: URL) async {
+        guard loadedRemotePhotoURL != remoteURL.absoluteString else { return }
+        remoteUIImage = nil
+        loadedRemotePhotoURL = remoteURL.absoluteString
+        isLoadingRemoteImage = true
+        remoteUIImage = await RemotePhotoCache.shared.image(for: remoteURL)
+        isLoadingRemoteImage = false
     }
 }

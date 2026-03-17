@@ -5,6 +5,7 @@ packages:
     from: 11.0.0
 options:
   bundleIdPrefix: com.flyfishyu
+  developmentLanguage: zh-Hans
   deploymentTarget:
     iOS: "17.0"
 settings:

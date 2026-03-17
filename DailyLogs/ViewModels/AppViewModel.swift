@@ -203,6 +203,7 @@ final class AppViewModel: ObservableObject {
             allRecords = []
             selectedDate = .now.startOfDay
             dailyRecord = DailyRecord.empty(for: selectedDate, preferences: preferences)
+            Task { await refreshRemotePhotoCache() }
         } catch {
             errorMessage = NSLocalizedString("退出失败：", comment: "") + error.localizedDescription
         }
@@ -637,6 +638,7 @@ final class AppViewModel: ObservableObject {
         let records = try repository.loadAllRecords(userID: userID)
             .filter { $0.date >= availableStartDate }
         allRecords = try migrateRecordedTimeZonesIfNeeded(in: records, userID: userID)
+        Task { await refreshRemotePhotoCache() }
     }
 
     private func persistCurrentRecord() {
@@ -762,6 +764,7 @@ final class AppViewModel: ObservableObject {
                 }
                 try store.save(database)
                 allRecords = database.recordsByUser[user.userID]?.values.sorted { $0.date < $1.date } ?? []
+                await refreshRemotePhotoCache()
             }
         } catch {
             errorMessage = NSLocalizedString("云端同步失败：", comment: "") + error.localizedDescription
@@ -808,6 +811,27 @@ final class AppViewModel: ObservableObject {
         }
 
         return longest
+    }
+
+    private func refreshRemotePhotoCache() async {
+        await RemotePhotoCache.shared.syncRetention(with: recentRemotePhotoURLs())
+    }
+
+    private func recentRemotePhotoURLs() -> [String] {
+        let lowerBound = Date().startOfDay.adding(days: -6)
+        let urls = allRecords
+            .filter { $0.date >= lowerBound }
+            .flatMap { record in
+                record.meals
+                    .compactMap(\.photoURL)
+                    .filter(Self.isRemotePhotoURL)
+            }
+
+        return Array(Set(urls))
+    }
+
+    private static func isRemotePhotoURL(_ urlString: String) -> Bool {
+        urlString.hasPrefix("http://") || urlString.hasPrefix("https://")
     }
 
     nonisolated static func recordsByStorageKey(_ records: [DailyRecord]) -> [String: DailyRecord] {
@@ -952,9 +976,5 @@ final class AppViewModel: ObservableObject {
         case .recorded:
             return recordedTimeZoneIdentifier ?? TimeZone.autoupdatingCurrent.identifier
         }
-    }
-
-    private nonisolated static func isRemotePhotoURL(_ path: String) -> Bool {
-        path.hasPrefix("http://") || path.hasPrefix("https://")
     }
 }
