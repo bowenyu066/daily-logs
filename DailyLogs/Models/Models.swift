@@ -307,6 +307,10 @@ struct MealEntry: Codable, Equatable, Identifiable {
     var time: Date?
     var photoURL: String?
     var timeZoneIdentifier: String?
+    var note: String?
+    var locationName: String?
+    var latitude: Double?
+    var longitude: Double?
 
     var displayTitle: String {
         customTitle?.isEmpty == false ? customTitle! : mealKind.title
@@ -337,6 +341,7 @@ struct MealEntry: Codable, Equatable, Identifiable {
 
     enum CodingKeys: String, CodingKey {
         case id, mealKind, customTitle, status, time, photoURL, timeZoneIdentifier
+        case note, locationName, latitude, longitude
     }
 
     init(
@@ -346,7 +351,11 @@ struct MealEntry: Codable, Equatable, Identifiable {
         status: MealStatus = .empty,
         time: Date? = nil,
         photoURL: String? = nil,
-        timeZoneIdentifier: String? = nil
+        timeZoneIdentifier: String? = nil,
+        note: String? = nil,
+        locationName: String? = nil,
+        latitude: Double? = nil,
+        longitude: Double? = nil
     ) {
         self.id = id
         self.mealKind = mealKind
@@ -355,6 +364,10 @@ struct MealEntry: Codable, Equatable, Identifiable {
         self.time = time
         self.photoURL = photoURL
         self.timeZoneIdentifier = timeZoneIdentifier
+        self.note = note
+        self.locationName = locationName
+        self.latitude = latitude
+        self.longitude = longitude
     }
 
     init(from decoder: any Decoder) throws {
@@ -366,6 +379,10 @@ struct MealEntry: Codable, Equatable, Identifiable {
         time = try container.decodeIfPresent(Date.self, forKey: .time)
         photoURL = try container.decodeIfPresent(String.self, forKey: .photoURL)
         timeZoneIdentifier = try container.decodeIfPresent(String.self, forKey: .timeZoneIdentifier)
+        note = try container.decodeIfPresent(String.self, forKey: .note)
+        locationName = try container.decodeIfPresent(String.self, forKey: .locationName)
+        latitude = try container.decodeIfPresent(Double.self, forKey: .latitude)
+        longitude = try container.decodeIfPresent(Double.self, forKey: .longitude)
     }
 }
 

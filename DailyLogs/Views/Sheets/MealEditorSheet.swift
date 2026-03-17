@@ -1,3 +1,4 @@
+import MapKit
 import Photos
 import SwiftUI
 import UIKit
@@ -9,6 +10,7 @@ enum MealCaptureMode {
     case editTime
     case addPhoto
     case editPhoto
+    case editRecord
 }
 
 struct MealEditorSheet: View {
@@ -21,6 +23,7 @@ struct MealEditorSheet: View {
     @State private var showingImagePicker = false
     @State private var didApplyInitialMode = false
     @State private var showingTimePicker: Bool
+    @State private var showingLocationPicker = false
 
     let baseDate: Date
     let preferredSource: MealCaptureMode
@@ -39,7 +42,7 @@ struct MealEditorSheet: View {
         onDelete: @escaping () -> Void
     ) {
         _draft = State(initialValue: entry)
-        _showingTimePicker = State(initialValue: preferredSource == .timeOnly || preferredSource == .editTime)
+        _showingTimePicker = State(initialValue: true)
         self.baseDate = baseDate
         self.preferredSource = preferredSource
         self.canDelete = canDelete
@@ -66,6 +69,9 @@ struct MealEditorSheet: View {
                     if shouldShowPhotoSection {
                         photoSection
                     }
+
+                    noteSection
+                    locationSection
                 }
                 .padding(24)
             }
@@ -102,7 +108,6 @@ struct MealEditorSheet: View {
                         if image != nil {
                             draft.status = .logged
                             draft.time = normalizedPickedDate(capturedAt) ?? draft.time ?? defaultLoggedTime
-                            showingTimePicker = false
                         }
                     }
                 }
@@ -116,61 +121,34 @@ struct MealEditorSheet: View {
                 .font(.system(size: 16, weight: .semibold, design: .rounded))
                 .foregroundStyle(AppTheme.secondaryText)
 
-            if showingTimePicker {
-                VStack(spacing: 12) {
-                    Text(appViewModel.displayedClockTime(
-                        for: draft.time ?? defaultLoggedTime,
-                        recordedTimeZoneIdentifier: draft.timeZoneIdentifier
-                    ))
-                        .font(.system(size: 34, weight: .bold, design: .rounded))
-                        .foregroundStyle(timeAccent)
-                        .monospacedDigit()
+            VStack(spacing: 12) {
+                Text(appViewModel.displayedClockTime(
+                    for: draft.time ?? defaultLoggedTime,
+                    recordedTimeZoneIdentifier: draft.timeZoneIdentifier
+                ))
+                    .font(.system(size: 34, weight: .bold, design: .rounded))
+                    .foregroundStyle(timeAccent)
+                    .monospacedDigit()
 
-                    DatePicker(
-                        "",
-                        selection: Binding(
-                            get: { draft.time ?? defaultLoggedTime },
-                            set: {
-                                draft.time = $0
-                                draft.status = .logged
-                            }
-                        ),
-                        displayedComponents: .hourAndMinute
-                    )
-                    .datePickerStyle(.wheel)
-                    .labelsHidden()
-                    .environment(\.timeZone, appViewModel.displayedTimeZone(for: draft.timeZoneIdentifier))
-                }
-                .padding(18)
-                .frame(maxWidth: .infinity)
-                .background(AppTheme.elevatedSurface)
-                .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-            } else {
-                Button {
-                    guard isEditable else { return }
-                    showingTimePicker = true
-                } label: {
-                    HStack {
-                        Text(NSLocalizedString("记录时间", comment: ""))
-                            .font(.system(size: 16, weight: .semibold, design: .rounded))
-                            .foregroundStyle(AppTheme.secondaryText)
-                        Spacer()
-                        Text(appViewModel.displayedClockTime(
-                            for: draft.time ?? defaultLoggedTime,
-                            recordedTimeZoneIdentifier: draft.timeZoneIdentifier
-                        ))
-                            .font(.system(size: 22, weight: .bold, design: .rounded))
-                            .foregroundStyle(timeAccent)
-                            .monospacedDigit()
-                    }
-                    .padding(.horizontal, 18)
-                    .padding(.vertical, 16)
-                    .background(AppTheme.elevatedSurface)
-                    .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-                }
-                .buttonStyle(.plain)
-                .disabled(!isEditable)
+                DatePicker(
+                    "",
+                    selection: Binding(
+                        get: { draft.time ?? defaultLoggedTime },
+                        set: {
+                            draft.time = $0
+                            draft.status = .logged
+                        }
+                    ),
+                    displayedComponents: .hourAndMinute
+                )
+                .datePickerStyle(.wheel)
+                .labelsHidden()
+                .environment(\.timeZone, appViewModel.displayedTimeZone(for: draft.timeZoneIdentifier))
             }
+            .padding(18)
+            .frame(maxWidth: .infinity)
+            .background(AppTheme.elevatedSurface)
+            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
         }
     }
 
@@ -219,11 +197,89 @@ struct MealEditorSheet: View {
         .disabled(!isEditable)
     }
 
+    private var noteSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(NSLocalizedString("备注", comment: ""))
+                .font(.system(size: 16, weight: .semibold, design: .rounded))
+                .foregroundStyle(AppTheme.secondaryText)
+
+            TextField(NSLocalizedString("备注", comment: ""), text: Binding(
+                get: { draft.note ?? "" },
+                set: { draft.note = $0.isEmpty ? nil : $0 }
+            ))
+            .font(.system(size: 16, design: .rounded))
+            .padding(.horizontal, 18)
+            .padding(.vertical, 14)
+            .background(AppTheme.elevatedSurface)
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .disabled(!isEditable)
+        }
+    }
+
+    private var locationSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(NSLocalizedString("位置", comment: ""))
+                .font(.system(size: 16, weight: .semibold, design: .rounded))
+                .foregroundStyle(AppTheme.secondaryText)
+
+            if let locationName = draft.locationName {
+                HStack {
+                    Image(systemName: "mappin.circle.fill")
+                        .foregroundStyle(AppTheme.accent)
+                    Text(locationName)
+                        .font(.system(size: 16, design: .rounded))
+                        .foregroundStyle(AppTheme.primaryText)
+                    Spacer()
+                    if isEditable {
+                        Button {
+                            draft.locationName = nil
+                            draft.latitude = nil
+                            draft.longitude = nil
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundStyle(AppTheme.secondaryText)
+                        }
+                    }
+                }
+                .padding(.horizontal, 18)
+                .padding(.vertical, 14)
+                .background(AppTheme.elevatedSurface)
+                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .onTapGesture {
+                    guard isEditable else { return }
+                    showingLocationPicker = true
+                }
+            } else {
+                Button {
+                    showingLocationPicker = true
+                } label: {
+                    Label(NSLocalizedString("添加位置", comment: ""), systemImage: "mappin.circle")
+                        .font(.system(size: 16, weight: .medium, design: .rounded))
+                        .foregroundStyle(AppTheme.accent)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 18)
+                        .padding(.vertical, 14)
+                        .background(AppTheme.elevatedSurface)
+                        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .disabled(!isEditable)
+            }
+        }
+        .sheet(isPresented: $showingLocationPicker) {
+            LocationPickerSheet { name, lat, lon in
+                draft.locationName = name
+                draft.latitude = lat
+                draft.longitude = lon
+            }
+        }
+    }
+
     private var shouldShowPhotoSection: Bool {
         switch preferredSource {
         case .timeOnly, .editTime:
             return selectedImage != nil || draft.photoURL != nil
-        case .camera, .photoLibrary, .addPhoto, .editPhoto:
+        case .camera, .photoLibrary, .addPhoto, .editPhoto, .editRecord:
             return true
         }
     }
@@ -235,6 +291,9 @@ struct MealEditorSheet: View {
             entry.customTitle = trimmed?.isEmpty == false ? trimmed : NSLocalizedString("加餐", comment: "")
         }
 
+        let trimmedNote = entry.note?.trimmingCharacters(in: .whitespacesAndNewlines)
+        entry.note = trimmedNote?.isEmpty == false ? trimmedNote : nil
+
         if selectedImage != nil || entry.photoURL != nil || entry.time != nil {
             entry.status = .logged
             entry.time = entry.time ?? defaultLoggedTime
@@ -244,6 +303,10 @@ struct MealEditorSheet: View {
             entry.time = nil
             entry.photoURL = nil
             entry.timeZoneIdentifier = nil
+            entry.note = nil
+            entry.locationName = nil
+            entry.latitude = nil
+            entry.longitude = nil
         }
         return entry
     }
@@ -285,7 +348,7 @@ struct MealEditorSheet: View {
         case .photoLibrary:
             draft.status = .logged
             openPicker(.photoLibrary)
-        case .addPhoto, .editPhoto:
+        case .addPhoto, .editPhoto, .editRecord:
             draft.status = .logged
         }
     }

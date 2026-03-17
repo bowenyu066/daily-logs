@@ -368,31 +368,14 @@ struct HomeView: View {
                 let isLogged = meal.time != nil || meal.hasPhoto
                 let canDeleteMeal = appViewModel.canDeleteMealEntry(meal)
 
-                if meal.hasPhoto {
-                    Button(NSLocalizedString("编辑照片", comment: "")) {
-                        openMealEditor(meal, with: .editPhoto)
+                if isLogged {
+                    Button(NSLocalizedString("修改记录", comment: "")) {
+                        openMealEditor(meal, with: .editRecord)
                     }
-                    Button(NSLocalizedString("修改时间", comment: "")) {
-                        openMealEditor(meal, with: .editTime)
-                    }
-                    Button(NSLocalizedString("删除照片", comment: ""), role: .destructive) {
-                        Task { await appViewModel.removeMealPhoto(meal) }
-                    }
-                    if canDeleteMeal {
-                        Button(NSLocalizedString("删除餐次", comment: ""), role: .destructive) {
-                            Task { await appViewModel.deleteMeal(meal) }
+                    if meal.hasPhoto {
+                        Button(NSLocalizedString("删除照片", comment: ""), role: .destructive) {
+                            Task { await appViewModel.removeMealPhoto(meal) }
                         }
-                    } else {
-                        Button(NSLocalizedString("删除记录", comment: ""), role: .destructive) {
-                            Task { await appViewModel.clearMealRecord(meal) }
-                        }
-                    }
-                } else if isLogged {
-                    Button(NSLocalizedString("添加图片", comment: "")) {
-                        openMealEditor(meal, with: .addPhoto)
-                    }
-                    Button(NSLocalizedString("修改时间", comment: "")) {
-                        openMealEditor(meal, with: .editTime)
                     }
                     if canDeleteMeal {
                         Button(NSLocalizedString("删除餐次", comment: ""), role: .destructive) {

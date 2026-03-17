@@ -49,22 +49,6 @@
         }
       }
     },
-    "30天" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "30d"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "30天"
-          }
-        }
-      }
-    },
     "7天" : {
       "localizations" : {
         "en" : {
@@ -77,6 +61,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "7天"
+          }
+        }
+      }
+    },
+    "30天" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "30d"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "30天"
           }
         }
       }
@@ -390,6 +390,22 @@
         }
       }
     },
+    "位置" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Location"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "位置"
+          }
+        }
+      }
+    },
     "位置权限" : {
       "localizations" : {
         "en" : {
@@ -419,6 +435,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "使用 Apple 登录"
+          }
+        }
+      }
+    },
+    "使用当前位置" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Use current location"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用当前位置"
           }
         }
       }
@@ -470,6 +502,7 @@
       }
     },
     "修改时间" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -481,6 +514,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "修改时间"
+          }
+        }
+      }
+    },
+    "修改记录" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Edit record"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "修改记录"
           }
         }
       }
@@ -981,6 +1030,22 @@
         }
       }
     },
+    "备注" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Note"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "备注"
+          }
+        }
+      }
+    },
     "外观" : {
       "localizations" : {
         "en" : {
@@ -1203,6 +1268,22 @@
         }
       }
     },
+    "当前位置" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Current location"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "当前位置"
+          }
+        }
+      }
+    },
     "当前时区" : {
       "localizations" : {
         "en" : {
@@ -1299,6 +1380,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "提示"
+          }
+        }
+      }
+    },
+    "搜索位置" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Search location"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "搜索位置"
           }
         }
       }
@@ -1659,6 +1756,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "添加"
+          }
+        }
+      }
+    },
+    "添加位置" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add location"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "添加位置"
           }
         }
       }
@@ -2165,6 +2278,7 @@
       }
     },
     "记录时间" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
