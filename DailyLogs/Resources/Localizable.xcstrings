@@ -19,6 +19,12 @@
     },
     "%@ %@" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ %2$@"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "new",
@@ -43,22 +49,6 @@
         }
       }
     },
-    "7天" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "7d"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "7天"
-          }
-        }
-      }
-    },
     "30天" : {
       "localizations" : {
         "en" : {
@@ -71,6 +61,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "30天"
+          }
+        }
+      }
+    },
+    "7天" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "7d"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "7天"
           }
         }
       }
@@ -706,7 +712,14 @@
       }
     },
     "刷新记录失败：" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Failed to refresh records: "
+          }
+        }
+      }
     },
     "前一晚入睡" : {
       "localizations" : {
@@ -794,6 +807,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "取消"
+          }
+        }
+      }
+    },
+    "同步" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sync"
           }
         }
       }
@@ -1023,10 +1046,24 @@
       }
     },
     "展示页使用绝对时间" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show absolute time"
+          }
+        }
+      }
     },
     "展示页全部使用记录地原始时间" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show original recorded time"
+          }
+        }
+      }
     },
     "已记录" : {
       "localizations" : {
@@ -1157,10 +1194,24 @@
       }
     },
     "当前" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Current"
+          }
+        }
+      }
     },
     "当前时区" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Current timezone"
+          }
+        }
+      }
     },
     "当天起床" : {
       "localizations" : {
@@ -1227,7 +1278,14 @@
       }
     },
     "按你当前所在时区换算显示同一时刻。" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Converts times to your current timezone."
+          }
+        }
+      }
     },
     "提示" : {
       "localizations" : {
@@ -1326,7 +1384,14 @@
       }
     },
     "时间展示方式" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Time display"
+          }
+        }
+      }
     },
     "时间范围" : {
       "localizations" : {
@@ -1340,6 +1405,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "时间范围"
+          }
+        }
+      }
+    },
+    "是否从 Apple Health 同步数据？" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sync data from Apple Health?"
           }
         }
       }
@@ -1414,6 +1489,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "未记录"
+          }
+        }
+      }
+    },
+    "此操作将会覆盖已有数据。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This will overwrite existing data."
           }
         }
       }
@@ -1898,6 +1983,16 @@
         }
       }
     },
+    "确认" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Confirm"
+          }
+        }
+      }
+    },
     "第%d次" : {
       "localizations" : {
         "en" : {
@@ -2060,7 +2155,14 @@
       }
     },
     "记录地" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recorded"
+          }
+        }
+      }
     },
     "记录时间" : {
       "localizations" : {
@@ -2388,10 +2490,24 @@
       }
     },
     "默认使用原始时间；跨时区后仍显示记录当时的本地时间。" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Uses the original local time from when the record was created, even across timezone changes."
+          }
+        }
+      }
     },
     "默认使用记录地原始时间，跨时区后回看旧记录时，仍保持记录当时的本地钟点。" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Defaults to the original recorded time. When reviewing past records from a different timezone, the original local time is preserved."
+          }
+        }
+      }
     },
     "默认餐次" : {
       "localizations" : {
