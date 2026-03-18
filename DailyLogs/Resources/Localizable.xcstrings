@@ -2407,22 +2407,6 @@
         }
       }
     },
-    "云端现在只保存密文。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Only encrypted data is stored in the cloud now."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "云端现在只保存密文。"
-          }
-        }
-      }
-    },
     "登录失败：" : {
       "localizations" : {
         "en" : {
@@ -2886,18 +2870,18 @@
         }
       }
     },
-    "让云端只保存密文。" : {
+    "开启加密后，所有数据将完全以加密方式安全存储在云端。" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Store only encrypted data in the cloud."
+            "value" : "After encryption is enabled, all data will be stored securely in the cloud in encrypted form."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "让云端只保存密文。"
+            "value" : "开启加密后，所有数据将完全以加密方式安全存储在云端。"
           }
         }
       }

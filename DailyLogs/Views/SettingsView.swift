@@ -193,13 +193,15 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: 16) {
             SectionHeader(
                 title: NSLocalizedString("云端加密", comment: ""),
-                subtitle: NSLocalizedString("让云端只保存密文。", comment: "")
+                subtitle: NSLocalizedString("开启加密后，所有数据将完全以加密方式安全存储在云端。", comment: "")
             )
 
-            Text(cloudEncryptionDescription)
-                .font(.system(size: 13, weight: .medium, design: .rounded))
-                .foregroundStyle(AppTheme.secondaryText)
-                .fixedSize(horizontal: false, vertical: true)
+            if !cloudEncryptionDescription.isEmpty {
+                Text(cloudEncryptionDescription)
+                    .font(.system(size: 13, weight: .medium, design: .rounded))
+                    .foregroundStyle(AppTheme.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
 
             HStack(spacing: 10) {
                 Circle()
@@ -305,7 +307,7 @@ struct SettingsView: View {
         case .locked:
             return NSLocalizedString("请检查同一 Apple ID 和 iCloud 钥匙串。", comment: "")
         case .unlocked:
-            return NSLocalizedString("云端现在只保存密文。", comment: "")
+            return ""
         }
     }
 
