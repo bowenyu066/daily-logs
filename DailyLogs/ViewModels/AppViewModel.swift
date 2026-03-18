@@ -11,6 +11,13 @@ final class AppViewModel: ObservableObject {
     private static let minimumAnalyticsRecordStreak = 7
     private static let didMigrateTimeDisplayModeDefaultKey = "dailylogs.didMigrateTimeDisplayModeDefault"
 
+    enum CloudEncryptionState: Equatable {
+        case unavailable
+        case disabled
+        case locked
+        case unlocked
+    }
+
     @Published private(set) var user: UserAccount?
     @Published var selectedDate: Date
     @Published private(set) var dailyRecord: DailyRecord
@@ -21,6 +28,8 @@ final class AppViewModel: ObservableObject {
     @Published private(set) var isBootstrapped = false
     @Published var errorMessage: String?
     @Published var languageRefreshID = UUID()
+    @Published private(set) var cloudEncryptionState: CloudEncryptionState = .unavailable
+    @Published var shouldPresentCloudUnlock = false
 
     let locationService: LocationService
 
@@ -135,6 +144,7 @@ final class AppViewModel: ObservableObject {
                 analyticsCustomDateRange = defaultAnalyticsCustomRange(startingAt: user.createdAt)
                 try loadAllRecords(for: user.userID)
                 await refreshFromCloudIfNeeded(for: user)
+                await refreshCloudEncryptionState()
                 try loadSelectedRecord()
                 updateSunTimesIfPossible()
                 refreshLocationIfAuthorized()
@@ -155,6 +165,7 @@ final class AppViewModel: ObservableObject {
             try loadAllRecords(for: user?.userID ?? "")
             if let user {
                 await refreshFromCloudIfNeeded(for: user)
+                await refreshCloudEncryptionState()
             }
             try loadSelectedRecord()
         } catch {
@@ -177,6 +188,7 @@ final class AppViewModel: ObservableObject {
             try loadAllRecords(for: user?.userID ?? "")
             if let user {
                 await refreshFromCloudIfNeeded(for: user)
+                await refreshCloudEncryptionState()
             }
             try loadSelectedRecord()
         } catch {
@@ -190,10 +202,52 @@ final class AppViewModel: ObservableObject {
             self.user = try authService.updateDisplayName(name, for: user)
             if let updatedUser = self.user, !updatedUser.isGuest, cloudSyncService.isAvailable {
                 try await cloudSyncService.pushProfile(updatedUser)
+                await refreshCloudEncryptionState()
             }
         } catch {
             errorMessage = NSLocalizedString("修改昵称失败：", comment: "") + error.localizedDescription
         }
+    }
+
+    func enableEndToEndEncryption(passphrase: String) async {
+        guard let user, !user.isGuest else { return }
+        let trimmed = passphrase.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+
+        do {
+            try await cloudSyncService.enableEndToEndEncryption(
+                passphrase: trimmed,
+                user: user,
+                localPreferences: preferences,
+                localRecords: allRecords
+            )
+            cloudEncryptionState = .unlocked
+            shouldPresentCloudUnlock = false
+        } catch {
+            errorMessage = NSLocalizedString("启用加密同步失败：", comment: "") + error.localizedDescription
+        }
+    }
+
+    func unlockEndToEndEncryption(passphrase: String) async {
+        guard let user, !user.isGuest else { return }
+        let trimmed = passphrase.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+
+        do {
+            try await cloudSyncService.unlockEndToEndEncryption(passphrase: trimmed, user: user)
+            shouldPresentCloudUnlock = false
+            await refreshCloudEncryptionState()
+            await refreshFromCloudIfNeeded(for: user)
+            try loadSelectedRecord()
+        } catch {
+            errorMessage = NSLocalizedString("解锁加密同步失败：", comment: "") + error.localizedDescription
+        }
+    }
+
+    func lockEndToEndEncryptionLocally() async {
+        guard let user, !user.isGuest else { return }
+        cloudSyncService.lockEndToEndEncryption(for: user)
+        cloudEncryptionState = .locked
     }
 
     func signOut() async {
@@ -203,6 +257,8 @@ final class AppViewModel: ObservableObject {
             allRecords = []
             selectedDate = .now.startOfDay
             dailyRecord = DailyRecord.empty(for: selectedDate, preferences: preferences)
+            cloudEncryptionState = .unavailable
+            shouldPresentCloudUnlock = false
             Task { await refreshRemotePhotoCache() }
         } catch {
             errorMessage = NSLocalizedString("退出失败：", comment: "") + error.localizedDescription
@@ -836,8 +892,15 @@ final class AppViewModel: ObservableObject {
                 allRecords = database.recordsByUser[user.userID]?.values.sorted { $0.date < $1.date } ?? []
                 await refreshRemotePhotoCache()
             }
+            shouldPresentCloudUnlock = false
         } catch {
-            errorMessage = NSLocalizedString("云端同步失败：", comment: "") + error.localizedDescription
+            if let securityError = error as? CloudSyncSecurityError,
+               securityError == .encryptedSyncLocked {
+                cloudEncryptionState = .locked
+                shouldPresentCloudUnlock = true
+            } else {
+                errorMessage = NSLocalizedString("云端同步失败：", comment: "") + error.localizedDescription
+            }
         }
     }
 
@@ -846,7 +909,13 @@ final class AppViewModel: ObservableObject {
         do {
             try await cloudSyncService.pushPreferences(preferences, user: user)
         } catch {
-            errorMessage = NSLocalizedString("云端偏好同步失败：", comment: "") + error.localizedDescription
+            if let securityError = error as? CloudSyncSecurityError,
+               securityError == .encryptedSyncLocked {
+                cloudEncryptionState = .locked
+                shouldPresentCloudUnlock = true
+            } else {
+                errorMessage = NSLocalizedString("云端偏好同步失败：", comment: "") + error.localizedDescription
+            }
         }
     }
 
@@ -855,7 +924,35 @@ final class AppViewModel: ObservableObject {
         do {
             try await cloudSyncService.pushRecord(dailyRecord, user: user)
         } catch {
-            errorMessage = NSLocalizedString("云端记录同步失败：", comment: "") + error.localizedDescription
+            if let securityError = error as? CloudSyncSecurityError,
+               securityError == .encryptedSyncLocked {
+                cloudEncryptionState = .locked
+                shouldPresentCloudUnlock = true
+            } else {
+                errorMessage = NSLocalizedString("云端记录同步失败：", comment: "") + error.localizedDescription
+            }
+        }
+    }
+
+    func refreshCloudEncryptionState() async {
+        guard let user, !user.isGuest else {
+            cloudEncryptionState = cloudSyncService.isAvailable ? .disabled : .unavailable
+            return
+        }
+
+        do {
+            let snapshot = try await cloudSyncService.protectionSnapshot(for: user)
+            switch snapshot.mode {
+            case .unavailable:
+                cloudEncryptionState = .unavailable
+            case .disabled:
+                cloudEncryptionState = .disabled
+            case .enabled:
+                cloudEncryptionState = snapshot.localKeyAvailable ? .unlocked : .locked
+            }
+            shouldPresentCloudUnlock = cloudEncryptionState == .locked
+        } catch {
+            cloudEncryptionState = .unavailable
         }
     }
 
@@ -901,7 +998,9 @@ final class AppViewModel: ObservableObject {
     }
 
     private static func isRemotePhotoURL(_ urlString: String) -> Bool {
-        urlString.hasPrefix("http://") || urlString.hasPrefix("https://")
+        urlString.hasPrefix("http://")
+            || urlString.hasPrefix("https://")
+            || SecureCloudPhotoReference.isSecureReference(urlString)
     }
 
     nonisolated static func recordsByStorageKey(_ records: [DailyRecord]) -> [String: DailyRecord] {

@@ -1,6 +1,7 @@
 import FirebaseCore
 import FirebaseFirestore
 import FirebaseStorage
+import CryptoKit
 import Foundation
 
 struct CloudBootstrapPayload {
@@ -16,6 +17,15 @@ protocol CloudSyncService {
     func pushPreferences(_ preferences: UserPreferences, user: UserAccount) async throws
     func pushRecord(_ record: DailyRecord, user: UserAccount) async throws
     func pushProfile(_ user: UserAccount) async throws
+    func protectionSnapshot(for user: UserAccount) async throws -> CloudProtectionSnapshot
+    func enableEndToEndEncryption(
+        passphrase: String,
+        user: UserAccount,
+        localPreferences: UserPreferences,
+        localRecords: [DailyRecord]
+    ) async throws
+    func unlockEndToEndEncryption(passphrase: String, user: UserAccount) async throws
+    func lockEndToEndEncryption(for user: UserAccount)
 }
 
 @MainActor
@@ -31,12 +41,29 @@ struct NoopCloudSyncService: CloudSyncService {
     func pushRecord(_ record: DailyRecord, user: UserAccount) async throws {}
 
     func pushProfile(_ user: UserAccount) async throws {}
+
+    func protectionSnapshot(for user: UserAccount) async throws -> CloudProtectionSnapshot {
+        CloudProtectionSnapshot(mode: .unavailable, localKeyAvailable: false)
+    }
+
+    func enableEndToEndEncryption(
+        passphrase: String,
+        user: UserAccount,
+        localPreferences: UserPreferences,
+        localRecords: [DailyRecord]
+    ) async throws {}
+
+    func unlockEndToEndEncryption(passphrase: String, user: UserAccount) async throws {}
+
+    func lockEndToEndEncryption(for user: UserAccount) {}
 }
 
 @MainActor
 final class FirebaseCloudSyncService: CloudSyncService {
     private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()
+    private let crypto = CloudCryptoService()
+    private let keychain = CloudKeychainStore()
 
     private var db: Firestore? {
         FirebaseBootstrap.configureIfPossible()
@@ -83,12 +110,61 @@ final class FirebaseCloudSyncService: CloudSyncService {
         db != nil
     }
 
+    func protectionSnapshot(for user: UserAccount) async throws -> CloudProtectionSnapshot {
+        guard db != nil else {
+            return CloudProtectionSnapshot(mode: .unavailable, localKeyAvailable: false)
+        }
+
+        let metadata = try await fetchEncryptionMetadata(for: user)
+        return CloudProtectionSnapshot(
+            mode: metadata == nil ? .disabled : .enabled,
+            localKeyAvailable: metadata != nil && keychain.loadKey(for: user.userID) != nil
+        )
+    }
+
     func bootstrap(user: UserAccount, localPreferences: UserPreferences, localRecords: [DailyRecord]) async throws -> CloudBootstrapPayload {
         guard let db else {
             return CloudBootstrapPayload(profile: nil, preferences: nil, records: [])
         }
 
-        try await upsertProfile(user)
+        let encryptionMetadata = try await fetchEncryptionMetadata(for: user)
+        try await upsertProfile(user, encrypted: encryptionMetadata != nil)
+
+        if encryptionMetadata != nil {
+            guard let key = keychain.loadKey(for: user.userID) else {
+                throw CloudSyncSecurityError.encryptedSyncLocked
+            }
+
+            let userRef = db.collection("users").document(user.userID)
+            let profileSnapshot = try await userRef.collection("secureProfile").document("current").getDocument()
+            let prefsSnapshot = try await userRef.collection("securePreferences").document("current").getDocument()
+            let recordsSnapshot = try await userRef.collection("secureRecords").getDocuments()
+
+            let remoteProfile = try decryptDocument(UserProfile.self, from: profileSnapshot.data(), key: key)
+            let remotePreferences = try decryptDocument(UserPreferences.self, from: prefsSnapshot.data(), key: key)
+            let decryptedRecords = try recordsSnapshot.documents.map { document in
+                try decryptDocument(DailyRecord.self, from: document.data(), key: key)
+            }
+            let remoteRecords = decryptedRecords.compactMap { $0 }.sorted { lhs, rhs in
+                lhs.date < rhs.date
+            }
+
+            if prefsSnapshot.exists == false {
+                try await pushEncryptedPreferences(localPreferences, user: user, key: key)
+            }
+
+            if remoteRecords.isEmpty && !localRecords.isEmpty {
+                for record in localRecords {
+                    try await pushEncryptedRecord(record, user: user, key: key)
+                }
+            }
+
+            return CloudBootstrapPayload(
+                profile: remoteProfile,
+                preferences: remotePreferences,
+                records: remoteRecords
+            )
+        }
 
         let userRef = db.collection("users").document(user.userID)
         let profileSnapshot = try await userRef.getDocument()
@@ -121,42 +197,135 @@ final class FirebaseCloudSyncService: CloudSyncService {
 
     func pushPreferences(_ preferences: UserPreferences, user: UserAccount) async throws {
         guard let db else { return }
+        if let _ = try await fetchEncryptionMetadata(for: user) {
+            guard let key = keychain.loadKey(for: user.userID) else {
+                throw CloudSyncSecurityError.encryptedSyncLocked
+            }
+            try await pushEncryptedPreferences(preferences, user: user, key: key)
+            try await upsertProfile(user, encrypted: true)
+            return
+        }
         let userRef = db.collection("users").document(user.userID)
         try await userRef.collection("preferences").document("current").setData(try encode(preferences))
-        try await upsertProfile(user)
+        try await upsertProfile(user, encrypted: false)
     }
 
     func pushRecord(_ record: DailyRecord, user: UserAccount) async throws {
         guard let db else { return }
+        if let _ = try await fetchEncryptionMetadata(for: user) {
+            guard let key = keychain.loadKey(for: user.userID) else {
+                throw CloudSyncSecurityError.encryptedSyncLocked
+            }
+            try await pushEncryptedRecord(record, user: user, key: key)
+            try await upsertProfile(user, encrypted: true)
+            return
+        }
         let userRef = db.collection("users").document(user.userID)
-        let cloudReadyRecord = try await preparedRecord(record, userID: user.userID)
+        let cloudReadyRecord = try await preparedPlaintextRecord(record, userID: user.userID)
         try await userRef.collection("records").document(record.date.storageKey()).setData(try encode(cloudReadyRecord))
-        try await upsertProfile(user)
+        try await upsertProfile(user, encrypted: false)
     }
 
     func pushProfile(_ user: UserAccount) async throws {
-        try await upsertProfile(user)
+        if let _ = try await fetchEncryptionMetadata(for: user) {
+            guard let key = keychain.loadKey(for: user.userID) else {
+                throw CloudSyncSecurityError.encryptedSyncLocked
+            }
+            try await pushEncryptedProfile(user, key: key)
+            try await upsertProfile(user, encrypted: true)
+            return
+        }
+        try await upsertProfile(user, encrypted: false)
     }
 
-    private func upsertProfile(_ user: UserAccount) async throws {
+    func enableEndToEndEncryption(
+        passphrase: String,
+        user: UserAccount,
+        localPreferences: UserPreferences,
+        localRecords: [DailyRecord]
+    ) async throws {
+        guard db != nil else {
+            throw CloudSyncSecurityError.firebaseUnavailable
+        }
+
+        let metadata = crypto.makeMetadata()
+        let key = try crypto.deriveKey(passphrase: passphrase, metadata: metadata)
+        try keychain.saveKey(key, for: user.userID)
+
+        try await pushEncryptedProfile(user, key: key)
+        try await pushEncryptedPreferences(localPreferences, user: user, key: key)
+        for record in localRecords {
+            try await pushEncryptedRecord(record, user: user, key: key)
+        }
+        try await writeEncryptionMetadata(metadata, for: user)
+        try await upsertProfile(user, encrypted: true)
+        try await deleteLegacyPlaintextCloudData(for: user)
+    }
+
+    func unlockEndToEndEncryption(passphrase: String, user: UserAccount) async throws {
+        guard let metadata = try await fetchEncryptionMetadata(for: user) else { return }
+        let key = try crypto.deriveKey(passphrase: passphrase, metadata: metadata)
+
+        guard let db else {
+            throw CloudSyncSecurityError.firebaseUnavailable
+        }
+
+        let userRef = db.collection("users").document(user.userID)
+        let profileSnapshot = try await userRef.collection("secureProfile").document("current").getDocument()
+        let prefsSnapshot = try await userRef.collection("securePreferences").document("current").getDocument()
+        let recordsSnapshot = try await userRef.collection("secureRecords").limit(to: 1).getDocuments()
+
+        var validated = false
+        if let data = profileSnapshot.data() {
+            _ = try decryptDocument(UserProfile.self, from: data, key: key)
+            validated = true
+        }
+        if let data = prefsSnapshot.data() {
+            _ = try decryptDocument(UserPreferences.self, from: data, key: key)
+            validated = true
+        }
+        if let recordData = recordsSnapshot.documents.first?.data() {
+            _ = try decryptDocument(DailyRecord.self, from: recordData, key: key)
+            validated = true
+        }
+
+        guard validated else {
+            throw CloudSyncSecurityError.invalidEncryptedPayload
+        }
+        try keychain.saveKey(key, for: user.userID)
+    }
+
+    func lockEndToEndEncryption(for user: UserAccount) {
+        keychain.deleteKey(for: user.userID)
+    }
+
+    private func upsertProfile(_ user: UserAccount, encrypted: Bool) async throws {
         guard let db else { return }
         let payload: [String: Any] = [
             "userID": user.userID,
-            "displayName": user.displayName,
-            "email": user.email as Any,
             "authMode": user.authMode.rawValue,
             "createdAt": user.createdAt.displayISO8601,
-            "updatedAt": Date().displayISO8601
+            "updatedAt": Date().displayISO8601,
+            "cloudProtectionMode": encrypted ? "e2ee" : "plaintext",
+            "cloudProtectionVersion": encrypted ? CloudEncryptionMetadata.currentVersion : 0
         ]
-        try await db.collection("users").document(user.userID).setData(payload, merge: true)
+        if encrypted {
+            try await db.collection("users").document(user.userID).setData(payload)
+        } else {
+            var plaintextPayload = payload
+            plaintextPayload["displayName"] = user.displayName
+            plaintextPayload["email"] = user.email as Any
+            try await db.collection("users").document(user.userID).setData(plaintextPayload, merge: true)
+        }
     }
 
-    private func preparedRecord(_ record: DailyRecord, userID: String) async throws -> DailyRecord {
+    private func preparedPlaintextRecord(_ record: DailyRecord, userID: String) async throws -> DailyRecord {
         guard !storages.isEmpty else { return record }
         var updated = record
         for index in updated.meals.indices {
             guard let photoURL = updated.meals[index].photoURL else { continue }
             guard !photoURL.hasPrefix("http://"), !photoURL.hasPrefix("https://") else { continue }
+            guard !SecureCloudPhotoReference.isSecureReference(photoURL) else { continue }
             guard FileManager.default.fileExists(atPath: photoURL) else {
                 updated.meals[index].photoURL = nil
                 continue
@@ -187,6 +356,66 @@ final class FirebaseCloudSyncService: CloudSyncService {
         return updated
     }
 
+    private func pushEncryptedPreferences(_ preferences: UserPreferences, user: UserAccount, key: SymmetricKey) async throws {
+        guard let db else { return }
+        let userRef = db.collection("users").document(user.userID)
+        let envelope = try crypto.encrypt(preferences, key: key)
+        try await userRef.collection("securePreferences").document("current").setData(try encode(envelope))
+    }
+
+    private func pushEncryptedProfile(_ user: UserAccount, key: SymmetricKey) async throws {
+        guard let db else { return }
+        let profile = UserProfile(
+            userID: user.userID,
+            displayName: user.displayName,
+            email: user.email,
+            authMode: user.authMode,
+            createdAt: user.createdAt
+        )
+        let envelope = try crypto.encrypt(profile, key: key)
+        try await db.collection("users").document(user.userID).collection("secureProfile").document("current").setData(try encode(envelope))
+    }
+
+    private func pushEncryptedRecord(_ record: DailyRecord, user: UserAccount, key: SymmetricKey) async throws {
+        guard let db else { return }
+        let userRef = db.collection("users").document(user.userID)
+        let cloudReadyRecord = try await preparedEncryptedRecord(record, userID: user.userID, key: key)
+        let envelope = try crypto.encrypt(cloudReadyRecord, key: key)
+        try await userRef.collection("secureRecords").document(record.date.storageKey()).setData(try encode(envelope))
+    }
+
+    private func preparedEncryptedRecord(_ record: DailyRecord, userID: String, key: SymmetricKey) async throws -> DailyRecord {
+        guard !storages.isEmpty else { return record }
+        var updated = record
+        for index in updated.meals.indices {
+            guard let photoReference = updated.meals[index].photoURL else { continue }
+            guard !SecureCloudPhotoReference.isSecureReference(photoReference) else { continue }
+            guard let data = try await loadPhotoData(for: photoReference) else {
+                updated.meals[index].photoURL = nil
+                continue
+            }
+
+            do {
+                let filename = "\(updated.meals[index].id.uuidString).bin"
+                let path = "users/\(userID)/secure-meal-photos/\(filename)"
+                updated.meals[index].photoURL = try await uploadEncryptedPhoto(
+                    data: data,
+                    storagePath: path,
+                    key: key
+                )
+                if photoReference.hasPrefix("http://") || photoReference.hasPrefix("https://") {
+                    try? await deleteLegacyPhoto(at: photoReference)
+                }
+            } catch {
+                #if DEBUG
+                print("CloudSync: encrypted photo upload failed for meal \(updated.meals[index].id): \(error)")
+                #endif
+                updated.meals[index].photoURL = nil
+            }
+        }
+        return updated
+    }
+
     private func uploadPhoto(data: Data, storagePath: String, metadata: StorageMetadata) async throws -> String {
         var lastError: Error?
 
@@ -207,6 +436,96 @@ final class FirebaseCloudSyncService: CloudSyncService {
         throw lastError ?? CocoaError(.fileWriteUnknown)
     }
 
+    private func uploadEncryptedPhoto(data: Data, storagePath: String, key: SymmetricKey) async throws -> String {
+        let encryptedData = try crypto.encrypt(data: data, key: key)
+        var lastError: Error?
+
+        for storage in storages {
+            let ref = storage.reference().child(storagePath)
+            do {
+                let result = try await ref.putDataAsync(encryptedData, metadata: nil)
+                let bucket = result.bucket ?? storage.reference().bucket
+                return SecureCloudPhotoReference.make(bucket: bucket, path: storagePath)
+            } catch {
+                lastError = error
+                #if DEBUG
+                print("CloudSync: encrypted upload attempt failed in bucket \(storage.reference().bucket) for \(storagePath): \(error)")
+                #endif
+            }
+        }
+
+        throw lastError ?? CocoaError(.fileWriteUnknown)
+    }
+
+    private func loadPhotoData(for photoReference: String) async throws -> Data? {
+        if SecureCloudPhotoReference.isSecureReference(photoReference) {
+            return try await SecureCloudPhotoLoader.shared.data(for: photoReference)
+        }
+
+        if photoReference.hasPrefix("http://") || photoReference.hasPrefix("https://"),
+           let url = URL(string: photoReference) {
+            let (data, response) = try await URLSession.shared.data(from: url)
+            guard let httpResponse = response as? HTTPURLResponse, 200..<300 ~= httpResponse.statusCode else {
+                return nil
+            }
+            return data
+        }
+
+        guard FileManager.default.fileExists(atPath: photoReference) else { return nil }
+        return try Data(contentsOf: URL(fileURLWithPath: photoReference))
+    }
+
+    private func fetchEncryptionMetadata(for user: UserAccount) async throws -> CloudEncryptionMetadata? {
+        guard let db else { return nil }
+        let snapshot = try await db.collection("users").document(user.userID).collection("secureMeta").document("current").getDocument()
+        guard let data = snapshot.data() else { return nil }
+        return try decode(CloudEncryptionMetadata.self, from: data)
+    }
+
+    private func writeEncryptionMetadata(_ metadata: CloudEncryptionMetadata, for user: UserAccount) async throws {
+        guard let db else { return }
+        try await db.collection("users").document(user.userID).collection("secureMeta").document("current").setData(try encode(metadata))
+    }
+
+    private func decryptDocument<Value: Decodable>(_ type: Value.Type, from dictionary: [String: Any]?, key: SymmetricKey) throws -> Value? {
+        guard let dictionary else { return nil }
+        let envelope = try decode(CloudEncryptedEnvelope.self, from: dictionary)
+        return try crypto.decrypt(type, from: envelope, key: key)
+    }
+
+    private func deleteLegacyPlaintextCloudData(for user: UserAccount) async throws {
+        guard let db else { return }
+        let userRef = db.collection("users").document(user.userID)
+        try? await userRef.collection("preferences").document("current").delete()
+
+        let recordsSnapshot = try await userRef.collection("records").getDocuments()
+        for document in recordsSnapshot.documents {
+            try? await userRef.collection("records").document(document.documentID).delete()
+        }
+
+        for storage in storages {
+            let rootRef = storage.reference().child("users/\(user.userID)/meal-photos")
+            if let itemPaths = try? await rootRef.listAllPathsAsync() {
+                for path in itemPaths {
+                    try? await storage.reference(withPath: path).deleteAsync()
+                }
+            }
+        }
+    }
+
+    private func deleteLegacyPhoto(at photoReference: String) async throws {
+        guard photoReference.hasPrefix("http://") || photoReference.hasPrefix("https://") else { return }
+        for storage in storages {
+            do {
+                let ref = storage.reference(forURL: photoReference)
+                try await ref.deleteAsync()
+                return
+            } catch {
+                continue
+            }
+        }
+    }
+
     private func encode<T: Encodable>(_ value: T) throws -> [String: Any] {
         let data = try encoder.encode(value)
         let json = try JSONSerialization.jsonObject(with: data)
@@ -223,7 +542,7 @@ final class FirebaseCloudSyncService: CloudSyncService {
 }
 
 @MainActor
-private extension StorageReference {
+extension StorageReference {
     struct UploadResult: Sendable {
         var path: String?
         var bucket: String?
@@ -251,6 +570,46 @@ private extension StorageReference {
                     continuation.resume(throwing: error)
                 } else if let url {
                     continuation.resume(returning: url)
+                } else {
+                    continuation.resume(throwing: CocoaError(.fileReadUnknown))
+                }
+            }
+        }
+    }
+
+    func getDataAsync(maxSize: Int64) async throws -> Data {
+        try await withCheckedThrowingContinuation { continuation in
+            getData(maxSize: maxSize) { data, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                } else if let data {
+                    continuation.resume(returning: data)
+                } else {
+                    continuation.resume(throwing: CocoaError(.fileReadUnknown))
+                }
+            }
+        }
+    }
+
+    func deleteAsync() async throws {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            delete { error in
+                if let error {
+                    continuation.resume(throwing: error)
+                } else {
+                    continuation.resume(returning: ())
+                }
+            }
+        }
+    }
+
+    func listAllPathsAsync() async throws -> [String] {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String], Error>) in
+            listAll { result, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                } else if let result {
+                    continuation.resume(returning: result.items.map(\.fullPath))
                 } else {
                     continuation.resume(throwing: CocoaError(.fileReadUnknown))
                 }

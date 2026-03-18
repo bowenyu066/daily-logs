@@ -9,6 +9,8 @@ struct SettingsView: View {
     @State private var isEditingNickname = false
     @State private var nicknameText = ""
     @State private var showingHomeSections = false
+    @State private var showingEnableEncryption = false
+    @State private var showingUnlockEncryption = false
 
     var body: some View {
         NavigationStack {
@@ -19,6 +21,7 @@ struct SettingsView: View {
                     VStack(alignment: .leading, spacing: 18) {
                         accountCard
                         preferenceCard
+                        cloudEncryptionCard
                         homeSectionsCard
                         defaultMealsCard
                         healthKitCard
@@ -47,6 +50,18 @@ struct SettingsView: View {
                     .presentationDetents([.fraction(0.34), .medium])
                     .presentationDragIndicator(.visible)
             }
+            .sheet(isPresented: $showingEnableEncryption) {
+                CloudEncryptionPassphraseSheet(mode: .enable)
+                    .environmentObject(appViewModel)
+                    .presentationDetents([.medium, .large])
+                    .presentationDragIndicator(.visible)
+            }
+            .sheet(isPresented: $showingUnlockEncryption) {
+                CloudEncryptionPassphraseSheet(mode: .unlock)
+                    .environmentObject(appViewModel)
+                    .presentationDetents([.medium, .large])
+                    .presentationDragIndicator(.visible)
+            }
             .alert(NSLocalizedString("修改昵称", comment: ""), isPresented: $isEditingNickname) {
                 TextField(NSLocalizedString("昵称", comment: ""), text: $nicknameText)
                 Button(NSLocalizedString("取消", comment: ""), role: .cancel) {}
@@ -57,6 +72,9 @@ struct SettingsView: View {
                 }
             } message: {
                 Text(NSLocalizedString("输入你想使用的昵称", comment: ""))
+            }
+            .task(id: appViewModel.user?.userID) {
+                await appViewModel.refreshCloudEncryptionState()
             }
         }
     }
@@ -176,6 +194,151 @@ struct SettingsView: View {
         }
         .padding(22)
         .appCardStyle()
+    }
+
+    private var cloudEncryptionCard: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            SectionHeader(
+                title: NSLocalizedString("云端加密", comment: ""),
+                subtitle: NSLocalizedString("让云端只保存密文，而不是可直接读取的记录。", comment: "")
+            )
+
+            Text(cloudEncryptionDescription)
+                .font(.system(size: 13, weight: .medium, design: .rounded))
+                .foregroundStyle(AppTheme.secondaryText)
+                .fixedSize(horizontal: false, vertical: true)
+
+            HStack(spacing: 10) {
+                Circle()
+                    .fill(cloudEncryptionAccent)
+                    .frame(width: 10, height: 10)
+                Text(cloudEncryptionTitle)
+                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                    .foregroundStyle(AppTheme.primaryText)
+                Spacer()
+            }
+
+            if appViewModel.user?.isGuest == true {
+                Text(NSLocalizedString("游客模式不会同步到云端，因此也不需要云端加密。", comment: ""))
+                    .font(.system(size: 14, weight: .medium, design: .rounded))
+                    .foregroundStyle(AppTheme.secondaryText)
+            } else {
+                actionButtons
+            }
+        }
+        .padding(22)
+        .appCardStyle()
+    }
+
+    @ViewBuilder
+    private var actionButtons: some View {
+        switch appViewModel.cloudEncryptionState {
+        case .unavailable:
+            Text(NSLocalizedString("当前设备还没有可用的 Firebase 云同步环境。", comment: ""))
+                .font(.system(size: 14, weight: .medium, design: .rounded))
+                .foregroundStyle(AppTheme.secondaryText)
+        case .disabled:
+            primaryActionButton(
+                title: NSLocalizedString("启用端到端加密", comment: ""),
+                action: { showingEnableEncryption = true }
+            )
+        case .locked:
+            VStack(spacing: 10) {
+                primaryActionButton(
+                    title: NSLocalizedString("输入同步密码解锁", comment: ""),
+                    action: { showingUnlockEncryption = true }
+                )
+
+                secondaryActionButton(
+                    title: NSLocalizedString("稍后再说", comment: ""),
+                    action: {}
+                )
+            }
+        case .unlocked:
+            VStack(spacing: 10) {
+                primaryActionButton(
+                    title: NSLocalizedString("这台设备已解锁", comment: ""),
+                    action: {}
+                )
+                .disabled(true)
+
+                secondaryActionButton(
+                    title: NSLocalizedString("在这台设备上锁定", comment: ""),
+                    action: {
+                        Task { await appViewModel.lockEndToEndEncryptionLocally() }
+                    }
+                )
+            }
+        }
+    }
+
+    private func primaryActionButton(title: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title)
+                .font(.system(size: 15, weight: .bold, design: .rounded))
+                .foregroundStyle(.white)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 14)
+                .background(AppTheme.actionFill)
+                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func secondaryActionButton(title: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title)
+                .font(.system(size: 15, weight: .semibold, design: .rounded))
+                .foregroundStyle(AppTheme.primaryText)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 14)
+                .background(AppTheme.elevatedSurface)
+                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .stroke(AppTheme.border, lineWidth: 1)
+                )
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var cloudEncryptionTitle: String {
+        switch appViewModel.cloudEncryptionState {
+        case .unavailable:
+            return NSLocalizedString("云同步不可用", comment: "")
+        case .disabled:
+            return NSLocalizedString("当前仍是普通云同步", comment: "")
+        case .locked:
+            return NSLocalizedString("云端数据已加密，但这台设备还没解锁", comment: "")
+        case .unlocked:
+            return NSLocalizedString("端到端加密已开启", comment: "")
+        }
+    }
+
+    private var cloudEncryptionDescription: String {
+        switch appViewModel.cloudEncryptionState {
+        case .unavailable:
+            return NSLocalizedString("如果没有 Firebase 云同步，这一项不会生效。", comment: "")
+        case .disabled:
+            return NSLocalizedString("启用后，记录、备注、时间、图片都会先在设备上加密，再上传到 Firebase。即使项目 owner 打开控制台，也只能看到密文。", comment: "")
+        case .locked:
+            return NSLocalizedString("你之前已经启用了端到端加密，但这台设备本地没有保存密钥，需要重新输入同步密码才能读取云端数据。", comment: "")
+        case .unlocked:
+            return NSLocalizedString("现在上传到云端的是密文，不是 Firestore/Storage 可直接读懂的明文。新设备登录同一账号时，需要输入同步密码来解锁。", comment: "")
+        }
+    }
+
+    private var cloudEncryptionAccent: Color {
+        switch appViewModel.cloudEncryptionState {
+        case .unavailable:
+            return AppTheme.secondaryText.opacity(0.4)
+        case .disabled:
+            return AppTheme.warning
+        case .locked:
+            return AppTheme.warning
+        case .unlocked:
+            return AppTheme.accent
+        }
     }
 
     private var timeDisplayModeSection: some View {

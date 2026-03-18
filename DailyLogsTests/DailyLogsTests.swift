@@ -208,6 +208,66 @@ struct DailyLogsTests {
         #expect(viewModel.dailyRecord.sleepRecord.wakeTimeCurrentDay == healthKitSleep.wakeTimeCurrentDay)
         #expect(viewModel.dailyRecord.sleepRecord.source == .healthKit)
     }
+
+    @Test
+    func cloudCryptoRoundTripPreservesRecord() throws {
+        let crypto = CloudCryptoService()
+        let metadata = crypto.makeMetadata()
+        let key = try crypto.deriveKey(passphrase: "horse-battery-staple", metadata: metadata)
+
+        let day = Calendar.current.date(from: DateComponents(year: 2026, month: 3, day: 18))!
+        let original = DailyRecord(
+            date: day,
+            sleepRecord: SleepRecord(
+                bedtimePreviousNight: day.adding(days: -1).settingTime(hour: 23, minute: 30),
+                wakeTimeCurrentDay: day.settingTime(hour: 7, minute: 0),
+                targetBedtime: nil,
+                source: .manual,
+                note: "slept well"
+            ),
+            meals: [
+                MealEntry(
+                    mealKind: .breakfast,
+                    status: .logged,
+                    time: day.settingTime(hour: 8, minute: 33),
+                    photoURL: SecureCloudPhotoReference.make(
+                        bucket: "dailylogs.appspot.com",
+                        path: "users/test-user/secure-meal-photos/a.bin"
+                    ),
+                    note: "oatmeal"
+                )
+            ],
+            showers: [
+                ShowerEntry(
+                    time: day.settingTime(hour: 8, minute: 17),
+                    note: "quick shower"
+                )
+            ],
+            sunTimes: SunTimes(
+                sunrise: day.settingTime(hour: 6, minute: 58),
+                sunset: day.settingTime(hour: 19, minute: 11),
+                timeZoneIdentifier: "America/Denver"
+            )
+        )
+
+        let envelope = try crypto.encrypt(original, key: key)
+        let decrypted = try crypto.decrypt(DailyRecord.self, from: envelope, key: key)
+
+        #expect(decrypted == original)
+    }
+
+    @Test
+    func secureCloudPhotoReferenceRoundTrip() {
+        let reference = SecureCloudPhotoReference.make(
+            bucket: "dailylogs.appspot.com",
+            path: "users/test-user/secure-meal-photos/photo.bin"
+        )
+
+        #expect(SecureCloudPhotoReference.isSecureReference(reference))
+        #expect(SecureCloudPhotoReference.parse(reference)?.bucket == "dailylogs.appspot.com")
+        #expect(SecureCloudPhotoReference.parse(reference)?.path == "users/test-user/secure-meal-photos/photo.bin")
+        #expect(SecureCloudPhotoReference.parse("https://example.com/image.jpg") == nil)
+    }
 }
 
 @MainActor

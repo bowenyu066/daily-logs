@@ -37,14 +37,14 @@ actor RemotePhotoCache {
         self.session = session
     }
 
-    func image(for remoteURL: URL) async -> UIImage? {
+    func image(for source: String) async -> UIImage? {
         await loadMetadataIfNeeded()
 
-        if let cachedImage = cachedImage(for: remoteURL.absoluteString, shouldIncrementAccessCount: true) {
+        if let cachedImage = cachedImage(for: source, shouldIncrementAccessCount: true) {
             return cachedImage
         }
 
-        return await downloadAndCacheImage(from: remoteURL, incrementAccessCount: true)
+        return await downloadAndCacheImage(from: source, incrementAccessCount: true)
     }
 
     func syncRetention(with recentRemotePhotoURLs: [String]) async {
@@ -53,8 +53,8 @@ actor RemotePhotoCache {
         protectedURLs = Set(recentRemotePhotoURLs.filter(Self.isRemotePhotoURL))
 
         for urlString in protectedURLs {
-            guard entry(for: urlString) == nil, let url = URL(string: urlString) else { continue }
-            _ = await downloadAndCacheImage(from: url, incrementAccessCount: false)
+            guard entry(for: urlString) == nil else { continue }
+            _ = await downloadAndCacheImage(from: urlString, incrementAccessCount: false)
         }
 
         await cleanup()
@@ -89,22 +89,32 @@ actor RemotePhotoCache {
         return image
     }
 
-    private func downloadAndCacheImage(from remoteURL: URL, incrementAccessCount: Bool) async -> UIImage? {
+    private func downloadAndCacheImage(from source: String, incrementAccessCount: Bool) async -> UIImage? {
         do {
-            let (data, response) = try await session.data(from: remoteURL)
-            guard let httpResponse = response as? HTTPURLResponse,
-                  200..<300 ~= httpResponse.statusCode,
-                  let image = UIImage(data: data) else {
+            let data: Data
+
+            if SecureCloudPhotoReference.isSecureReference(source) {
+                data = try await SecureCloudPhotoLoader.shared.data(for: source)
+            } else if let remoteURL = URL(string: source) {
+                let (downloadedData, response) = try await session.data(from: remoteURL)
+                guard let httpResponse = response as? HTTPURLResponse,
+                      200..<300 ~= httpResponse.statusCode else {
+                    return nil
+                }
+                data = downloadedData
+            } else {
                 return nil
             }
 
-            let filename = makeFilename(for: remoteURL)
+            guard let image = UIImage(data: data) else { return nil }
+
+            let filename = makeFilename(for: source)
             let fileURL = directory.appendingPathComponent(filename)
             try data.write(to: fileURL, options: .atomic)
 
             let now = Date()
-            entriesByURL[remoteURL.absoluteString] = CacheEntry(
-                sourceURL: remoteURL.absoluteString,
+            entriesByURL[source] = CacheEntry(
+                sourceURL: source,
                 filename: filename,
                 cachedAt: now,
                 lastAccessedAt: now,
@@ -202,13 +212,15 @@ actor RemotePhotoCache {
         }
     }
 
-    private func makeFilename(for remoteURL: URL) -> String {
-        let digest = SHA256.hash(data: Data(remoteURL.absoluteString.utf8))
+    private func makeFilename(for source: String) -> String {
+        let digest = SHA256.hash(data: Data(source.utf8))
         let hash = digest.map { String(format: "%02x", $0) }.joined()
         return hash
     }
 
     private static func isRemotePhotoURL(_ urlString: String) -> Bool {
-        urlString.hasPrefix("http://") || urlString.hasPrefix("https://")
+        urlString.hasPrefix("http://")
+            || urlString.hasPrefix("https://")
+            || SecureCloudPhotoReference.isSecureReference(urlString)
     }
 }

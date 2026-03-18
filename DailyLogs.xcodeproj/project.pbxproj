@@ -11,6 +11,7 @@
 		050DF3172673A5665AAEED59 /* TimeZoneModePicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5A341935FF077F6662CD605 /* TimeZoneModePicker.swift */; };
 		0EB6AAA134C908D4A38FF86B /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = A72B3275B83AAF39CFE7079A /* FirebaseFirestore */; };
 		0F4D96EB490F357AA03163DB /* AuthGateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0CAE3F01F1BDE18FCC36472 /* AuthGateView.swift */; };
+		1DF532FF5704CB47F17C666B /* CloudEncryptionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91DBA8249D731FF743149D0B /* CloudEncryptionService.swift */; };
 		2C14620AD9C4B1DF01917190 /* DatePickerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = D93232686CA86483D4885BF9 /* DatePickerSheet.swift */; };
 		3110D21E6C502FB22566E967 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5472D45C0BFA14D1EE95FC70 /* SettingsView.swift */; };
 		32E0C0DC8A4C71F5797B9ADB /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = F20A98B51C76C05D1DED98A7 /* Localizable.xcstrings */; };
@@ -24,6 +25,7 @@
 		46DF737EA4B7538B9AA7E595 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 812D9C9DFB290A74333F2355 /* Assets.xcassets */; };
 		4A81D9C20B78C778A68D7514 /* LocationPickerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 743200E304D39F61C77AA89B /* LocationPickerSheet.swift */; };
 		54428D63B958275E3244C408 /* ShowerEditorSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1952A565E83EBA9DBEAAB3EB /* ShowerEditorSheet.swift */; };
+		5D39C007A6C7115A144F6CB9 /* CloudEncryptionPassphraseSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 198E27C836AFF86BB0557E27 /* CloudEncryptionPassphraseSheet.swift */; };
 		5D3C7D1194B50AE98537A1D5 /* SexualActivityEditorSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A8FBFE41CB2385E9D4B22A9 /* SexualActivityEditorSheet.swift */; };
 		5FB8AE30FD8B35F3E45F49B6 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 828C3314E92354C53C42B8F8 /* GoogleService-Info.plist */; };
 		602BFF12A72316CB2C6715B5 /* AppTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5FE9D45ED272B7C3741130F /* AppTheme.swift */; };
@@ -64,6 +66,7 @@
 		12C02AFAD5427640EE2B07E9 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		189BC1E086E2F96A134F1D4D /* RemotePhotoCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemotePhotoCache.swift; sourceTree = "<group>"; };
 		1952A565E83EBA9DBEAAB3EB /* ShowerEditorSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShowerEditorSheet.swift; sourceTree = "<group>"; };
+		198E27C836AFF86BB0557E27 /* CloudEncryptionPassphraseSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudEncryptionPassphraseSheet.swift; sourceTree = "<group>"; };
 		1D722F3BE20818A492AAE8CF /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		24911E06DE213238FD9EC904 /* TargetBedtimeSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TargetBedtimeSheet.swift; sourceTree = "<group>"; };
 		36526958B7B61CD2ECE3F26D /* DailyLogsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyLogsTests.swift; sourceTree = "<group>"; };
@@ -81,6 +84,7 @@
 		829D2D327EEAB6E3CF6799DA /* Services.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services.swift; sourceTree = "<group>"; };
 		87050F5756327B4F773FB04E /* AppViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppViewModel.swift; sourceTree = "<group>"; };
 		919F3E3BD18392570EBCA49A /* FirebaseAppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FirebaseAppDelegate.swift; sourceTree = "<group>"; };
+		91DBA8249D731FF743149D0B /* CloudEncryptionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudEncryptionService.swift; sourceTree = "<group>"; };
 		9DABA8EC0910397E76119987 /* icon.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = icon.png; sourceTree = "<group>"; };
 		AD29B42237DCB9360592DF9A /* BowelMovementEditorSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BowelMovementEditorSheet.swift; sourceTree = "<group>"; };
 		B9A87F79CBFFD14BE517E83B /* DailyLogsApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyLogsApp.swift; sourceTree = "<group>"; };
@@ -206,6 +210,7 @@
 		9E86BFC7AE6894EBAF365180 /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				91DBA8249D731FF743149D0B /* CloudEncryptionService.swift */,
 				6CDD5864423CDE853439D36C /* CloudSyncService.swift */,
 				0AB65DE0793FD9C1F33F55FA /* HealthKitService.swift */,
 				189BC1E086E2F96A134F1D4D /* RemotePhotoCache.swift */,
@@ -236,6 +241,7 @@
 			isa = PBXGroup;
 			children = (
 				AD29B42237DCB9360592DF9A /* BowelMovementEditorSheet.swift */,
+				198E27C836AFF86BB0557E27 /* CloudEncryptionPassphraseSheet.swift */,
 				D93232686CA86483D4885BF9 /* DatePickerSheet.swift */,
 				0EE15D79A393C8AB962EBC89 /* DefaultMealSlotsSheet.swift */,
 				743200E304D39F61C77AA89B /* LocationPickerSheet.swift */,
@@ -356,6 +362,8 @@
 				A4C4FA79F7F4B8B95326DEA5 /* AppViewModel.swift in Sources */,
 				0F4D96EB490F357AA03163DB /* AuthGateView.swift in Sources */,
 				78454DF12F9F5A0C8DE78515 /* BowelMovementEditorSheet.swift in Sources */,
+				5D39C007A6C7115A144F6CB9 /* CloudEncryptionPassphraseSheet.swift in Sources */,
+				1DF532FF5704CB47F17C666B /* CloudEncryptionService.swift in Sources */,
 				9A2C915E57D90F1BA038BCB9 /* CloudSyncService.swift in Sources */,
 				BBEB885C4F2E713F4B1045E8 /* DailyLogsApp.swift in Sources */,
 				A60312D032FE078B28B9F654 /* Date+Helpers.swift in Sources */,

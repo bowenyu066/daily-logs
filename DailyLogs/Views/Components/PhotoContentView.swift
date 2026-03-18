@@ -11,7 +11,7 @@ struct PhotoContentView: View {
 
     var body: some View {
         Group {
-            if remoteURL != nil {
+            if isRemoteSource {
                 remoteContent
             } else if let uiImage = UIImage(contentsOfFile: photoURL) {
                 configured(Image(uiImage: uiImage))
@@ -20,19 +20,20 @@ struct PhotoContentView: View {
             }
         }
         .task(id: photoURL) {
-            guard let remoteURL else {
+            guard isRemoteSource else {
                 remoteUIImage = nil
                 loadedRemotePhotoURL = nil
                 isLoadingRemoteImage = false
                 return
             }
-            await loadRemoteImage(from: remoteURL)
+            await loadRemoteImage(from: photoURL)
         }
     }
 
-    private var remoteURL: URL? {
-        guard photoURL.hasPrefix("http://") || photoURL.hasPrefix("https://") else { return nil }
-        return URL(string: photoURL)
+    private var isRemoteSource: Bool {
+        photoURL.hasPrefix("http://")
+            || photoURL.hasPrefix("https://")
+            || SecureCloudPhotoReference.isSecureReference(photoURL)
     }
 
     private func configured(_ image: Image) -> some View {
@@ -66,12 +67,12 @@ struct PhotoContentView: View {
     }
 
     @MainActor
-    private func loadRemoteImage(from remoteURL: URL) async {
-        guard loadedRemotePhotoURL != remoteURL.absoluteString else { return }
+    private func loadRemoteImage(from source: String) async {
+        guard loadedRemotePhotoURL != source else { return }
         remoteUIImage = nil
-        loadedRemotePhotoURL = remoteURL.absoluteString
+        loadedRemotePhotoURL = source
         isLoadingRemoteImage = true
-        remoteUIImage = await RemotePhotoCache.shared.image(for: remoteURL)
+        remoteUIImage = await RemotePhotoCache.shared.image(for: source)
         isLoadingRemoteImage = false
     }
 }
