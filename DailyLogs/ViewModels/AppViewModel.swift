@@ -29,7 +29,11 @@ final class AppViewModel: ObservableObject {
     @Published var errorMessage: String?
     @Published var languageRefreshID = UUID()
     @Published private(set) var cloudEncryptionState: CloudEncryptionState = .unavailable
-    @Published var shouldPresentCloudUnlock = false
+    @Published var shouldPresentCloudMigration = false
+    @Published private(set) var isCloudMigrationInProgress = false
+    @Published private(set) var cloudMigrationProgress: Double = 0
+    @Published private(set) var cloudMigrationMessage: String?
+    @Published private(set) var cloudMigrationError: String?
 
     let locationService: LocationService
 
@@ -145,6 +149,7 @@ final class AppViewModel: ObservableObject {
                 try loadAllRecords(for: user.userID)
                 await refreshFromCloudIfNeeded(for: user)
                 await refreshCloudEncryptionState()
+                await ensureAutomaticCloudEncryptionIfNeeded()
                 try loadSelectedRecord()
                 updateSunTimesIfPossible()
                 refreshLocationIfAuthorized()
@@ -166,6 +171,7 @@ final class AppViewModel: ObservableObject {
             if let user {
                 await refreshFromCloudIfNeeded(for: user)
                 await refreshCloudEncryptionState()
+                await ensureAutomaticCloudEncryptionIfNeeded()
             }
             try loadSelectedRecord()
         } catch {
@@ -189,6 +195,7 @@ final class AppViewModel: ObservableObject {
             if let user {
                 await refreshFromCloudIfNeeded(for: user)
                 await refreshCloudEncryptionState()
+                await ensureAutomaticCloudEncryptionIfNeeded()
             }
             try loadSelectedRecord()
         } catch {
@@ -209,45 +216,38 @@ final class AppViewModel: ObservableObject {
         }
     }
 
-    func enableEndToEndEncryption(passphrase: String) async {
+    func beginAutomaticCloudMigration() async {
         guard let user, !user.isGuest else { return }
-        let trimmed = passphrase.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
+
+        isCloudMigrationInProgress = true
+        cloudMigrationProgress = 0
+        cloudMigrationError = nil
+        cloudMigrationMessage = NSLocalizedString("正在准备迁移…", comment: "")
 
         do {
-            try await cloudSyncService.enableEndToEndEncryption(
-                passphrase: trimmed,
+            try await cloudSyncService.enableAutomaticEndToEndEncryption(
                 user: user,
                 localPreferences: preferences,
                 localRecords: allRecords
-            )
-            cloudEncryptionState = .unlocked
-            shouldPresentCloudUnlock = false
-        } catch {
-            errorMessage = NSLocalizedString("启用加密同步失败：", comment: "") + error.localizedDescription
-        }
-    }
-
-    func unlockEndToEndEncryption(passphrase: String) async {
-        guard let user, !user.isGuest else { return }
-        let trimmed = passphrase.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
-
-        do {
-            try await cloudSyncService.unlockEndToEndEncryption(passphrase: trimmed, user: user)
-            shouldPresentCloudUnlock = false
+            ) { [weak self] progress in
+                await MainActor.run {
+                    self?.cloudMigrationProgress = progress.fractionCompleted
+                    self?.cloudMigrationMessage = progress.message
+                }
+            }
+            isCloudMigrationInProgress = false
+            cloudMigrationProgress = 1
+            cloudMigrationMessage = NSLocalizedString("迁移完成，新的云端数据已经改为端到端加密。", comment: "")
             await refreshCloudEncryptionState()
             await refreshFromCloudIfNeeded(for: user)
-            try loadSelectedRecord()
+            try? loadSelectedRecord()
+            shouldPresentCloudMigration = false
         } catch {
-            errorMessage = NSLocalizedString("解锁加密同步失败：", comment: "") + error.localizedDescription
+            isCloudMigrationInProgress = false
+            cloudMigrationError = error.localizedDescription
+            cloudMigrationMessage = NSLocalizedString("迁移没有完成，请重试。", comment: "")
+            errorMessage = NSLocalizedString("启用加密同步失败：", comment: "") + error.localizedDescription
         }
-    }
-
-    func lockEndToEndEncryptionLocally() async {
-        guard let user, !user.isGuest else { return }
-        cloudSyncService.lockEndToEndEncryption(for: user)
-        cloudEncryptionState = .locked
     }
 
     func signOut() async {
@@ -258,7 +258,11 @@ final class AppViewModel: ObservableObject {
             selectedDate = .now.startOfDay
             dailyRecord = DailyRecord.empty(for: selectedDate, preferences: preferences)
             cloudEncryptionState = .unavailable
-            shouldPresentCloudUnlock = false
+            shouldPresentCloudMigration = false
+            isCloudMigrationInProgress = false
+            cloudMigrationProgress = 0
+            cloudMigrationMessage = nil
+            cloudMigrationError = nil
             Task { await refreshRemotePhotoCache() }
         } catch {
             errorMessage = NSLocalizedString("退出失败：", comment: "") + error.localizedDescription
@@ -892,12 +896,11 @@ final class AppViewModel: ObservableObject {
                 allRecords = database.recordsByUser[user.userID]?.values.sorted { $0.date < $1.date } ?? []
                 await refreshRemotePhotoCache()
             }
-            shouldPresentCloudUnlock = false
         } catch {
             if let securityError = error as? CloudSyncSecurityError,
                securityError == .encryptedSyncLocked {
                 cloudEncryptionState = .locked
-                shouldPresentCloudUnlock = true
+                errorMessage = securityError.localizedDescription
             } else {
                 errorMessage = NSLocalizedString("云端同步失败：", comment: "") + error.localizedDescription
             }
@@ -912,7 +915,7 @@ final class AppViewModel: ObservableObject {
             if let securityError = error as? CloudSyncSecurityError,
                securityError == .encryptedSyncLocked {
                 cloudEncryptionState = .locked
-                shouldPresentCloudUnlock = true
+                errorMessage = securityError.localizedDescription
             } else {
                 errorMessage = NSLocalizedString("云端偏好同步失败：", comment: "") + error.localizedDescription
             }
@@ -927,7 +930,7 @@ final class AppViewModel: ObservableObject {
             if let securityError = error as? CloudSyncSecurityError,
                securityError == .encryptedSyncLocked {
                 cloudEncryptionState = .locked
-                shouldPresentCloudUnlock = true
+                errorMessage = securityError.localizedDescription
             } else {
                 errorMessage = NSLocalizedString("云端记录同步失败：", comment: "") + error.localizedDescription
             }
@@ -937,6 +940,7 @@ final class AppViewModel: ObservableObject {
     func refreshCloudEncryptionState() async {
         guard let user, !user.isGuest else {
             cloudEncryptionState = cloudSyncService.isAvailable ? .disabled : .unavailable
+            shouldPresentCloudMigration = false
             return
         }
 
@@ -950,9 +954,29 @@ final class AppViewModel: ObservableObject {
             case .enabled:
                 cloudEncryptionState = snapshot.localKeyAvailable ? .unlocked : .locked
             }
-            shouldPresentCloudUnlock = cloudEncryptionState == .locked
+            shouldPresentCloudMigration = snapshot.requiresMigration && !isCloudMigrationInProgress
         } catch {
             cloudEncryptionState = .unavailable
+            shouldPresentCloudMigration = false
+        }
+    }
+
+    private func ensureAutomaticCloudEncryptionIfNeeded() async {
+        guard let user, !user.isGuest, cloudSyncService.isAvailable else { return }
+        guard !isCloudMigrationInProgress else { return }
+
+        do {
+            let snapshot = try await cloudSyncService.protectionSnapshot(for: user)
+            guard snapshot.mode == .disabled, !snapshot.hasLegacyPlaintextData else { return }
+
+            try await cloudSyncService.enableAutomaticEndToEndEncryption(
+                user: user,
+                localPreferences: preferences,
+                localRecords: allRecords
+            ) { _ in }
+            await refreshCloudEncryptionState()
+        } catch {
+            errorMessage = NSLocalizedString("启用加密同步失败：", comment: "") + error.localizedDescription
         }
     }
 

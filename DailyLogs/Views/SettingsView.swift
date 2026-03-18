@@ -9,8 +9,6 @@ struct SettingsView: View {
     @State private var isEditingNickname = false
     @State private var nicknameText = ""
     @State private var showingHomeSections = false
-    @State private var showingEnableEncryption = false
-    @State private var showingUnlockEncryption = false
 
     var body: some View {
         NavigationStack {
@@ -50,18 +48,6 @@ struct SettingsView: View {
                     .presentationDetents([.fraction(0.34), .medium])
                     .presentationDragIndicator(.visible)
             }
-            .sheet(isPresented: $showingEnableEncryption) {
-                CloudEncryptionPassphraseSheet(mode: .enable)
-                    .environmentObject(appViewModel)
-                    .presentationDetents([.medium, .large])
-                    .presentationDragIndicator(.visible)
-            }
-            .sheet(isPresented: $showingUnlockEncryption) {
-                CloudEncryptionPassphraseSheet(mode: .unlock)
-                    .environmentObject(appViewModel)
-                    .presentationDetents([.medium, .large])
-                    .presentationDragIndicator(.visible)
-            }
             .alert(NSLocalizedString("修改昵称", comment: ""), isPresented: $isEditingNickname) {
                 TextField(NSLocalizedString("昵称", comment: ""), text: $nicknameText)
                 Button(NSLocalizedString("取消", comment: ""), role: .cancel) {}
@@ -72,6 +58,13 @@ struct SettingsView: View {
                 }
             } message: {
                 Text(NSLocalizedString("输入你想使用的昵称", comment: ""))
+            }
+            .alert(NSLocalizedString("提示", comment: ""), isPresented: .constant(appViewModel.errorMessage != nil && !appViewModel.isCloudMigrationInProgress)) {
+                Button(NSLocalizedString("知道了", comment: "")) {
+                    appViewModel.errorMessage = nil
+                }
+            } message: {
+                Text(appViewModel.errorMessage ?? "")
             }
             .task(id: appViewModel.user?.userID) {
                 await appViewModel.refreshCloudEncryptionState()
@@ -239,36 +232,24 @@ struct SettingsView: View {
                 .foregroundStyle(AppTheme.secondaryText)
         case .disabled:
             primaryActionButton(
-                title: NSLocalizedString("启用端到端加密", comment: ""),
-                action: { showingEnableEncryption = true }
+                title: NSLocalizedString("立即升级为端到端加密", comment: ""),
+                action: { appViewModel.shouldPresentCloudMigration = true }
             )
         case .locked:
             VStack(spacing: 10) {
-                primaryActionButton(
-                    title: NSLocalizedString("输入同步密码解锁", comment: ""),
-                    action: { showingUnlockEncryption = true }
-                )
-
                 secondaryActionButton(
-                    title: NSLocalizedString("稍后再说", comment: ""),
-                    action: {}
-                )
-            }
-        case .unlocked:
-            VStack(spacing: 10) {
-                primaryActionButton(
-                    title: NSLocalizedString("这台设备已解锁", comment: ""),
-                    action: {}
-                )
-                .disabled(true)
-
-                secondaryActionButton(
-                    title: NSLocalizedString("在这台设备上锁定", comment: ""),
+                    title: NSLocalizedString("重新检查同步密钥", comment: ""),
                     action: {
-                        Task { await appViewModel.lockEndToEndEncryptionLocally() }
+                        Task { await appViewModel.refreshCloudEncryptionState() }
                     }
                 )
             }
+        case .unlocked:
+            primaryActionButton(
+                title: NSLocalizedString("这台设备已受端到端加密保护", comment: ""),
+                action: {}
+            )
+            .disabled(true)
         }
     }
 
@@ -320,11 +301,11 @@ struct SettingsView: View {
         case .unavailable:
             return NSLocalizedString("如果没有 Firebase 云同步，这一项不会生效。", comment: "")
         case .disabled:
-            return NSLocalizedString("启用后，记录、备注、时间、图片都会先在设备上加密，再上传到 Firebase。即使项目 owner 打开控制台，也只能看到密文。", comment: "")
+            return NSLocalizedString("升级后，记录、备注、时间和图片都会先在设备上加密，再上传到 Firebase。系统会使用 iCloud 钥匙串帮你同步密钥，不再额外要求输入同步密码。", comment: "")
         case .locked:
-            return NSLocalizedString("你之前已经启用了端到端加密，但这台设备本地没有保存密钥，需要重新输入同步密码才能读取云端数据。", comment: "")
+            return NSLocalizedString("云端已经是端到端加密，但这台设备还没有拿到同步密钥。请确认这台设备已登录同一 Apple ID，并开启了 iCloud 钥匙串。", comment: "")
         case .unlocked:
-            return NSLocalizedString("现在上传到云端的是密文，不是 Firestore/Storage 可直接读懂的明文。新设备登录同一账号时，需要输入同步密码来解锁。", comment: "")
+            return NSLocalizedString("现在上传到云端的是密文，不是 Firestore/Storage 可直接读懂的明文。只要其他设备同步了同一份 iCloud 钥匙串，就会自动拿到解密密钥。", comment: "")
         }
     }
 

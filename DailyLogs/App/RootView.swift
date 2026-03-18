@@ -17,8 +17,8 @@ struct RootView: View {
         }
         .environment(\.locale, resolvedLocale)
         .id(appViewModel.languageRefreshID)
-        .sheet(isPresented: $appViewModel.shouldPresentCloudUnlock) {
-            CloudEncryptionPassphraseSheet(mode: .unlock, isDismissable: false)
+        .sheet(isPresented: $appViewModel.shouldPresentCloudMigration) {
+            CloudEncryptionPassphraseSheet(mode: .migration, isDismissable: false)
                 .environmentObject(appViewModel)
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)

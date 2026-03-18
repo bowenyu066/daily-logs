@@ -10,25 +10,21 @@ struct CloudBootstrapPayload {
     var records: [DailyRecord]
 }
 
-@MainActor
-protocol CloudSyncService {
+protocol CloudSyncService: Sendable {
     var isAvailable: Bool { get }
     func bootstrap(user: UserAccount, localPreferences: UserPreferences, localRecords: [DailyRecord]) async throws -> CloudBootstrapPayload
     func pushPreferences(_ preferences: UserPreferences, user: UserAccount) async throws
     func pushRecord(_ record: DailyRecord, user: UserAccount) async throws
     func pushProfile(_ user: UserAccount) async throws
     func protectionSnapshot(for user: UserAccount) async throws -> CloudProtectionSnapshot
-    func enableEndToEndEncryption(
-        passphrase: String,
+    func enableAutomaticEndToEndEncryption(
         user: UserAccount,
         localPreferences: UserPreferences,
-        localRecords: [DailyRecord]
+        localRecords: [DailyRecord],
+        progress: @escaping @Sendable (CloudMigrationProgress) async -> Void
     ) async throws
-    func unlockEndToEndEncryption(passphrase: String, user: UserAccount) async throws
-    func lockEndToEndEncryption(for user: UserAccount)
 }
 
-@MainActor
 struct NoopCloudSyncService: CloudSyncService {
     var isAvailable: Bool { false }
 
@@ -46,22 +42,15 @@ struct NoopCloudSyncService: CloudSyncService {
         CloudProtectionSnapshot(mode: .unavailable, localKeyAvailable: false)
     }
 
-    func enableEndToEndEncryption(
-        passphrase: String,
+    func enableAutomaticEndToEndEncryption(
         user: UserAccount,
         localPreferences: UserPreferences,
-        localRecords: [DailyRecord]
+        localRecords: [DailyRecord],
+        progress: @escaping @Sendable (CloudMigrationProgress) async -> Void
     ) async throws {}
-
-    func unlockEndToEndEncryption(passphrase: String, user: UserAccount) async throws {}
-
-    func lockEndToEndEncryption(for user: UserAccount) {}
 }
 
-@MainActor
-final class FirebaseCloudSyncService: CloudSyncService {
-    private let encoder = JSONEncoder()
-    private let decoder = JSONDecoder()
+final class FirebaseCloudSyncService: CloudSyncService, Sendable {
     private let crypto = CloudCryptoService()
     private let keychain = CloudKeychainStore()
 
@@ -101,11 +90,6 @@ final class FirebaseCloudSyncService: CloudSyncService {
         return storages
     }
 
-    init() {
-        encoder.dateEncodingStrategy = .iso8601
-        decoder.dateDecodingStrategy = .iso8601
-    }
-
     var isAvailable: Bool {
         db != nil
     }
@@ -118,7 +102,8 @@ final class FirebaseCloudSyncService: CloudSyncService {
         let metadata = try await fetchEncryptionMetadata(for: user)
         return CloudProtectionSnapshot(
             mode: metadata == nil ? .disabled : .enabled,
-            localKeyAvailable: metadata != nil && keychain.loadKey(for: user.userID) != nil
+            localKeyAvailable: metadata != nil && keychain.loadKey(for: user.userID) != nil,
+            hasLegacyPlaintextData: try await hasLegacyPlaintextData(for: user)
         )
     }
 
@@ -128,6 +113,11 @@ final class FirebaseCloudSyncService: CloudSyncService {
         }
 
         let encryptionMetadata = try await fetchEncryptionMetadata(for: user)
+        let hasLegacyPlaintext = try await hasLegacyPlaintextData(for: user)
+        guard encryptionMetadata != nil || hasLegacyPlaintext else {
+            return CloudBootstrapPayload(profile: nil, preferences: nil, records: [])
+        }
+
         try await upsertProfile(user, encrypted: encryptionMetadata != nil)
 
         if encryptionMetadata != nil {
@@ -238,65 +228,45 @@ final class FirebaseCloudSyncService: CloudSyncService {
         try await upsertProfile(user, encrypted: false)
     }
 
-    func enableEndToEndEncryption(
-        passphrase: String,
+    func enableAutomaticEndToEndEncryption(
         user: UserAccount,
         localPreferences: UserPreferences,
-        localRecords: [DailyRecord]
+        localRecords: [DailyRecord],
+        progress: @escaping @Sendable (CloudMigrationProgress) async -> Void
     ) async throws {
         guard db != nil else {
             throw CloudSyncSecurityError.firebaseUnavailable
         }
 
-        let metadata = crypto.makeMetadata()
-        let key = try crypto.deriveKey(passphrase: passphrase, metadata: metadata)
-        try keychain.saveKey(key, for: user.userID)
+        await progress(CloudMigrationProgress(fractionCompleted: 0.05, message: NSLocalizedString("正在检查旧版云端数据…", comment: "")))
+        let legacyPayload = try await legacyPlaintextPayload(for: user)
+        let mergedPreferences = legacyPayload.preferences ?? localPreferences
+        let mergedRecords = mergeRecords(localRecords, with: legacyPayload.records)
 
+        let metadata = crypto.makeSynchronizableMetadata()
+        let key = crypto.makeRandomKey()
+        try keychain.saveKey(key, for: user.userID, synchronizable: true)
+
+        await progress(CloudMigrationProgress(fractionCompleted: 0.14, message: NSLocalizedString("正在为这台设备创建同步密钥…", comment: "")))
         try await pushEncryptedProfile(user, key: key)
-        try await pushEncryptedPreferences(localPreferences, user: user, key: key)
-        for record in localRecords {
+        await progress(CloudMigrationProgress(fractionCompleted: 0.28, message: NSLocalizedString("正在加密偏好设置…", comment: "")))
+        try await pushEncryptedPreferences(mergedPreferences, user: user, key: key)
+
+        let totalRecords = max(mergedRecords.count, 1)
+        for (index, record) in mergedRecords.enumerated() {
+            let fraction = 0.28 + (Double(index) / Double(totalRecords)) * 0.54
+            await progress(CloudMigrationProgress(
+                fractionCompleted: min(fraction, 0.82),
+                message: String(format: NSLocalizedString("正在迁移记录 %d/%d…", comment: ""), index + 1, totalRecords)
+            ))
             try await pushEncryptedRecord(record, user: user, key: key)
         }
+        await progress(CloudMigrationProgress(fractionCompleted: 0.88, message: NSLocalizedString("正在切换到新的加密存储…", comment: "")))
         try await writeEncryptionMetadata(metadata, for: user)
         try await upsertProfile(user, encrypted: true)
+        await progress(CloudMigrationProgress(fractionCompleted: 0.95, message: NSLocalizedString("正在清理旧版明文数据…", comment: "")))
         try await deleteLegacyPlaintextCloudData(for: user)
-    }
-
-    func unlockEndToEndEncryption(passphrase: String, user: UserAccount) async throws {
-        guard let metadata = try await fetchEncryptionMetadata(for: user) else { return }
-        let key = try crypto.deriveKey(passphrase: passphrase, metadata: metadata)
-
-        guard let db else {
-            throw CloudSyncSecurityError.firebaseUnavailable
-        }
-
-        let userRef = db.collection("users").document(user.userID)
-        let profileSnapshot = try await userRef.collection("secureProfile").document("current").getDocument()
-        let prefsSnapshot = try await userRef.collection("securePreferences").document("current").getDocument()
-        let recordsSnapshot = try await userRef.collection("secureRecords").limit(to: 1).getDocuments()
-
-        var validated = false
-        if let data = profileSnapshot.data() {
-            _ = try decryptDocument(UserProfile.self, from: data, key: key)
-            validated = true
-        }
-        if let data = prefsSnapshot.data() {
-            _ = try decryptDocument(UserPreferences.self, from: data, key: key)
-            validated = true
-        }
-        if let recordData = recordsSnapshot.documents.first?.data() {
-            _ = try decryptDocument(DailyRecord.self, from: recordData, key: key)
-            validated = true
-        }
-
-        guard validated else {
-            throw CloudSyncSecurityError.invalidEncryptedPayload
-        }
-        try keychain.saveKey(key, for: user.userID)
-    }
-
-    func lockEndToEndEncryption(for user: UserAccount) {
-        keychain.deleteKey(for: user.userID)
+        await progress(CloudMigrationProgress(fractionCompleted: 1.0, message: NSLocalizedString("迁移完成，云端现在只保存密文。", comment: "")))
     }
 
     private func upsertProfile(_ user: UserAccount, encrypted: Bool) async throws {
@@ -475,6 +445,83 @@ final class FirebaseCloudSyncService: CloudSyncService {
         return try Data(contentsOf: URL(fileURLWithPath: photoReference))
     }
 
+    private func legacyPlaintextPayload(for user: UserAccount) async throws -> CloudBootstrapPayload {
+        guard let db else {
+            return CloudBootstrapPayload(profile: nil, preferences: nil, records: [])
+        }
+
+        let userRef = db.collection("users").document(user.userID)
+        let profileSnapshot = try await userRef.getDocument()
+        let prefsSnapshot = try await userRef.collection("preferences").document("current").getDocument()
+        let recordsSnapshot = try await userRef.collection("records").getDocuments()
+
+        let remoteProfile = try profileSnapshot.data().flatMap { try decode(UserProfile.self, from: $0) }
+        let remotePreferences = try prefsSnapshot.data().flatMap { try decode(UserPreferences.self, from: $0) }
+        let remoteRecords = try recordsSnapshot.documents.compactMap { document in
+            try decode(DailyRecord.self, from: document.data())
+        }
+        .sorted { $0.date < $1.date }
+
+        return CloudBootstrapPayload(
+            profile: remoteProfile,
+            preferences: remotePreferences,
+            records: remoteRecords
+        )
+    }
+
+    private func hasLegacyPlaintextData(for user: UserAccount) async throws -> Bool {
+        guard let db else { return false }
+        if try await fetchEncryptionMetadata(for: user) != nil {
+            return false
+        }
+
+        let userRef = db.collection("users").document(user.userID)
+        let prefsSnapshot = try await userRef.collection("preferences").document("current").getDocument()
+        if prefsSnapshot.exists {
+            return true
+        }
+
+        let recordsSnapshot = try await userRef.collection("records").limit(to: 1).getDocuments()
+        if recordsSnapshot.isEmpty == false {
+            return true
+        }
+        return false
+    }
+
+    private func mergeRecords(_ localRecords: [DailyRecord], with remoteRecords: [DailyRecord]) -> [DailyRecord] {
+        var merged: [String: DailyRecord] = [:]
+
+        for record in remoteRecords + localRecords {
+            let key = record.date.storageKey()
+            let normalized = record.backfillingRecordedTimeZones(TimeZone.autoupdatingCurrent.identifier)
+            if let existing = merged[key] {
+                merged[key] = preferredRecord(between: existing, and: normalized)
+            } else {
+                merged[key] = normalized
+            }
+        }
+
+        return merged.values.sorted { $0.date < $1.date }
+    }
+
+    private func preferredRecord(between lhs: DailyRecord, and rhs: DailyRecord) -> DailyRecord {
+        score(for: rhs) >= score(for: lhs) ? rhs : lhs
+    }
+
+    private func score(for record: DailyRecord) -> Int {
+        var total = 0
+        if record.sleepRecord.bedtimePreviousNight != nil { total += 2 }
+        if record.sleepRecord.wakeTimeCurrentDay != nil { total += 2 }
+        if record.sleepRecord.note?.isEmpty == false { total += 1 }
+        total += record.sleepRecord.stageIntervals.count
+        total += record.meals.filter { $0.time != nil || $0.photoURL != nil || $0.note?.isEmpty == false }.count * 2
+        total += record.showers.filter { $0.time != nil || $0.note?.isEmpty == false }.count * 2
+        total += record.bowelMovements.filter { $0.time != nil || $0.note?.isEmpty == false }.count * 2
+        total += record.sexualActivities.filter { $0.time != nil || $0.note?.isEmpty == false }.count * 2
+        if record.sunTimes != nil { total += 2 }
+        return total
+    }
+
     private func fetchEncryptionMetadata(for user: UserAccount) async throws -> CloudEncryptionMetadata? {
         guard let db else { return nil }
         let snapshot = try await db.collection("users").document(user.userID).collection("secureMeta").document("current").getDocument()
@@ -527,6 +574,8 @@ final class FirebaseCloudSyncService: CloudSyncService {
     }
 
     private func encode<T: Encodable>(_ value: T) throws -> [String: Any] {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
         let data = try encoder.encode(value)
         let json = try JSONSerialization.jsonObject(with: data)
         guard let dictionary = json as? [String: Any] else {
@@ -536,12 +585,13 @@ final class FirebaseCloudSyncService: CloudSyncService {
     }
 
     private func decode<T: Decodable>(_ type: T.Type, from dictionary: [String: Any]) throws -> T {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
         let data = try JSONSerialization.data(withJSONObject: dictionary)
         return try decoder.decode(type, from: data)
     }
 }
 
-@MainActor
 extension StorageReference {
     struct UploadResult: Sendable {
         var path: String?

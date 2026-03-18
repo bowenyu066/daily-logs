@@ -15,6 +15,7 @@ struct CloudProtectionSnapshot: Equatable {
 
     var mode: Mode
     var localKeyAvailable: Bool
+    var hasLegacyPlaintextData: Bool = false
 
     var isLocked: Bool {
         mode == .enabled && !localKeyAvailable
@@ -23,6 +24,10 @@ struct CloudProtectionSnapshot: Equatable {
     var isUnlocked: Bool {
         mode == .enabled && localKeyAvailable
     }
+
+    var requiresMigration: Bool {
+        mode == .disabled && hasLegacyPlaintextData
+    }
 }
 
 enum CloudSyncSecurityError: LocalizedError, Equatable {
@@ -30,35 +35,50 @@ enum CloudSyncSecurityError: LocalizedError, Equatable {
     case invalidPassphrase
     case invalidEncryptedPayload
     case firebaseUnavailable
+    case keychainSyncUnavailable
 
     var errorDescription: String? {
         switch self {
         case .encryptedSyncLocked:
-            return NSLocalizedString("云端数据已加密，需要先输入同步密码才能读取或同步。", comment: "")
+            return NSLocalizedString("云端数据已加密，但这台设备还没有拿到同步密钥。请确认已开启 iCloud 钥匙串。", comment: "")
         case .invalidPassphrase:
             return NSLocalizedString("同步密码不正确，无法解锁加密数据。", comment: "")
         case .invalidEncryptedPayload:
             return NSLocalizedString("云端加密数据格式不可读。", comment: "")
         case .firebaseUnavailable:
             return NSLocalizedString("Firebase 还没有正确初始化。", comment: "")
+        case .keychainSyncUnavailable:
+            return NSLocalizedString("系统同步钥匙链当前不可用，暂时无法完成端到端加密迁移。", comment: "")
         }
     }
 }
 
+enum CloudKeyProvider: String, Codable, Equatable {
+    case synchronizableKeychain
+    case passphrase
+}
+
 struct CloudEncryptionMetadata: Codable, Equatable {
-    static let currentVersion = 1
+    static let currentVersion = 2
     static let currentIterations = 600_000
 
     var version: Int = Self.currentVersion
-    var algorithm: String = "PBKDF2-SHA256-AES-GCM-256"
-    var saltBase64: String
-    var iterations: Int = Self.currentIterations
+    var algorithm: String = "AES-GCM-256"
+    var keyProvider: CloudKeyProvider = .synchronizableKeychain
+    var keyID: String?
+    var saltBase64: String?
+    var iterations: Int?
     var enabledAt: Date = .now
 }
 
 struct CloudEncryptedEnvelope: Codable, Equatable {
     var version: Int = CloudEncryptionMetadata.currentVersion
     var combinedBase64: String
+}
+
+struct CloudMigrationProgress: Equatable, Sendable {
+    var fractionCompleted: Double
+    var message: String
 }
 
 enum SecureCloudPhotoReference {
@@ -83,12 +103,37 @@ enum SecureCloudPhotoReference {
 
 struct CloudCryptoService {
     func makeMetadata() -> CloudEncryptionMetadata {
+        makePassphraseMetadata()
+    }
+
+    func makeSynchronizableMetadata() -> CloudEncryptionMetadata {
+        CloudEncryptionMetadata(
+            algorithm: "AES-GCM-256",
+            keyProvider: .synchronizableKeychain,
+            keyID: UUID().uuidString,
+            saltBase64: nil,
+            iterations: nil
+        )
+    }
+
+    func makeRandomKey() -> SymmetricKey {
+        SymmetricKey(data: randomData(length: 32))
+    }
+
+    func makePassphraseMetadata() -> CloudEncryptionMetadata {
         let salt = randomData(length: 16).base64EncodedString()
-        return CloudEncryptionMetadata(saltBase64: salt)
+        return CloudEncryptionMetadata(
+            algorithm: "PBKDF2-SHA256-AES-GCM-256",
+            keyProvider: .passphrase,
+            keyID: nil,
+            saltBase64: salt,
+            iterations: CloudEncryptionMetadata.currentIterations
+        )
     }
 
     func deriveKey(passphrase: String, metadata: CloudEncryptionMetadata) throws -> SymmetricKey {
-        guard let salt = Data(base64Encoded: metadata.saltBase64) else {
+        guard let saltBase64 = metadata.saltBase64,
+              let salt = Data(base64Encoded: saltBase64) else {
             throw CloudSyncSecurityError.invalidEncryptedPayload
         }
 
@@ -96,7 +141,7 @@ struct CloudCryptoService {
         let keyData = try pbkdf2SHA256(
             password: passphraseData,
             salt: salt,
-            rounds: metadata.iterations,
+            rounds: metadata.iterations ?? CloudEncryptionMetadata.currentIterations,
             keyByteCount: 32
         )
         return SymmetricKey(data: keyData)
@@ -171,46 +216,59 @@ struct CloudCryptoService {
 }
 
 struct CloudKeychainStore {
-    private let service = "com.flyfishyu.DailyLogs.cloud.encryption"
+    private let localService = "com.flyfishyu.DailyLogs.cloud.encryption.local"
+    private let syncService = "com.flyfishyu.DailyLogs.cloud.encryption.sync"
 
-    func saveKey(_ key: SymmetricKey, for userID: String) throws {
+    func saveKey(_ key: SymmetricKey, for userID: String, synchronizable: Bool) throws {
         let raw = key.withUnsafeBytes { Data($0) }
-        let query = baseQuery(for: userID)
+        let query = baseQuery(for: userID, synchronizable: synchronizable)
 
         SecItemDelete(query as CFDictionary)
 
         var attributes = query
         attributes[kSecValueData as String] = raw
-        attributes[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+        attributes[kSecAttrAccessible as String] = synchronizable
+            ? kSecAttrAccessibleAfterFirstUnlock
+            : kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
 
         let status = SecItemAdd(attributes as CFDictionary, nil)
         guard status == errSecSuccess else {
+            if synchronizable {
+                throw CloudSyncSecurityError.keychainSyncUnavailable
+            }
             throw CocoaError(.fileWriteUnknown)
         }
     }
 
     func loadKey(for userID: String) -> SymmetricKey? {
-        var query = baseQuery(for: userID)
+        loadKey(for: userID, synchronizable: true) ?? loadKey(for: userID, synchronizable: false)
+    }
+
+    func deleteKey(for userID: String) {
+        SecItemDelete(baseQuery(for: userID, synchronizable: true) as CFDictionary)
+        SecItemDelete(baseQuery(for: userID, synchronizable: false) as CFDictionary)
+    }
+
+    private func loadKey(for userID: String, synchronizable: Bool) -> SymmetricKey? {
+        var query = baseQuery(for: userID, synchronizable: synchronizable)
         query[kSecReturnData as String] = kCFBooleanTrue
         query[kSecMatchLimit as String] = kSecMatchLimitOne
-
         var item: CFTypeRef?
         let status = SecItemCopyMatching(query as CFDictionary, &item)
         guard status == errSecSuccess, let data = item as? Data else { return nil }
         return SymmetricKey(data: data)
     }
 
-    func deleteKey(for userID: String) {
-        let query = baseQuery(for: userID)
-        SecItemDelete(query as CFDictionary)
-    }
-
-    private func baseQuery(for userID: String) -> [String: Any] {
-        [
+    private func baseQuery(for userID: String, synchronizable: Bool) -> [String: Any] {
+        var query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
+            kSecAttrService as String: synchronizable ? syncService : localService,
             kSecAttrAccount as String: userID
         ]
+        if synchronizable {
+            query[kSecAttrSynchronizable as String] = kCFBooleanTrue
+        }
+        return query
     }
 }
 
