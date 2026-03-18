@@ -40,7 +40,7 @@ enum CloudSyncSecurityError: LocalizedError, Equatable {
     var errorDescription: String? {
         switch self {
         case .encryptedSyncLocked:
-            return NSLocalizedString("云端数据已加密，但这台设备还没有拿到同步密钥。请确认已开启 iCloud 钥匙串。", comment: "")
+            return NSLocalizedString("这台设备还没拿到云端密钥，请检查 iCloud 钥匙串。", comment: "")
         case .invalidPassphrase:
             return NSLocalizedString("同步密码不正确，无法解锁加密数据。", comment: "")
         case .invalidEncryptedPayload:
@@ -48,7 +48,7 @@ enum CloudSyncSecurityError: LocalizedError, Equatable {
         case .firebaseUnavailable:
             return NSLocalizedString("Firebase 还没有正确初始化。", comment: "")
         case .keychainSyncUnavailable:
-            return NSLocalizedString("系统同步钥匙链当前不可用，暂时无法完成端到端加密迁移。", comment: "")
+            return NSLocalizedString("iCloud 钥匙串暂时不可用，稍后再试。", comment: "")
         }
     }
 }

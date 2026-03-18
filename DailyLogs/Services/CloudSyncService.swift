@@ -238,7 +238,7 @@ final class FirebaseCloudSyncService: CloudSyncService, Sendable {
             throw CloudSyncSecurityError.firebaseUnavailable
         }
 
-        await progress(CloudMigrationProgress(fractionCompleted: 0.05, message: NSLocalizedString("正在检查旧版云端数据…", comment: "")))
+        await progress(CloudMigrationProgress(fractionCompleted: 0.05, message: NSLocalizedString("正在检查旧数据…", comment: "")))
         let legacyPayload = try await legacyPlaintextPayload(for: user)
         let mergedPreferences = legacyPayload.preferences ?? localPreferences
         let mergedRecords = mergeRecords(localRecords, with: legacyPayload.records)
@@ -247,9 +247,9 @@ final class FirebaseCloudSyncService: CloudSyncService, Sendable {
         let key = crypto.makeRandomKey()
         try keychain.saveKey(key, for: user.userID, synchronizable: true)
 
-        await progress(CloudMigrationProgress(fractionCompleted: 0.14, message: NSLocalizedString("正在为这台设备创建同步密钥…", comment: "")))
+        await progress(CloudMigrationProgress(fractionCompleted: 0.14, message: NSLocalizedString("正在创建密钥…", comment: "")))
         try await pushEncryptedProfile(user, key: key)
-        await progress(CloudMigrationProgress(fractionCompleted: 0.28, message: NSLocalizedString("正在加密偏好设置…", comment: "")))
+        await progress(CloudMigrationProgress(fractionCompleted: 0.28, message: NSLocalizedString("正在加密设置…", comment: "")))
         try await pushEncryptedPreferences(mergedPreferences, user: user, key: key)
 
         let totalRecords = max(mergedRecords.count, 1)
@@ -257,16 +257,16 @@ final class FirebaseCloudSyncService: CloudSyncService, Sendable {
             let fraction = 0.28 + (Double(index) / Double(totalRecords)) * 0.54
             await progress(CloudMigrationProgress(
                 fractionCompleted: min(fraction, 0.82),
-                message: String(format: NSLocalizedString("正在迁移记录 %d/%d…", comment: ""), index + 1, totalRecords)
+                message: String(format: NSLocalizedString("正在迁移 %d/%d…", comment: ""), index + 1, totalRecords)
             ))
             try await pushEncryptedRecord(record, user: user, key: key)
         }
-        await progress(CloudMigrationProgress(fractionCompleted: 0.88, message: NSLocalizedString("正在切换到新的加密存储…", comment: "")))
+        await progress(CloudMigrationProgress(fractionCompleted: 0.88, message: NSLocalizedString("正在切换加密存储…", comment: "")))
         try await writeEncryptionMetadata(metadata, for: user)
         try await upsertProfile(user, encrypted: true)
-        await progress(CloudMigrationProgress(fractionCompleted: 0.95, message: NSLocalizedString("正在清理旧版明文数据…", comment: "")))
+        await progress(CloudMigrationProgress(fractionCompleted: 0.95, message: NSLocalizedString("正在清理旧数据…", comment: "")))
         try await deleteLegacyPlaintextCloudData(for: user)
-        await progress(CloudMigrationProgress(fractionCompleted: 1.0, message: NSLocalizedString("迁移完成，云端现在只保存密文。", comment: "")))
+        await progress(CloudMigrationProgress(fractionCompleted: 1.0, message: NSLocalizedString("迁移完成。", comment: "")))
     }
 
     private func upsertProfile(_ user: UserAccount, encrypted: Bool) async throws {

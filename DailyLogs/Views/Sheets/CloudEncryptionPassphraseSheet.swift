@@ -66,7 +66,7 @@ struct CloudEncryptionPassphraseSheet: View {
                         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
                         .disabled(appViewModel.isCloudMigrationInProgress)
 
-                        Text(NSLocalizedString("迁移只需要做一次。完成后，记录、备注、时间和图片都会先在设备上加密，再上传到云端；如果你的其他设备开启了 iCloud 钥匙串，会自动拿到同一把密钥。", comment: ""))
+                        Text(NSLocalizedString("只需迁移一次。其他设备会通过 iCloud 钥匙串自动拿到密钥。", comment: ""))
                             .font(.system(size: 13, weight: .medium, design: .rounded))
                             .foregroundStyle(AppTheme.secondaryText)
                             .fixedSize(horizontal: false, vertical: true)
@@ -102,7 +102,7 @@ struct CloudEncryptionPassphraseSheet: View {
     private var message: String {
         switch mode {
         case .migration:
-            return NSLocalizedString("你之前版本的云同步仍是旧的明文存储方式。这次升级会自动把历史云端数据迁移到新的端到端加密存储，并在迁移过程中实时显示进度。", comment: "")
+            return NSLocalizedString("检测到旧版云数据，需要升级到加密存储。", comment: "")
         }
     }
 
@@ -110,8 +110,8 @@ struct CloudEncryptionPassphraseSheet: View {
         switch mode {
         case .migration:
             return appViewModel.cloudMigrationError == nil
-                ? NSLocalizedString("开始自动迁移", comment: "")
-                : NSLocalizedString("重新尝试迁移", comment: "")
+                ? NSLocalizedString("开始升级", comment: "")
+                : NSLocalizedString("重试升级", comment: "")
         }
     }
 

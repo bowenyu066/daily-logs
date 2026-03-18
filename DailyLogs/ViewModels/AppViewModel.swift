@@ -222,7 +222,7 @@ final class AppViewModel: ObservableObject {
         isCloudMigrationInProgress = true
         cloudMigrationProgress = 0
         cloudMigrationError = nil
-        cloudMigrationMessage = NSLocalizedString("正在准备迁移…", comment: "")
+        cloudMigrationMessage = NSLocalizedString("正在准备…", comment: "")
 
         do {
             try await cloudSyncService.enableAutomaticEndToEndEncryption(
@@ -237,7 +237,7 @@ final class AppViewModel: ObservableObject {
             }
             isCloudMigrationInProgress = false
             cloudMigrationProgress = 1
-            cloudMigrationMessage = NSLocalizedString("迁移完成，新的云端数据已经改为端到端加密。", comment: "")
+            cloudMigrationMessage = NSLocalizedString("迁移完成。", comment: "")
             await refreshCloudEncryptionState()
             await refreshFromCloudIfNeeded(for: user)
             try? loadSelectedRecord()
@@ -245,7 +245,7 @@ final class AppViewModel: ObservableObject {
         } catch {
             isCloudMigrationInProgress = false
             cloudMigrationError = error.localizedDescription
-            cloudMigrationMessage = NSLocalizedString("迁移没有完成，请重试。", comment: "")
+            cloudMigrationMessage = NSLocalizedString("迁移失败，请重试。", comment: "")
             errorMessage = NSLocalizedString("启用加密同步失败：", comment: "") + error.localizedDescription
         }
     }

@@ -193,7 +193,7 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: 16) {
             SectionHeader(
                 title: NSLocalizedString("云端加密", comment: ""),
-                subtitle: NSLocalizedString("让云端只保存密文，而不是可直接读取的记录。", comment: "")
+                subtitle: NSLocalizedString("让云端只保存密文。", comment: "")
             )
 
             Text(cloudEncryptionDescription)
@@ -212,7 +212,7 @@ struct SettingsView: View {
             }
 
             if appViewModel.user?.isGuest == true {
-                Text(NSLocalizedString("游客模式不会同步到云端，因此也不需要云端加密。", comment: ""))
+                Text(NSLocalizedString("游客模式不使用云同步。", comment: ""))
                     .font(.system(size: 14, weight: .medium, design: .rounded))
                     .foregroundStyle(AppTheme.secondaryText)
             } else {
@@ -227,7 +227,7 @@ struct SettingsView: View {
     private var actionButtons: some View {
         switch appViewModel.cloudEncryptionState {
         case .unavailable:
-            Text(NSLocalizedString("当前设备还没有可用的 Firebase 云同步环境。", comment: ""))
+            Text(NSLocalizedString("当前设备未启用云同步。", comment: ""))
                 .font(.system(size: 14, weight: .medium, design: .rounded))
                 .foregroundStyle(AppTheme.secondaryText)
         case .disabled:
@@ -290,7 +290,7 @@ struct SettingsView: View {
         case .disabled:
             return NSLocalizedString("当前仍是普通云同步", comment: "")
         case .locked:
-            return NSLocalizedString("云端数据已加密，但这台设备还没解锁", comment: "")
+            return NSLocalizedString("这台设备还没拿到密钥", comment: "")
         case .unlocked:
             return NSLocalizedString("端到端加密已开启", comment: "")
         }
@@ -299,13 +299,13 @@ struct SettingsView: View {
     private var cloudEncryptionDescription: String {
         switch appViewModel.cloudEncryptionState {
         case .unavailable:
-            return NSLocalizedString("如果没有 Firebase 云同步，这一项不会生效。", comment: "")
+            return NSLocalizedString("未检测到云同步。", comment: "")
         case .disabled:
-            return NSLocalizedString("升级后，记录、备注、时间和图片都会先在设备上加密，再上传到 Firebase。系统会使用 iCloud 钥匙串帮你同步密钥，不再额外要求输入同步密码。", comment: "")
+            return NSLocalizedString("开启后，数据会先在设备加密，再上传云端。", comment: "")
         case .locked:
-            return NSLocalizedString("云端已经是端到端加密，但这台设备还没有拿到同步密钥。请确认这台设备已登录同一 Apple ID，并开启了 iCloud 钥匙串。", comment: "")
+            return NSLocalizedString("请检查同一 Apple ID 和 iCloud 钥匙串。", comment: "")
         case .unlocked:
-            return NSLocalizedString("现在上传到云端的是密文，不是 Firestore/Storage 可直接读懂的明文。只要其他设备同步了同一份 iCloud 钥匙串，就会自动拿到解密密钥。", comment: "")
+            return NSLocalizedString("云端现在只保存密文。", comment: "")
         }
     }
 

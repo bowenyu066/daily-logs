@@ -328,7 +328,20 @@
       }
     },
     "云同步不可用" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cloud sync unavailable"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "云同步不可用"
+          }
+        }
+      }
     },
     "云端偏好同步失败：" : {
       "localizations" : {
@@ -341,10 +354,36 @@
       }
     },
     "云端加密" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cloud encryption"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "云端加密"
+          }
+        }
+      }
     },
     "云端加密数据格式不可读。" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Encrypted cloud data is unreadable."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "云端加密数据格式不可读。"
+          }
+        }
+      }
     },
     "云端同步失败：" : {
       "localizations" : {
@@ -356,11 +395,53 @@
         }
       }
     },
-    "云端数据已加密，但这台设备还没解锁" : {
-
+    "请检查同一 Apple ID 和 iCloud 钥匙串。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Check the same Apple ID and iCloud Keychain."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请检查同一 Apple ID 和 iCloud 钥匙串。"
+          }
+        }
+      }
     },
-    "云端数据已加密，需要先输入同步密码才能读取或同步。" : {
-
+    "这台设备还没拿到云端密钥，请检查 iCloud 钥匙串。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This device has not received the cloud key yet. Check iCloud Keychain."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这台设备还没拿到云端密钥，请检查 iCloud 钥匙串。"
+          }
+        }
+      }
+    },
+    "这台设备还没拿到密钥" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Key not available on this device"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这台设备还没拿到密钥"
+          }
+        }
+      }
     },
     "云端记录同步失败：" : {
       "localizations" : {
@@ -368,6 +449,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Cloud record sync failed: "
+          }
+        }
+      }
+    },
+    "云端隐私升级" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cloud privacy upgrade"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "云端隐私升级"
           }
         }
       }
@@ -469,8 +566,21 @@
         }
       }
     },
-    "你之前已经启用了端到端加密，但这台设备本地没有保存密钥，需要重新输入同步密码才能读取云端数据。" : {
-
+    "检测到旧版云数据，需要升级到加密存储。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Older cloud data was found and needs to be upgraded to encrypted storage."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "检测到旧版云数据，需要升级到加密存储。"
+          }
+        }
+      }
     },
     "使用 Apple 登录" : {
       "extractionState" : "stale",
@@ -706,9 +816,6 @@
         }
       }
     },
-    "再次输入同步密码" : {
-
-    },
     "再记录几餐，这里会看到你的进餐时间分布。" : {
       "localizations" : {
         "en" : {
@@ -865,6 +972,22 @@
         }
       }
     },
+    "开启后，数据会先在设备加密，再上传云端。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Once enabled, data is encrypted on-device before upload."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开启后，数据会先在设备加密，再上传云端。"
+          }
+        }
+      }
+    },
     "午餐" : {
       "localizations" : {
         "en" : {
@@ -923,9 +1046,6 @@
         }
       }
     },
-    "同步密码" : {
-
-    },
     "同步密码不正确，无法解锁加密数据。" : {
 
     },
@@ -945,19 +1065,7 @@
         }
       }
     },
-    "启用加密同步" : {
-
-    },
     "启用加密同步失败：" : {
-
-    },
-    "启用后，记录、备注、时间、图片都会先在设备上加密，再上传到 Firebase。即使项目 owner 打开控制台，也只能看到密文。" : {
-
-    },
-    "启用后，记录、备注、时间、图片都会先在设备上加密，再上传到云端。项目 owner 只能看到密文，不能直接看到用户内容。" : {
-
-    },
-    "启用端到端加密" : {
 
     },
     "周一" : {
@@ -1104,9 +1212,6 @@
         }
       }
     },
-    "在这台设备上锁定" : {
-
-    },
     "备注" : {
       "localizations" : {
         "en" : {
@@ -1155,8 +1260,21 @@
         }
       }
     },
-    "如果没有 Firebase 云同步，这一项不会生效。" : {
-
+    "未检测到云同步。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cloud sync was not detected."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未检测到云同步。"
+          }
+        }
+      }
     },
     "完成" : {
       "localizations" : {
@@ -1386,8 +1504,21 @@
         }
       }
     },
-    "开始加密迁移" : {
-
+    "开始升级" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Start upgrade"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开始升级"
+          }
+        }
+      }
     },
     "当前" : {
       "localizations" : {
@@ -1400,7 +1531,20 @@
       }
     },
     "当前仍是普通云同步" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Standard cloud sync"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "当前仍是普通云同步"
+          }
+        }
+      }
     },
     "当前位置" : {
       "localizations" : {
@@ -1428,8 +1572,21 @@
         }
       }
     },
-    "当前设备还没有可用的 Firebase 云同步环境。" : {
-
+    "当前设备未启用云同步。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cloud sync is not enabled on this device."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "当前设备未启用云同步。"
+          }
+        }
+      }
     },
     "当天起床" : {
       "localizations" : {
@@ -1823,6 +1980,134 @@
         }
       }
     },
+    "正在创建密钥…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Creating key..."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在创建密钥…"
+          }
+        }
+      }
+    },
+    "正在准备…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Preparing..."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在准备…"
+          }
+        }
+      }
+    },
+    "正在切换加密存储…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Switching storage..."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在切换加密存储…"
+          }
+        }
+      }
+    },
+    "正在加密设置…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Encrypting settings..."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在加密设置…"
+          }
+        }
+      }
+    },
+    "正在检查旧数据…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Checking old data..."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在检查旧数据…"
+          }
+        }
+      }
+    },
+    "正在清理旧数据…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cleaning old data..."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在清理旧数据…"
+          }
+        }
+      }
+    },
+    "正在迁移…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Migrating..."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在迁移…"
+          }
+        }
+      }
+    },
+    "正在迁移 %d/%d…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Migrating %1$d/%2$d..."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在迁移 %1$d/%2$d…"
+          }
+        }
+      }
+    },
     "此操作将会覆盖已有数据。" : {
       "localizations" : {
         "en" : {
@@ -2106,11 +2391,37 @@
         }
       }
     },
-    "游客模式不会同步到云端，因此也不需要云端加密。" : {
-
+    "游客模式不使用云同步。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Guest mode does not use cloud sync."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "游客模式不使用云同步。"
+          }
+        }
+      }
     },
-    "现在上传到云端的是密文，不是 Firestore/Storage 可直接读懂的明文。新设备登录同一账号时，需要输入同步密码来解锁。" : {
-
+    "云端现在只保存密文。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Only encrypted data is stored in the cloud now."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "云端现在只保存密文。"
+          }
+        }
+      }
     },
     "登录失败：" : {
       "localizations" : {
@@ -2349,11 +2660,37 @@
         }
       }
     },
-    "稍后再说" : {
-
+    "立即升级为端到端加密" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Upgrade to end-to-end encryption"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "立即升级为端到端加密"
+          }
+        }
+      }
     },
     "端到端加密已开启" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "End-to-end encryption is on"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "端到端加密已开启"
+          }
+        }
+      }
     },
     "第%d次" : {
       "localizations" : {
@@ -2367,6 +2704,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "第%d次"
+          }
+        }
+      }
+    },
+    "iCloud 钥匙串暂时不可用，稍后再试。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iCloud Keychain is temporarily unavailable. Please try again later."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iCloud 钥匙串暂时不可用，稍后再试。"
           }
         }
       }
@@ -2533,17 +2886,21 @@
         }
       }
     },
-    "解锁加密同步" : {
-
-    },
-    "解锁加密同步失败：" : {
-
-    },
-    "解锁并同步" : {
-
-    },
-    "让云端只保存密文，而不是可直接读取的记录。" : {
-
+    "让云端只保存密文。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Store only encrypted data in the cloud."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "让云端只保存密文。"
+          }
+        }
+      }
     },
     "记录几天之后，这里会出现睡眠曲线。" : {
       "localizations" : {
@@ -2748,8 +3105,53 @@
         }
       }
     },
-    "输入同步密码解锁" : {
-
+    "只需迁移一次。其他设备会通过 iCloud 钥匙串自动拿到密钥。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Migration is only needed once. Other devices can receive the key through iCloud Keychain."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "只需迁移一次。其他设备会通过 iCloud 钥匙串自动拿到密钥。"
+          }
+        }
+      }
+    },
+    "迁移完成。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Migration complete."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "迁移完成。"
+          }
+        }
+      }
+    },
+    "迁移失败，请重试。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Migration failed. Please try again."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "迁移失败，请重试。"
+          }
+        }
+      }
     },
     "还没有性生活记录数据。" : {
       "localizations" : {
@@ -2832,14 +3234,21 @@
         }
       }
     },
-    "这个密码不会上传到服务器。你在新设备登录同一账号时，需要靠它来解锁云端数据；如果忘记，云端加密数据将无法恢复。" : {
-
-    },
-    "这台设备已解锁" : {
-
-    },
-    "这台设备还没有保存同步密钥。输入之前设置的同步密码后，才能拉取和同步云端加密数据。" : {
-
+    "这台设备已受端到端加密保护" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This device is protected by end-to-end encryption"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这台设备已受端到端加密保护"
+          }
+        }
+      }
     },
     "进入游客模式失败：" : {
       "localizations" : {
@@ -2921,6 +3330,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "选择相册照片"
+          }
+        }
+      }
+    },
+    "重试升级" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Retry upgrade"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重试升级"
+          }
+        }
+      }
+    },
+    "重新检查同步密钥" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Check key again"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重新检查同步密钥"
           }
         }
       }
