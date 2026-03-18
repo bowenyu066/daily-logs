@@ -10,6 +10,10 @@ struct HomeView: View {
     @State private var editingMealContext: MealEditorContext?
     @State private var editingShower: ShowerEntry?
     @State private var showingNewShower = false
+    @State private var editingBowelMovement: BowelMovementEntry?
+    @State private var showingNewBowelMovement = false
+    @State private var editingSexualActivity: SexualActivityEntry?
+    @State private var showingNewSexualActivity = false
     @State private var previewingPhotoURL: String?
     @State private var showingHealthKitSyncConfirmation = false
 
@@ -21,12 +25,26 @@ struct HomeView: View {
                 ScrollView(.vertical, showsIndicators: false) {
                     VStack(alignment: .leading, spacing: 24) {
                         headerSection
-                        Divider()
-                        sleepSection
-                        Divider()
-                        mealSection
-                        Divider()
-                        showerSection
+                        if sectionVisible(.sleep) {
+                            Divider()
+                            sleepSection
+                        }
+                        if sectionVisible(.meals) {
+                            Divider()
+                            mealSection
+                        }
+                        if sectionVisible(.showers) {
+                            Divider()
+                            showerSection
+                        }
+                        if sectionVisible(.bowelMovements) {
+                            Divider()
+                            bowelMovementSection
+                        }
+                        if sectionVisible(.sexualActivity) {
+                            Divider()
+                            sexualActivitySection
+                        }
                     }
                     .padding(.horizontal, 18)
                     .padding(.vertical, 16)
@@ -115,6 +133,75 @@ struct HomeView: View {
                 .presentationDetents([.fraction(0.42)])
                 .presentationBackground(AppTheme.background)
             }
+            .sheet(item: $editingBowelMovement) { entry in
+                BowelMovementEditorSheet(
+                    initialValue: entry,
+                    baseDate: appViewModel.selectedDate,
+                    isEditable: appViewModel.canEditSelectedDate,
+                    onSave: { updated in
+                        Task { await appViewModel.saveBowelMovement(updated) }
+                    },
+                    onDelete: {
+                        Task { await appViewModel.deleteBowelMovement(entry) }
+                    }
+                )
+                .presentationDetents([.fraction(0.42)])
+                .presentationBackground(AppTheme.background)
+            }
+            .sheet(isPresented: $showingNewBowelMovement) {
+                BowelMovementEditorSheet(
+                    initialValue: BowelMovementEntry(
+                        time: appViewModel.selectedDate.settingTime(
+                            hour: 8,
+                            minute: 0,
+                            in: appViewModel.displayedTimeZone(for: nil)
+                        )
+                    ),
+                    baseDate: appViewModel.selectedDate,
+                    isEditable: appViewModel.canEditSelectedDate,
+                    onSave: { updated in
+                        Task { await appViewModel.saveBowelMovement(updated) }
+                    },
+                    onDelete: nil
+                )
+                .presentationDetents([.fraction(0.42)])
+                .presentationBackground(AppTheme.background)
+            }
+            .sheet(item: $editingSexualActivity) { entry in
+                SexualActivityEditorSheet(
+                    initialValue: entry,
+                    baseDate: appViewModel.selectedDate,
+                    isEditable: appViewModel.canEditSelectedDate,
+                    onSave: { updated in
+                        Task { await appViewModel.saveSexualActivity(updated) }
+                    },
+                    onDelete: {
+                        Task { await appViewModel.deleteSexualActivity(entry) }
+                    }
+                )
+                .presentationDetents([.fraction(0.52)])
+                .presentationBackground(AppTheme.background)
+            }
+            .sheet(isPresented: $showingNewSexualActivity) {
+                SexualActivityEditorSheet(
+                    initialValue: SexualActivityEntry(
+                        date: appViewModel.selectedDate,
+                        time: appViewModel.selectedDate.settingTime(
+                            hour: 22,
+                            minute: 0,
+                            in: appViewModel.displayedTimeZone(for: nil)
+                        )
+                    ),
+                    baseDate: appViewModel.selectedDate,
+                    isEditable: appViewModel.canEditSelectedDate,
+                    onSave: { updated in
+                        Task { await appViewModel.saveSexualActivity(updated) }
+                    },
+                    onDelete: nil
+                )
+                .presentationDetents([.fraction(0.52)])
+                .presentationBackground(AppTheme.background)
+            }
             .alert(NSLocalizedString("提示", comment: ""), isPresented: .constant(appViewModel.errorMessage != nil), actions: {
                 Button(NSLocalizedString("知道了", comment: "")) {
                     appViewModel.errorMessage = nil
@@ -184,33 +271,35 @@ struct HomeView: View {
                 .buttonStyle(.plain)
             }
 
-            HStack(spacing: 16) {
-                Label {
-                    Text(formattedSun(
-                        appViewModel.dailyRecord.sunTimes?.sunrise,
-                        timeZoneIdentifier: appViewModel.dailyRecord.sunTimes?.timeZoneIdentifier
-                    ))
-                        .font(.system(size: 15, weight: .semibold, design: .rounded))
-                        .foregroundStyle(AppTheme.primaryText)
-                        .monospacedDigit()
-                } icon: {
-                    Image(systemName: "sunrise")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(AppTheme.sunriseAccent)
-                }
+            if sectionVisible(.sunTimes) {
+                HStack(spacing: 16) {
+                    Label {
+                        Text(formattedSun(
+                            appViewModel.dailyRecord.sunTimes?.sunrise,
+                            timeZoneIdentifier: appViewModel.dailyRecord.sunTimes?.timeZoneIdentifier
+                        ))
+                            .font(.system(size: 15, weight: .semibold, design: .rounded))
+                            .foregroundStyle(AppTheme.primaryText)
+                            .monospacedDigit()
+                    } icon: {
+                        Image(systemName: "sunrise")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(AppTheme.sunriseAccent)
+                    }
 
-                Label {
-                    Text(formattedSun(
-                        appViewModel.dailyRecord.sunTimes?.sunset,
-                        timeZoneIdentifier: appViewModel.dailyRecord.sunTimes?.timeZoneIdentifier
-                    ))
-                        .font(.system(size: 15, weight: .semibold, design: .rounded))
-                        .foregroundStyle(AppTheme.primaryText)
-                        .monospacedDigit()
-                } icon: {
-                    Image(systemName: "sunset")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(AppTheme.sleepAccent)
+                    Label {
+                        Text(formattedSun(
+                            appViewModel.dailyRecord.sunTimes?.sunset,
+                            timeZoneIdentifier: appViewModel.dailyRecord.sunTimes?.timeZoneIdentifier
+                        ))
+                            .font(.system(size: 15, weight: .semibold, design: .rounded))
+                            .foregroundStyle(AppTheme.primaryText)
+                            .monospacedDigit()
+                    } icon: {
+                        Image(systemName: "sunset")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(AppTheme.sleepAccent)
+                    }
                 }
             }
         }
@@ -527,7 +616,174 @@ struct HomeView: View {
         .sectionStyle()
     }
 
+    // MARK: - Bowel Movements
+
+    private var bowelMovementSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .center) {
+                Text(NSLocalizedString("排便", comment: ""))
+                    .font(.system(size: 22, weight: .bold, design: .rounded))
+                    .foregroundStyle(AppTheme.primaryText)
+
+                if appViewModel.canEditSelectedDate {
+                    Button(NSLocalizedString("添加", comment: "")) {
+                        showingNewBowelMovement = true
+                    }
+                    .font(.system(size: 14, weight: .semibold, design: .rounded))
+                    .foregroundStyle(AppTheme.accent)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(AppTheme.accentSoft)
+                    .clipShape(Capsule())
+                }
+                Spacer()
+            }
+
+            if appViewModel.dailyRecord.bowelMovements.isEmpty {
+                HStack(spacing: 8) {
+                    Image(systemName: "leaf")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(.brown)
+                    Text(NSLocalizedString("无记录", comment: ""))
+                        .font(.system(size: 16, weight: .semibold, design: .rounded))
+                        .foregroundStyle(AppTheme.secondaryText)
+                }
+                .padding(.vertical, 8)
+            } else {
+                VStack(spacing: 0) {
+                    ForEach(Array(appViewModel.dailyRecord.bowelMovements.enumerated()), id: \.element.id) { index, entry in
+                        if index > 0 {
+                            Divider().padding(.leading, 4)
+                        }
+                        HStack {
+                            Button {
+                                editingBowelMovement = entry
+                            } label: {
+                                Text(appViewModel.displayedShortTime(
+                                    for: entry.time,
+                                    recordedTimeZoneIdentifier: entry.timeZoneIdentifier
+                                ))
+                                    .font(.system(size: 17, weight: .bold, design: .rounded))
+                                    .foregroundStyle(.brown)
+                                    .monospacedDigit()
+                            }
+                            .buttonStyle(.plain)
+
+                            Spacer()
+
+                            Button {
+                                Task { await appViewModel.deleteBowelMovement(entry) }
+                            } label: {
+                                Image(systemName: "trash")
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .foregroundStyle(AppTheme.warning)
+                            }
+                            .buttonStyle(.plain)
+                            .disabled(!appViewModel.canEditSelectedDate)
+                        }
+                        .padding(.vertical, 10)
+                    }
+                }
+            }
+        }
+        .sectionStyle()
+    }
+
+    // MARK: - Sexual Activity
+
+    private var sexualActivitySection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .center) {
+                Text(NSLocalizedString("性生活", comment: ""))
+                    .font(.system(size: 22, weight: .bold, design: .rounded))
+                    .foregroundStyle(AppTheme.primaryText)
+
+                if appViewModel.canEditSelectedDate {
+                    Button(NSLocalizedString("添加", comment: "")) {
+                        showingNewSexualActivity = true
+                    }
+                    .font(.system(size: 14, weight: .semibold, design: .rounded))
+                    .foregroundStyle(AppTheme.accent)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(AppTheme.accentSoft)
+                    .clipShape(Capsule())
+                }
+                Spacer()
+            }
+
+            if appViewModel.dailyRecord.sexualActivities.isEmpty {
+                HStack(spacing: 8) {
+                    Image(systemName: "heart")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(.pink)
+                    Text(NSLocalizedString("无记录", comment: ""))
+                        .font(.system(size: 16, weight: .semibold, design: .rounded))
+                        .foregroundStyle(AppTheme.secondaryText)
+                }
+                .padding(.vertical, 8)
+            } else {
+                VStack(spacing: 0) {
+                    ForEach(Array(appViewModel.dailyRecord.sexualActivities.enumerated()), id: \.element.id) { index, entry in
+                        if index > 0 {
+                            Divider().padding(.leading, 4)
+                        }
+                        HStack {
+                            Button {
+                                editingSexualActivity = entry
+                            } label: {
+                                HStack(spacing: 8) {
+                                    if let time = entry.time {
+                                        Text(appViewModel.displayedShortTime(
+                                            for: time,
+                                            recordedTimeZoneIdentifier: entry.timeZoneIdentifier
+                                        ))
+                                            .font(.system(size: 17, weight: .bold, design: .rounded))
+                                            .foregroundStyle(.pink)
+                                            .monospacedDigit()
+                                    } else {
+                                        Text(NSLocalizedString("已记录", comment: ""))
+                                            .font(.system(size: 17, weight: .bold, design: .rounded))
+                                            .foregroundStyle(.pink)
+                                    }
+                                    if entry.isMasturbation {
+                                        Text(NSLocalizedString("自慰", comment: ""))
+                                            .font(.system(size: 12, weight: .semibold, design: .rounded))
+                                            .foregroundStyle(.pink.opacity(0.7))
+                                            .padding(.horizontal, 8)
+                                            .padding(.vertical, 3)
+                                            .background(.pink.opacity(0.1))
+                                            .clipShape(Capsule())
+                                    }
+                                }
+                            }
+                            .buttonStyle(.plain)
+
+                            Spacer()
+
+                            Button {
+                                Task { await appViewModel.deleteSexualActivity(entry) }
+                            } label: {
+                                Image(systemName: "trash")
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .foregroundStyle(AppTheme.warning)
+                            }
+                            .buttonStyle(.plain)
+                            .disabled(!appViewModel.canEditSelectedDate)
+                        }
+                        .padding(.vertical, 10)
+                    }
+                }
+            }
+        }
+        .sectionStyle()
+    }
+
     // MARK: - Helpers
+
+    private func sectionVisible(_ section: HomeSectionKind) -> Bool {
+        appViewModel.preferences.visibleHomeSections.contains(section)
+    }
 
     private var durationText: String {
         guard let duration = appViewModel.dailyRecord.sleepRecord.duration else {

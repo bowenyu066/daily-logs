@@ -703,9 +703,14 @@ struct AnalyticsSummary {
     var averageDeepSleepHours: Double?
     var averageREMSleepHours: Double?
     var averageShowerMinutes: Double?
+    var averageBowelMovements: Double?
+    var averageBowelMovementMinutes: Double?
+    var averageSexualActivity: Double?
     var days: [AnalyticsDayPoint]
     var mealSeries: [MealAnalyticsSeries]
     var showerPoints: [AnalyticsScatterPoint]
+    var bowelMovementPoints: [AnalyticsScatterPoint]
+    var sexualActivityWeeklyData: [SexualActivityWeekPoint]
 }
 
 enum AnalyticsCalculator {
@@ -742,7 +747,10 @@ enum AnalyticsCalculator {
                     sleepEndMinutes: nil,
                     loggedMeals: 0,
                     trackedMeals: 0,
-                    showers: 0
+                    showers: 0,
+                    bowelMovements: 0,
+                    sexualActivities: 0,
+                    sexualActivitiesMasturbation: 0
                 )
             }
 
@@ -773,7 +781,10 @@ enum AnalyticsCalculator {
                 lightSleepHours: stageDurations[.light].map { $0 / 3600 },
                 deepSleepHours: stageDurations[.deep].map { $0 / 3600 },
                 remSleepHours: stageDurations[.rem].map { $0 / 3600 },
-                awakeSleepHours: stageDurations[.awake].map { $0 / 3600 }
+                awakeSleepHours: stageDurations[.awake].map { $0 / 3600 },
+                bowelMovements: record.bowelMovements.count,
+                sexualActivities: record.sexualActivities.count,
+                sexualActivitiesMasturbation: record.sexualActivities.filter(\.isMasturbation).count
             )
         }
 
@@ -871,6 +882,50 @@ enum AnalyticsCalculator {
         let averageDeepSleepHours = historicalDays.compactMap(\.deepSleepHours).averageOptional
         let averageREMSleepHours = historicalDays.compactMap(\.remSleepHours).averageOptional
 
+        // Bowel movement analytics
+        let bowelMovementPoints = chartFiltered.flatMap { record in
+            record.bowelMovements.enumerated().map { index, entry in
+                AnalyticsScatterPoint(
+                    id: "\(record.date.storageKey())-bm-\(index)",
+                    date: record.date,
+                    minutes: clockMinutes(entry.time, timeZoneIdentifier: entry.timeZoneIdentifier)
+                )
+            }
+        }
+        let averageBowelMovements = historicalDays.map { Double($0.bowelMovements) }.averageOptional
+        let averageBowelMovementMinutes = historicalRecords
+            .flatMap(\.bowelMovements)
+            .map { clockMinutes($0.time, timeZoneIdentifier: $0.timeZoneIdentifier) }
+            .averageOptional
+
+        // Sexual activity analytics (weekly aggregation)
+        let saRecords = chartFiltered.flatMap { record in
+            record.sexualActivities.map { (record.date, $0) }
+        }
+        let isoCalendar: Calendar = {
+            var cal = Calendar(identifier: .iso8601)
+            cal.firstWeekday = 2
+            return cal
+        }()
+        let groupedByWeek = Dictionary(grouping: saRecords) { pair in
+            isoCalendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: pair.0)
+        }
+        let sexualActivityWeeklyData: [SexualActivityWeekPoint] = groupedByWeek.compactMap { key, entries in
+            guard let weekStart = isoCalendar.date(from: key) else { return nil }
+            let masturbationCount = entries.filter { $0.1.isMasturbation }.count
+            let formatter = DateFormatter()
+            formatter.dateFormat = "M/d"
+            return SexualActivityWeekPoint(
+                weekLabel: formatter.string(from: weekStart),
+                weekStart: weekStart,
+                partnerCount: entries.count - masturbationCount,
+                masturbationCount: masturbationCount
+            )
+        }.sorted { $0.weekStart < $1.weekStart }
+
+        let totalWeeks = max(1.0, Double(Set(saRecords.map { isoCalendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: $0.0) }).count))
+        let averageSexualActivity: Double? = saRecords.isEmpty ? nil : Double(saRecords.count) / totalWeeks
+
         return AnalyticsSummary(
             averageSleepHours: averageSleepHours,
             averageBedtimeMinutes: averageBedtimeMinutes,
@@ -881,9 +936,14 @@ enum AnalyticsCalculator {
             averageDeepSleepHours: averageDeepSleepHours,
             averageREMSleepHours: averageREMSleepHours,
             averageShowerMinutes: averageShowerMinutes,
+            averageBowelMovements: averageBowelMovements,
+            averageBowelMovementMinutes: averageBowelMovementMinutes,
+            averageSexualActivity: averageSexualActivity,
             days: days,
             mealSeries: mealSeries,
-            showerPoints: showerPoints
+            showerPoints: showerPoints,
+            bowelMovementPoints: bowelMovementPoints,
+            sexualActivityWeeklyData: sexualActivityWeeklyData
         )
     }
 

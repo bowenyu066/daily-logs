@@ -12,6 +12,7 @@ struct AnalyticsView: View {
     @State private var highlightedBedtimeDate: Date?
     @State private var highlightedMealDate: Date?
     @State private var highlightedShowerDate: Date?
+    @State private var highlightedBowelMovementDate: Date?
 
     private let summaryColumns = Array(repeating: GridItem(.flexible(), spacing: 12), count: 3)
 
@@ -56,6 +57,7 @@ struct AnalyticsView: View {
             .sheet(isPresented: $isShowingCustomization) {
                 AnalyticsCustomizationSheet(
                     customization: appViewModel.preferences.analyticsCustomization,
+                    visibleHomeSections: appViewModel.preferences.visibleHomeSections,
                     onSave: { customization in
                         Task {
                             await appViewModel.updateAnalyticsCustomization(customization)
@@ -82,12 +84,22 @@ struct AnalyticsView: View {
 
     private var visibleMetrics: [AnalyticsMetricKind] {
         let selected = appViewModel.preferences.analyticsCustomization.visibleMetrics
-        return selected.isEmpty ? AnalyticsCustomization.default.visibleMetrics : selected
+        let base = selected.isEmpty ? AnalyticsCustomization.default.visibleMetrics : selected
+        let sections = appViewModel.preferences.visibleHomeSections
+        return base.filter { metric in
+            guard let required = metric.requiredSection else { return true }
+            return sections.contains(required)
+        }
     }
 
     private var visibleWidgets: [AnalyticsWidgetKind] {
         let selected = appViewModel.preferences.analyticsCustomization.visibleWidgets
-        return selected.isEmpty ? AnalyticsCustomization.default.visibleWidgets : selected
+        let base = selected.isEmpty ? AnalyticsCustomization.default.visibleWidgets : selected
+        let sections = appViewModel.preferences.visibleHomeSections
+        return base.filter { widget in
+            guard let required = widget.requiredSection else { return true }
+            return sections.contains(required)
+        }
     }
 
     private var header: some View {
@@ -241,6 +253,27 @@ struct AnalyticsView: View {
                 )
             }
             .sectionStyle()
+        case .bowelMovementTiming:
+            VStack(alignment: .leading, spacing: 14) {
+                SectionHeader(title: NSLocalizedString("排便时间", comment: ""), subtitle: nil)
+                BowelMovementScatterChart(
+                    points: summary.bowelMovementPoints,
+                    averageMinutes: summary.averageBowelMovementMinutes,
+                    selectedDate: $highlightedBowelMovementDate,
+                    compact: true
+                )
+            }
+            .sectionStyle()
+        case .sexualActivityFrequency:
+            VStack(alignment: .leading, spacing: 14) {
+                SectionHeader(title: NSLocalizedString("性生活频率", comment: ""), subtitle: nil)
+                SexualActivityBarChart(
+                    weeklyData: summary.sexualActivityWeeklyData,
+                    averagePerWeek: summary.averageSexualActivity,
+                    compact: true
+                )
+            }
+            .sectionStyle()
         }
     }
 
@@ -273,6 +306,12 @@ struct AnalyticsView: View {
         case .averageShowers:
             guard let showers = summary.averageShowers else { return "--" }
             return String(format: NSLocalizedString("%.1f 次/天", comment: ""), showers)
+        case .averageBowelMovements:
+            guard let bm = summary.averageBowelMovements else { return "--" }
+            return String(format: NSLocalizedString("%.1f 次/天", comment: ""), bm)
+        case .averageSexualActivity:
+            guard let sa = summary.averageSexualActivity else { return "--" }
+            return String(format: NSLocalizedString("%.1f 次/周", comment: ""), sa)
         }
     }
 
@@ -283,6 +322,8 @@ struct AnalyticsView: View {
         case .averageBedtime: .indigo
         case .mealCompletion: .green
         case .averageShowers: .teal
+        case .averageBowelMovements: .brown
+        case .averageSexualActivity: .pink
         }
     }
 
@@ -329,6 +370,10 @@ private extension AnalyticsMetricKind {
             .widget(.mealCompletion)
         case .averageShowers:
             .widget(.showerTiming)
+        case .averageBowelMovements:
+            .widget(.bowelMovementTiming)
+        case .averageSexualActivity:
+            .widget(.sexualActivityFrequency)
         }
     }
 }
@@ -448,6 +493,25 @@ private struct AnalyticsDetailView: View {
                         points: summary.showerPoints,
                         averageMinutes: summary.averageShowerMinutes,
                         selectedDate: $selectedDate,
+                        compact: false
+                    )
+                }
+            case .bowelMovementTiming:
+                VStack(alignment: .leading, spacing: 14) {
+                    SectionHeader(title: NSLocalizedString("排便时间", comment: ""), subtitle: nil)
+                    BowelMovementScatterChart(
+                        points: summary.bowelMovementPoints,
+                        averageMinutes: summary.averageBowelMovementMinutes,
+                        selectedDate: $selectedDate,
+                        compact: false
+                    )
+                }
+            case .sexualActivityFrequency:
+                VStack(alignment: .leading, spacing: 14) {
+                    SectionHeader(title: NSLocalizedString("性生活频率", comment: ""), subtitle: nil)
+                    SexualActivityBarChart(
+                        weeklyData: summary.sexualActivityWeeklyData,
+                        averagePerWeek: summary.averageSexualActivity,
                         compact: false
                     )
                 }
@@ -1376,13 +1440,212 @@ private struct ShowerScatterChart: View {
     }
 }
 
+private struct BowelMovementScatterChart: View {
+    let points: [AnalyticsScatterPoint]
+    let averageMinutes: Double?
+    @Binding var selectedDate: Date?
+    var compact: Bool
+
+    var body: some View {
+        if points.isEmpty {
+            PlaceholderCard(text: NSLocalizedString("还没有排便时间数据。", comment: ""))
+        } else {
+            VStack(alignment: .leading, spacing: 12) {
+                ChartDisplayZone(
+                    ratio: selectedRatio,
+                    cardWidth: 180,
+                    height: 84,
+                    idle: {
+                        AverageTextBlock(
+                            title: NSLocalizedString("平均排便时间", comment: ""),
+                            value: averageMinutes.map(clockText) ?? "--",
+                            tone: .brown
+                        )
+                    },
+                    selected: {
+                        fixedChartCallout {
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text(selectedDate ?? .now, format: .dateTime.month().day())
+                                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                                    .foregroundStyle(AppTheme.secondaryText)
+                                VStack(alignment: .leading, spacing: 6) {
+                                    ForEach(Array((selectedItems ?? []).enumerated()), id: \.offset) { index, item in
+                                        HStack(spacing: 8) {
+                                            Circle()
+                                                .fill(Color.brown)
+                                                .frame(width: 8, height: 8)
+                                            Text(String(format: NSLocalizedString("第%d次", comment: ""), index + 1))
+                                                .foregroundStyle(AppTheme.secondaryText)
+                                            Spacer(minLength: 8)
+                                            Text(clockText(item.minutes))
+                                                .foregroundStyle(AppTheme.primaryText)
+                                        }
+                                        .font(.system(size: 13, weight: .semibold, design: .rounded))
+                                    }
+                                }
+                            }
+                        }
+                    }
+                )
+
+                Chart {
+                    if let averageMinutes {
+                        RuleMark(y: .value("平均", averageMinutes))
+                            .foregroundStyle(Color.brown.opacity(0.72))
+                            .lineStyle(.init(lineWidth: 3, dash: [7, 5]))
+                    }
+
+                    ForEach(points) { point in
+                        PointMark(
+                            x: .value("日期", point.date),
+                            y: .value("时间", point.minutes)
+                        )
+                        .foregroundStyle(.brown)
+                        .symbolSize(compact ? 28 : 44)
+
+                        if selectedDate.flatMap({ Calendar.current.isDate($0, inSameDayAs: point.date) ? point : nil }) != nil {
+                            RuleMark(x: .value("日期", point.date))
+                                .foregroundStyle(AppTheme.primaryText.opacity(0.5))
+                                .lineStyle(.init(lineWidth: 3, dash: [7, 5]))
+
+                            RuleMark(y: .value("时间", point.minutes))
+                                .foregroundStyle(AppTheme.primaryText.opacity(0.5))
+                                .lineStyle(.init(lineWidth: 3, dash: [7, 5]))
+
+                            PointMark(
+                                x: .value("日期", point.date),
+                                y: .value("时间", point.minutes)
+                            )
+                            .foregroundStyle(.brown)
+                            .symbolSize(compact ? 52 : 64)
+                        }
+                    }
+                }
+                .frame(height: compact ? 200 : 290)
+                .chartYScale(domain: adaptiveDomain)
+                .chartXScale(range: .plotDimension(startPadding: 14, endPadding: 14))
+                .chartYAxis {
+                    AxisMarks(position: .leading, values: axisValues) { value in
+                        AxisGridLine()
+                        AxisValueLabel {
+                            if let minutes = value.as(Double.self) {
+                                Text(clockText(minutes))
+                            }
+                        }
+                    }
+                }
+                .chartOverlay { proxy in
+                    chartSelectionOverlay(proxy: proxy) { location, geometry in
+                        updateSelection(at: location, proxy: proxy, geometry: geometry)
+                    }
+                }
+            }
+        }
+    }
+
+    private var selectedItems: [AnalyticsScatterPoint]? {
+        guard let selectedDate else { return nil }
+        let items = points.filter { Calendar.current.isDate($0.date, inSameDayAs: selectedDate) }
+        return items.isEmpty ? nil : items
+    }
+
+    private var selectedRatio: CGFloat? {
+        chartSelectionRatio(selectedDate: selectedDate, in: points.map(\.date))
+    }
+
+    private func clockText(_ minutes: Double) -> String {
+        let total = Int(minutes.rounded()) % (24 * 60)
+        return String(format: "%02d:%02d", total / 60, total % 60)
+    }
+
+    private var adaptiveDomain: ClosedRange<Double> {
+        let minValue = points.map(\.minutes).min() ?? 0
+        let maxValue = points.map(\.minutes).max() ?? 24 * 60
+        let lower = max(0, floor((minValue - 30) / 15) * 15)
+        let upper = min(24 * 60, ceil((maxValue + 30) / 15) * 15)
+        return lower...max(lower + 30, upper)
+    }
+
+    private var axisValues: [Double] {
+        let lower = adaptiveDomain.lowerBound
+        let upper = adaptiveDomain.upperBound
+        let step = max(30.0, ceil((upper - lower) / 4 / 15) * 15)
+        return stride(from: lower, through: upper, by: step).map { $0 }
+    }
+
+    private func updateSelection(at location: CGPoint, proxy: ChartProxy, geometry: GeometryProxy) {
+        guard let plotFrame = proxy.plotFrame else {
+            selectedDate = nil
+            return
+        }
+        let plotRect = geometry[plotFrame]
+        guard plotRect.contains(location) else {
+            selectedDate = nil
+            return
+        }
+        let xPosition = location.x - plotRect.origin.x
+        if let date: Date = proxy.value(atX: xPosition) {
+            selectedDate = nearestDate(to: date, in: points.map(\.date))
+        } else {
+            selectedDate = nil
+        }
+    }
+}
+
+private struct SexualActivityBarChart: View {
+    let weeklyData: [SexualActivityWeekPoint]
+    let averagePerWeek: Double?
+    var compact: Bool
+
+    var body: some View {
+        if weeklyData.isEmpty {
+            PlaceholderCard(text: NSLocalizedString("还没有性生活记录数据。", comment: ""))
+        } else {
+            VStack(alignment: .leading, spacing: 12) {
+                if let averagePerWeek {
+                    AverageTextBlock(
+                        title: NSLocalizedString("平均每周", comment: ""),
+                        value: String(format: NSLocalizedString("%.1f 次/周", comment: ""), averagePerWeek),
+                        tone: .pink
+                    )
+                }
+
+                Chart {
+                    ForEach(weeklyData) { point in
+                        if point.partnerCount > 0 {
+                            BarMark(
+                                x: .value("周", point.weekLabel),
+                                y: .value("次数", point.partnerCount)
+                            )
+                            .foregroundStyle(.pink)
+                        }
+                        if point.masturbationCount > 0 {
+                            BarMark(
+                                x: .value("周", point.weekLabel),
+                                y: .value("次数", point.masturbationCount)
+                            )
+                            .foregroundStyle(.pink.opacity(0.4))
+                        }
+                    }
+                }
+                .frame(height: compact ? 200 : 290)
+                .chartYAxis {
+                    AxisMarks(position: .leading)
+                }
+            }
+        }
+    }
+}
+
 private struct AnalyticsCustomizationSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var customization: AnalyticsCustomization
+    let visibleHomeSections: [HomeSectionKind]
     let onSave: (AnalyticsCustomization) -> Void
 
-    init(customization: AnalyticsCustomization, onSave: @escaping (AnalyticsCustomization) -> Void) {
+    init(customization: AnalyticsCustomization, visibleHomeSections: [HomeSectionKind], onSave: @escaping (AnalyticsCustomization) -> Void) {
         _customization = State(initialValue: customization)
+        self.visibleHomeSections = visibleHomeSections
         self.onSave = onSave
     }
 
@@ -1390,7 +1653,7 @@ private struct AnalyticsCustomizationSheet: View {
         NavigationStack {
             List {
                 Section(NSLocalizedString("卡片", comment: "")) {
-                    ForEach(AnalyticsMetricKind.allCases) { metric in
+                    ForEach(filteredMetrics) { metric in
                         ToggleRow(
                             title: metric.title,
                             isOn: customization.visibleMetrics.contains(metric)
@@ -1401,7 +1664,7 @@ private struct AnalyticsCustomizationSheet: View {
                 }
 
                 Section(NSLocalizedString("图表", comment: "")) {
-                    ForEach(customization.visibleWidgets) { widget in
+                    ForEach(customization.visibleWidgets.filter { isSectionVisible(for: $0) }) { widget in
                         ToggleRow(title: widget.title, isOn: true) {
                             customization.visibleWidgets.removeAll { $0 == widget }
                         }
@@ -1439,8 +1702,22 @@ private struct AnalyticsCustomizationSheet: View {
         .presentationBackground(AppTheme.background)
     }
 
+    private var filteredMetrics: [AnalyticsMetricKind] {
+        AnalyticsMetricKind.allCases.filter { isSectionVisible(for: $0) }
+    }
+
     private var availableWidgets: [AnalyticsWidgetKind] {
-        AnalyticsWidgetKind.allCases.filter { !customization.visibleWidgets.contains($0) }
+        AnalyticsWidgetKind.allCases.filter { !customization.visibleWidgets.contains($0) && isSectionVisible(for: $0) }
+    }
+
+    private func isSectionVisible(for metric: AnalyticsMetricKind) -> Bool {
+        guard let required = metric.requiredSection else { return true }
+        return visibleHomeSections.contains(required)
+    }
+
+    private func isSectionVisible(for widget: AnalyticsWidgetKind) -> Bool {
+        guard let required = widget.requiredSection else { return true }
+        return visibleHomeSections.contains(required)
     }
 
     private func toggleMetric(_ metric: AnalyticsMetricKind) {

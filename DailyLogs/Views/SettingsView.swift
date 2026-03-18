@@ -8,6 +8,7 @@ struct SettingsView: View {
     @State private var showingMealSlots = false
     @State private var isEditingNickname = false
     @State private var nicknameText = ""
+    @State private var showingHomeSections = false
 
     var body: some View {
         NavigationStack {
@@ -18,6 +19,7 @@ struct SettingsView: View {
                     VStack(alignment: .leading, spacing: 18) {
                         accountCard
                         preferenceCard
+                        homeSectionsCard
                         defaultMealsCard
                         healthKitCard
                     }
@@ -32,6 +34,12 @@ struct SettingsView: View {
                     Task { await appViewModel.updateBedtimeSchedule(schedule) }
                 }
                 .presentationDragIndicator(.visible)
+            }
+            .sheet(isPresented: $showingHomeSections) {
+                HomeSectionCustomizationView()
+                    .environmentObject(appViewModel)
+                    .presentationDetents([.medium])
+                    .presentationDragIndicator(.visible)
             }
             .sheet(isPresented: $showingMealSlots) {
                 DefaultMealSlotsSheet()
@@ -303,6 +311,25 @@ struct SettingsView: View {
         .appCardStyle()
     }
 
+    private var homeSectionsCard: some View {
+        Button {
+            showingHomeSections = true
+        } label: {
+            HStack {
+                Text(NSLocalizedString("自定义首页", comment: ""))
+                    .font(.system(size: 18, weight: .bold, design: .rounded))
+                    .foregroundStyle(AppTheme.primaryText)
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(AppTheme.secondaryText)
+            }
+        }
+        .buttonStyle(.plain)
+        .padding(22)
+        .appCardStyle()
+    }
+
     private var accountSubtitle: String {
         if appViewModel.user?.isGuest == true {
             return NSLocalizedString("游客模式，本地保存", comment: "")
@@ -374,5 +401,73 @@ private struct LocationPermissionToggleRow: View {
                 .tint(AppTheme.accent)
         }
         .padding(.vertical, 2)
+    }
+}
+
+struct HomeSectionCustomizationView: View {
+    @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var appViewModel: AppViewModel
+
+    var body: some View {
+        NavigationStack {
+            List {
+                ForEach(HomeSectionKind.allCases) { section in
+                    HStack {
+                        Text(section.title)
+                            .font(.system(size: 16, weight: .semibold, design: .rounded))
+                            .foregroundStyle(AppTheme.primaryText)
+                        Spacer()
+                        Toggle("", isOn: Binding(
+                            get: { appViewModel.preferences.visibleHomeSections.contains(section) },
+                            set: { isOn in
+                                var sections = appViewModel.preferences.visibleHomeSections
+                                if isOn {
+                                    if !sections.contains(section) {
+                                        sections.append(section)
+                                    }
+                                } else {
+                                    sections.removeAll { $0 == section }
+                                }
+                                Task { await appViewModel.updateVisibleHomeSections(sections) }
+                            }
+                        ))
+                        .labelsHidden()
+                        .tint(AppTheme.accent)
+                    }
+                    .listRowBackground(AppTheme.surface)
+                }
+
+                if appViewModel.preferences.visibleHomeSections.contains(.sexualActivity) {
+                    Section {
+                        HStack {
+                            Text(NSLocalizedString("显示自慰选项", comment: ""))
+                                .font(.system(size: 16, weight: .semibold, design: .rounded))
+                                .foregroundStyle(AppTheme.primaryText)
+                            Spacer()
+                            Toggle("", isOn: Binding(
+                                get: { appViewModel.preferences.showMasturbationOption },
+                                set: { enabled in
+                                    Task { await appViewModel.updateShowMasturbationOption(enabled) }
+                                }
+                            ))
+                            .labelsHidden()
+                            .tint(.pink)
+                        }
+                        .listRowBackground(AppTheme.surface)
+                    }
+                }
+            }
+            .scrollContentBackground(.hidden)
+            .background(AppTheme.background.ignoresSafeArea())
+            .navigationTitle(NSLocalizedString("自定义首页", comment: ""))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(NSLocalizedString("完成", comment: "")) { dismiss() }
+                        .foregroundStyle(AppTheme.accent)
+                }
+            }
+        }
+        .presentationBackground(AppTheme.background)
     }
 }

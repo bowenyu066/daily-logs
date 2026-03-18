@@ -386,6 +386,30 @@ struct MealEntry: Codable, Equatable, Identifiable {
     }
 }
 
+enum HomeSectionKind: String, Codable, CaseIterable, Identifiable {
+    case sunTimes
+    case sleep
+    case meals
+    case showers
+    case bowelMovements
+    case sexualActivity
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .sunTimes: NSLocalizedString("日出日落", comment: "")
+        case .sleep: NSLocalizedString("睡眠", comment: "")
+        case .meals: NSLocalizedString("餐食", comment: "")
+        case .showers: NSLocalizedString("洗澡", comment: "")
+        case .bowelMovements: NSLocalizedString("排便", comment: "")
+        case .sexualActivity: NSLocalizedString("性生活", comment: "")
+        }
+    }
+
+    static let defaultVisible: [HomeSectionKind] = [.sunTimes, .sleep, .meals, .showers]
+}
+
 struct ShowerEntry: Codable, Equatable, Identifiable {
     var id: UUID = UUID()
     var time: Date
@@ -413,12 +437,109 @@ struct ShowerEntry: Codable, Equatable, Identifiable {
     }
 }
 
+struct BowelMovementEntry: Codable, Equatable, Identifiable {
+    var id: UUID = UUID()
+    var time: Date
+    var timeZoneIdentifier: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id, time, timeZoneIdentifier
+    }
+
+    init(
+        id: UUID = UUID(),
+        time: Date,
+        timeZoneIdentifier: String? = nil
+    ) {
+        self.id = id
+        self.time = time
+        self.timeZoneIdentifier = timeZoneIdentifier
+    }
+
+    init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        time = try container.decode(Date.self, forKey: .time)
+        timeZoneIdentifier = try container.decodeIfPresent(String.self, forKey: .timeZoneIdentifier)
+    }
+}
+
+struct SexualActivityEntry: Codable, Equatable, Identifiable {
+    var id: UUID = UUID()
+    var date: Date
+    var time: Date?
+    var isMasturbation: Bool = false
+    var timeZoneIdentifier: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id, date, time, isMasturbation, timeZoneIdentifier
+    }
+
+    init(
+        id: UUID = UUID(),
+        date: Date,
+        time: Date? = nil,
+        isMasturbation: Bool = false,
+        timeZoneIdentifier: String? = nil
+    ) {
+        self.id = id
+        self.date = date
+        self.time = time
+        self.isMasturbation = isMasturbation
+        self.timeZoneIdentifier = timeZoneIdentifier
+    }
+
+    init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        date = try container.decode(Date.self, forKey: .date)
+        time = try container.decodeIfPresent(Date.self, forKey: .time)
+        isMasturbation = try container.decodeIfPresent(Bool.self, forKey: .isMasturbation) ?? false
+        timeZoneIdentifier = try container.decodeIfPresent(String.self, forKey: .timeZoneIdentifier)
+    }
+}
+
 struct DailyRecord: Codable, Equatable {
     var date: Date
     var sleepRecord: SleepRecord
     var meals: [MealEntry]
     var showers: [ShowerEntry]
+    var bowelMovements: [BowelMovementEntry]
+    var sexualActivities: [SexualActivityEntry]
     var sunTimes: SunTimes?
+
+    enum CodingKeys: String, CodingKey {
+        case date, sleepRecord, meals, showers, bowelMovements, sexualActivities, sunTimes
+    }
+
+    init(
+        date: Date,
+        sleepRecord: SleepRecord,
+        meals: [MealEntry],
+        showers: [ShowerEntry],
+        bowelMovements: [BowelMovementEntry] = [],
+        sexualActivities: [SexualActivityEntry] = [],
+        sunTimes: SunTimes? = nil
+    ) {
+        self.date = date
+        self.sleepRecord = sleepRecord
+        self.meals = meals
+        self.showers = showers
+        self.bowelMovements = bowelMovements
+        self.sexualActivities = sexualActivities
+        self.sunTimes = sunTimes
+    }
+
+    init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        date = try container.decode(Date.self, forKey: .date)
+        sleepRecord = try container.decode(SleepRecord.self, forKey: .sleepRecord)
+        meals = try container.decode([MealEntry].self, forKey: .meals)
+        showers = try container.decodeIfPresent([ShowerEntry].self, forKey: .showers) ?? []
+        bowelMovements = try container.decodeIfPresent([BowelMovementEntry].self, forKey: .bowelMovements) ?? []
+        sexualActivities = try container.decodeIfPresent([SexualActivityEntry].self, forKey: .sexualActivities) ?? []
+        sunTimes = try container.decodeIfPresent(SunTimes.self, forKey: .sunTimes)
+    }
 
     static func empty(for date: Date, preferences: UserPreferences) -> DailyRecord {
         DailyRecord(
@@ -428,6 +549,8 @@ struct DailyRecord: Codable, Equatable {
                 MealEntry(mealKind: $0.kind, customTitle: $0.kind == .custom ? $0.title : nil)
             },
             showers: [],
+            bowelMovements: [],
+            sexualActivities: [],
             sunTimes: nil
         )
     }
@@ -542,6 +665,8 @@ struct UserPreferences: Codable, Equatable {
     var healthKitSyncEnabled: Bool = false
     var appLanguage: AppLanguage = .system
     var timeDisplayMode: TimeDisplayMode = .recorded
+    var visibleHomeSections: [HomeSectionKind] = HomeSectionKind.defaultVisible
+    var showMasturbationOption: Bool = false
 
     enum CodingKeys: String, CodingKey {
         case defaultMealSlots
@@ -553,6 +678,8 @@ struct UserPreferences: Codable, Equatable {
         case appLanguage
         case timeDisplayMode
         case targetBedtime
+        case visibleHomeSections
+        case showMasturbationOption
     }
 
     init(
@@ -563,7 +690,9 @@ struct UserPreferences: Codable, Equatable {
         analyticsCustomization: AnalyticsCustomization = .default,
         healthKitSyncEnabled: Bool = false,
         appLanguage: AppLanguage = .system,
-        timeDisplayMode: TimeDisplayMode = .recorded
+        timeDisplayMode: TimeDisplayMode = .recorded,
+        visibleHomeSections: [HomeSectionKind] = HomeSectionKind.defaultVisible,
+        showMasturbationOption: Bool = false
     ) {
         self.defaultMealSlots = defaultMealSlots
         self.bedtimeSchedule = bedtimeSchedule
@@ -573,6 +702,8 @@ struct UserPreferences: Codable, Equatable {
         self.healthKitSyncEnabled = healthKitSyncEnabled
         self.appLanguage = appLanguage
         self.timeDisplayMode = timeDisplayMode
+        self.visibleHomeSections = visibleHomeSections
+        self.showMasturbationOption = showMasturbationOption
     }
 
     init(from decoder: any Decoder) throws {
@@ -584,6 +715,8 @@ struct UserPreferences: Codable, Equatable {
         healthKitSyncEnabled = try container.decodeIfPresent(Bool.self, forKey: .healthKitSyncEnabled) ?? false
         appLanguage = try container.decodeIfPresent(AppLanguage.self, forKey: .appLanguage) ?? .system
         timeDisplayMode = try container.decodeIfPresent(TimeDisplayMode.self, forKey: .timeDisplayMode) ?? .recorded
+        visibleHomeSections = try container.decodeIfPresent([HomeSectionKind].self, forKey: .visibleHomeSections) ?? HomeSectionKind.defaultVisible
+        showMasturbationOption = try container.decodeIfPresent(Bool.self, forKey: .showMasturbationOption) ?? false
         if let bedtimeSchedule = try container.decodeIfPresent(BedtimeSchedule.self, forKey: .bedtimeSchedule) {
             self.bedtimeSchedule = bedtimeSchedule
         } else {
@@ -602,6 +735,8 @@ struct UserPreferences: Codable, Equatable {
         try container.encode(healthKitSyncEnabled, forKey: .healthKitSyncEnabled)
         try container.encode(appLanguage, forKey: .appLanguage)
         try container.encode(timeDisplayMode, forKey: .timeDisplayMode)
+        try container.encode(visibleHomeSections, forKey: .visibleHomeSections)
+        try container.encode(showMasturbationOption, forKey: .showMasturbationOption)
     }
 }
 
@@ -665,11 +800,39 @@ extension SunTimes {
     }
 }
 
+extension BowelMovementEntry {
+    var needsRecordedTimeZoneMigration: Bool {
+        timeZoneIdentifier == nil
+    }
+
+    func backfillingRecordedTimeZone(_ identifier: String) -> BowelMovementEntry {
+        guard needsRecordedTimeZoneMigration else { return self }
+        var updated = self
+        updated.timeZoneIdentifier = identifier
+        return updated
+    }
+}
+
+extension SexualActivityEntry {
+    var needsRecordedTimeZoneMigration: Bool {
+        time != nil && timeZoneIdentifier == nil
+    }
+
+    func backfillingRecordedTimeZone(_ identifier: String) -> SexualActivityEntry {
+        guard needsRecordedTimeZoneMigration else { return self }
+        var updated = self
+        updated.timeZoneIdentifier = identifier
+        return updated
+    }
+}
+
 extension DailyRecord {
     var needsRecordedTimeZoneMigration: Bool {
         sleepRecord.needsRecordedTimeZoneMigration
             || meals.contains(where: \.needsRecordedTimeZoneMigration)
             || showers.contains(where: \.needsRecordedTimeZoneMigration)
+            || bowelMovements.contains(where: \.needsRecordedTimeZoneMigration)
+            || sexualActivities.contains(where: \.needsRecordedTimeZoneMigration)
             || sunTimes?.needsRecordedTimeZoneMigration == true
     }
 
@@ -678,6 +841,8 @@ extension DailyRecord {
         updated.sleepRecord = sleepRecord.backfillingRecordedTimeZone(identifier)
         updated.meals = meals.map { $0.backfillingRecordedTimeZone(identifier) }
         updated.showers = showers.map { $0.backfillingRecordedTimeZone(identifier) }
+        updated.bowelMovements = bowelMovements.map { $0.backfillingRecordedTimeZone(identifier) }
+        updated.sexualActivities = sexualActivities.map { $0.backfillingRecordedTimeZone(identifier) }
         updated.sunTimes = sunTimes?.backfillingRecordedTimeZone(identifier)
         return updated
     }
@@ -689,6 +854,8 @@ enum AnalyticsMetricKind: String, Codable, CaseIterable, Identifiable {
     case averageBedtime
     case mealCompletion
     case averageShowers
+    case averageBowelMovements
+    case averageSexualActivity
 
     var id: String { rawValue }
 
@@ -699,6 +866,18 @@ enum AnalyticsMetricKind: String, Codable, CaseIterable, Identifiable {
         case .averageBedtime: NSLocalizedString("平均入睡", comment: "")
         case .mealCompletion: NSLocalizedString("三餐完成率", comment: "")
         case .averageShowers: NSLocalizedString("平均洗澡", comment: "")
+        case .averageBowelMovements: NSLocalizedString("平均排便", comment: "")
+        case .averageSexualActivity: NSLocalizedString("性生活频率", comment: "")
+        }
+    }
+
+    var requiredSection: HomeSectionKind? {
+        switch self {
+        case .averageSleep, .averageWake, .averageBedtime: .sleep
+        case .mealCompletion: .meals
+        case .averageShowers: .showers
+        case .averageBowelMovements: .bowelMovements
+        case .averageSexualActivity: .sexualActivity
         }
     }
 }
@@ -714,6 +893,8 @@ enum AnalyticsWidgetKind: String, Codable, CaseIterable, Identifiable {
     case mealCompletion
     case mealTiming
     case showerTiming
+    case bowelMovementTiming
+    case sexualActivityFrequency
 
     var id: String { rawValue }
 
@@ -729,6 +910,19 @@ enum AnalyticsWidgetKind: String, Codable, CaseIterable, Identifiable {
         case .mealCompletion: NSLocalizedString("三餐完成率", comment: "")
         case .mealTiming: NSLocalizedString("进餐时间", comment: "")
         case .showerTiming: NSLocalizedString("洗澡时间", comment: "")
+        case .bowelMovementTiming: NSLocalizedString("排便时间", comment: "")
+        case .sexualActivityFrequency: NSLocalizedString("性生活频率", comment: "")
+        }
+    }
+
+    var requiredSection: HomeSectionKind? {
+        switch self {
+        case .sleepTrend, .sleepDuration, .wakeTrend, .bedtimeTrend,
+             .lightSleepTrend, .deepSleepTrend, .remSleepTrend: .sleep
+        case .mealCompletion, .mealTiming: .meals
+        case .showerTiming: .showers
+        case .bowelMovementTiming: .bowelMovements
+        case .sexualActivityFrequency: .sexualActivity
         }
     }
 }
@@ -791,6 +985,19 @@ struct AnalyticsDayPoint: Identifiable, Equatable {
     var deepSleepHours: Double?
     var remSleepHours: Double?
     var awakeSleepHours: Double?
+    var bowelMovements: Int
+    var sexualActivities: Int
+    var sexualActivitiesMasturbation: Int
+}
+
+struct SexualActivityWeekPoint: Identifiable, Equatable {
+    var id: String { weekLabel }
+    var weekLabel: String
+    var weekStart: Date
+    var partnerCount: Int
+    var masturbationCount: Int
+
+    var totalCount: Int { partnerCount + masturbationCount }
 }
 
 struct AnalyticsScatterPoint: Identifiable, Equatable {

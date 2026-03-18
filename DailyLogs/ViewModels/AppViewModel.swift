@@ -501,6 +501,61 @@ final class AppViewModel: ObservableObject {
         await syncCurrentRecordToCloudIfNeeded()
     }
 
+    func saveBowelMovement(_ entry: BowelMovementEntry) async {
+        guard canEditSelectedDate else { return }
+        var updated = entry
+        updated.timeZoneIdentifier = editedTimeZoneIdentifier(for: entry.timeZoneIdentifier)
+        if let index = dailyRecord.bowelMovements.firstIndex(where: { $0.id == entry.id }) {
+            dailyRecord.bowelMovements[index] = updated
+        } else {
+            dailyRecord.bowelMovements.append(updated)
+            dailyRecord.bowelMovements.sort { $0.time < $1.time }
+        }
+        persistCurrentRecord()
+        await syncCurrentRecordToCloudIfNeeded()
+    }
+
+    func deleteBowelMovement(_ entry: BowelMovementEntry) async {
+        guard canEditSelectedDate else { return }
+        dailyRecord.bowelMovements.removeAll { $0.id == entry.id }
+        persistCurrentRecord()
+        await syncCurrentRecordToCloudIfNeeded()
+    }
+
+    func saveSexualActivity(_ entry: SexualActivityEntry) async {
+        guard canEditSelectedDate else { return }
+        var updated = entry
+        if updated.time != nil {
+            updated.timeZoneIdentifier = editedTimeZoneIdentifier(for: entry.timeZoneIdentifier)
+        }
+        if let index = dailyRecord.sexualActivities.firstIndex(where: { $0.id == entry.id }) {
+            dailyRecord.sexualActivities[index] = updated
+        } else {
+            dailyRecord.sexualActivities.append(updated)
+        }
+        persistCurrentRecord()
+        await syncCurrentRecordToCloudIfNeeded()
+    }
+
+    func deleteSexualActivity(_ entry: SexualActivityEntry) async {
+        guard canEditSelectedDate else { return }
+        dailyRecord.sexualActivities.removeAll { $0.id == entry.id }
+        persistCurrentRecord()
+        await syncCurrentRecordToCloudIfNeeded()
+    }
+
+    func updateVisibleHomeSections(_ sections: [HomeSectionKind]) async {
+        preferences.visibleHomeSections = sections
+        persistPreferences()
+        await syncPreferencesToCloudIfNeeded()
+    }
+
+    func updateShowMasturbationOption(_ enabled: Bool) async {
+        preferences.showMasturbationOption = enabled
+        persistPreferences()
+        await syncPreferencesToCloudIfNeeded()
+    }
+
     func addDefaultMealSlot(title: String) async {
         let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
@@ -875,6 +930,8 @@ final class AppViewModel: ObservableObject {
         }
         score += record.sleepRecord.stageIntervals.count * 2
         score += record.showers.count
+        score += record.bowelMovements.count
+        score += record.sexualActivities.count
 
         for meal in record.meals {
             switch meal.status {
