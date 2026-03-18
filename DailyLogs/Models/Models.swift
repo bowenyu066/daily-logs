@@ -418,19 +418,22 @@ struct ShowerEntry: Codable, Equatable, Identifiable {
     var id: UUID = UUID()
     var time: Date
     var timeZoneIdentifier: String?
+    var note: String?
 
     enum CodingKeys: String, CodingKey {
-        case id, time, timeZoneIdentifier
+        case id, time, timeZoneIdentifier, note
     }
 
     init(
         id: UUID = UUID(),
         time: Date,
-        timeZoneIdentifier: String? = nil
+        timeZoneIdentifier: String? = nil,
+        note: String? = nil
     ) {
         self.id = id
         self.time = time
         self.timeZoneIdentifier = timeZoneIdentifier
+        self.note = note
     }
 
     init(from decoder: any Decoder) throws {
@@ -438,6 +441,7 @@ struct ShowerEntry: Codable, Equatable, Identifiable {
         id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
         time = try container.decode(Date.self, forKey: .time)
         timeZoneIdentifier = try container.decodeIfPresent(String.self, forKey: .timeZoneIdentifier)
+        note = try container.decodeIfPresent(String.self, forKey: .note)
     }
 }
 

@@ -40,7 +40,7 @@ struct SexualActivityEditorSheet: View {
         ScrollView {
             VStack(spacing: 16) {
                 headerBar
-                    .padding(.top, 8)
+                    .padding(.top, 24)
 
                 Toggle(NSLocalizedString("仅记录有/无", comment: ""), isOn: $dateOnly)
                     .font(.system(size: 16, weight: .semibold, design: .rounded))

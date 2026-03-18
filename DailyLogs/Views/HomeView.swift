@@ -117,7 +117,8 @@ struct HomeView: View {
                         Task { await appViewModel.deleteShower(shower) }
                     }
                 )
-                .presentationDetents([.fraction(0.42)])
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
                 .presentationBackground(AppTheme.background)
             }
             .sheet(isPresented: $showingNewShower) {
@@ -136,7 +137,8 @@ struct HomeView: View {
                     },
                     onDelete: nil
                 )
-                .presentationDetents([.fraction(0.42)])
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
                 .presentationBackground(AppTheme.background)
             }
             .sheet(item: $editingBowelMovement) { entry in
@@ -151,7 +153,8 @@ struct HomeView: View {
                         Task { await appViewModel.deleteBowelMovement(entry) }
                     }
                 )
-                .presentationDetents([.fraction(0.42)])
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
                 .presentationBackground(AppTheme.background)
             }
             .sheet(isPresented: $showingNewBowelMovement) {
@@ -170,7 +173,8 @@ struct HomeView: View {
                     },
                     onDelete: nil
                 )
-                .presentationDetents([.fraction(0.42)])
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
                 .presentationBackground(AppTheme.background)
             }
             .sheet(item: $editingSexualActivity) { entry in
@@ -185,7 +189,8 @@ struct HomeView: View {
                         Task { await appViewModel.deleteSexualActivity(entry) }
                     }
                 )
-                .presentationDetents([.fraction(0.52)])
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
                 .presentationBackground(AppTheme.background)
             }
             .sheet(isPresented: $showingNewSexualActivity) {
@@ -205,7 +210,8 @@ struct HomeView: View {
                     },
                     onDelete: nil
                 )
-                .presentationDetents([.fraction(0.52)])
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
                 .presentationBackground(AppTheme.background)
             }
             .alert(NSLocalizedString("提示", comment: ""), isPresented: .constant(appViewModel.errorMessage != nil), actions: {
@@ -606,31 +612,37 @@ struct HomeView: View {
                         if index > 0 {
                             Divider().padding(.leading, 4)
                         }
-                        HStack {
-                            Button {
-                                editingShower = shower
-                            } label: {
-                                Text(appViewModel.displayedShortTime(
-                                    for: shower.time,
-                                    recordedTimeZoneIdentifier: shower.timeZoneIdentifier
-                                ))
-                                    .font(.system(size: 17, weight: .bold, design: .rounded))
-                                    .foregroundStyle(AppTheme.showerAccent)
-                                    .monospacedDigit()
-                            }
-                            .buttonStyle(.plain)
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack {
+                                Button {
+                                    editingShower = shower
+                                } label: {
+                                    Text(appViewModel.displayedShortTime(
+                                        for: shower.time,
+                                        recordedTimeZoneIdentifier: shower.timeZoneIdentifier
+                                    ))
+                                        .font(.system(size: 17, weight: .bold, design: .rounded))
+                                        .foregroundStyle(AppTheme.showerAccent)
+                                        .monospacedDigit()
+                                }
+                                .buttonStyle(.plain)
 
-                            Spacer()
+                                Spacer()
 
-                            Button {
-                                Task { await appViewModel.deleteShower(shower) }
-                            } label: {
-                                Image(systemName: "trash")
-                                    .font(.system(size: 14, weight: .semibold))
-                                    .foregroundStyle(AppTheme.warning)
+                                Button {
+                                    Task { await appViewModel.deleteShower(shower) }
+                                } label: {
+                                    Image(systemName: "trash")
+                                        .font(.system(size: 14, weight: .semibold))
+                                        .foregroundStyle(AppTheme.warning)
+                                }
+                                .buttonStyle(.plain)
+                                .disabled(!appViewModel.canEditSelectedDate)
                             }
-                            .buttonStyle(.plain)
-                            .disabled(!appViewModel.canEditSelectedDate)
+
+                            if let note = shower.note, !note.isEmpty {
+                                notePreview(note)
+                            }
                         }
                         .padding(.vertical, 10)
                     }

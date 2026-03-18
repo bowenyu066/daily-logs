@@ -198,22 +198,11 @@ struct MealEditorSheet: View {
     }
 
     private var noteSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(NSLocalizedString("备注", comment: ""))
-                .font(.system(size: 16, weight: .semibold, design: .rounded))
-                .foregroundStyle(AppTheme.secondaryText)
-
-            TextField(NSLocalizedString("备注", comment: ""), text: Binding(
-                get: { draft.note ?? "" },
-                set: { draft.note = $0.isEmpty ? nil : $0 }
-            ))
-            .font(.system(size: 16, design: .rounded))
-            .padding(.horizontal, 18)
-            .padding(.vertical, 14)
-            .background(AppTheme.elevatedSurface)
-            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-            .disabled(!isEditable)
-        }
+        RecordNoteSection(note: Binding(
+            get: { draft.note ?? "" },
+            set: { draft.note = $0.isEmpty ? nil : $0 }
+        ))
+        .disabled(!isEditable)
     }
 
     private var locationSection: some View {

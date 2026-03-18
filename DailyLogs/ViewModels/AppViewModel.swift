@@ -491,6 +491,7 @@ final class AppViewModel: ObservableObject {
         guard canEditSelectedDate else { return }
         var updatedShower = shower
         updatedShower.timeZoneIdentifier = editedTimeZoneIdentifier(for: shower.timeZoneIdentifier)
+        updatedShower.note = trimmedNote(shower.note)
         if let index = dailyRecord.showers.firstIndex(where: { $0.id == shower.id }) {
             dailyRecord.showers[index] = updatedShower
         } else {

@@ -36,7 +36,7 @@ struct BowelMovementEditorSheet: View {
         ScrollView {
             VStack(spacing: 16) {
                 headerBar
-                    .padding(.top, 8)
+                    .padding(.top, 24)
 
                 Text(appViewModel.displayedClockTime(
                     for: draftTime,

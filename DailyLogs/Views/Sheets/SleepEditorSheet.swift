@@ -178,6 +178,7 @@ struct SleepNoteEditorSheet: View {
 
 struct RecordNoteSection: View {
     @Binding var note: String
+    @FocusState private var isFocused: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -188,10 +189,20 @@ struct RecordNoteSection: View {
             TextField(NSLocalizedString("备注", comment: ""), text: $note, axis: .vertical)
                 .font(.system(size: 16, design: .rounded))
                 .lineLimit(3, reservesSpace: false)
+                .submitLabel(.done)
+                .focused($isFocused)
                 .padding(.horizontal, 18)
                 .padding(.vertical, 14)
                 .background(AppTheme.elevatedSurface)
                 .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        }
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button(NSLocalizedString("完成", comment: "")) {
+                    isFocused = false
+                }
+            }
         }
     }
 }
