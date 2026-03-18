@@ -102,7 +102,7 @@ final class FirebaseCloudSyncService: CloudSyncService, Sendable {
         let metadata = try await fetchEncryptionMetadata(for: user)
         return CloudProtectionSnapshot(
             mode: metadata == nil ? .disabled : .enabled,
-            localKeyAvailable: metadata != nil && keychain.loadKey(for: user.userID) != nil,
+            localKeyAvailable: try await usableKey(for: user, metadata: metadata) != nil,
             hasLegacyPlaintextData: try await hasLegacyPlaintextData(for: user)
         )
     }
@@ -121,7 +121,8 @@ final class FirebaseCloudSyncService: CloudSyncService, Sendable {
         try await upsertProfile(user, encrypted: encryptionMetadata != nil)
 
         if encryptionMetadata != nil {
-            guard let key = keychain.loadKey(for: user.userID) else {
+            guard let metadata = encryptionMetadata,
+                  let key = try await usableKey(for: user, metadata: metadata) else {
                 throw CloudSyncSecurityError.encryptedSyncLocked
             }
 
@@ -187,8 +188,8 @@ final class FirebaseCloudSyncService: CloudSyncService, Sendable {
 
     func pushPreferences(_ preferences: UserPreferences, user: UserAccount) async throws {
         guard let db else { return }
-        if let _ = try await fetchEncryptionMetadata(for: user) {
-            guard let key = keychain.loadKey(for: user.userID) else {
+        if let metadata = try await fetchEncryptionMetadata(for: user) {
+            guard let key = try await usableKey(for: user, metadata: metadata) else {
                 throw CloudSyncSecurityError.encryptedSyncLocked
             }
             try await pushEncryptedPreferences(preferences, user: user, key: key)
@@ -202,8 +203,8 @@ final class FirebaseCloudSyncService: CloudSyncService, Sendable {
 
     func pushRecord(_ record: DailyRecord, user: UserAccount) async throws {
         guard let db else { return }
-        if let _ = try await fetchEncryptionMetadata(for: user) {
-            guard let key = keychain.loadKey(for: user.userID) else {
+        if let metadata = try await fetchEncryptionMetadata(for: user) {
+            guard let key = try await usableKey(for: user, metadata: metadata) else {
                 throw CloudSyncSecurityError.encryptedSyncLocked
             }
             try await pushEncryptedRecord(record, user: user, key: key)
@@ -217,8 +218,8 @@ final class FirebaseCloudSyncService: CloudSyncService, Sendable {
     }
 
     func pushProfile(_ user: UserAccount) async throws {
-        if let _ = try await fetchEncryptionMetadata(for: user) {
-            guard let key = keychain.loadKey(for: user.userID) else {
+        if let metadata = try await fetchEncryptionMetadata(for: user) {
+            guard let key = try await usableKey(for: user, metadata: metadata) else {
                 throw CloudSyncSecurityError.encryptedSyncLocked
             }
             try await pushEncryptedProfile(user, key: key)
@@ -538,6 +539,52 @@ final class FirebaseCloudSyncService: CloudSyncService, Sendable {
         guard let dictionary else { return nil }
         let envelope = try decode(CloudEncryptedEnvelope.self, from: dictionary)
         return try crypto.decrypt(type, from: envelope, key: key)
+    }
+
+    private func usableKey(for user: UserAccount, metadata: CloudEncryptionMetadata?) async throws -> SymmetricKey? {
+        guard let metadata else { return nil }
+
+        let candidates: [SymmetricKey]
+        switch metadata.keyProvider {
+        case .synchronizableKeychain:
+            candidates = [keychain.loadSynchronizableKey(for: user.userID)].compactMap { $0 }
+        case .passphrase:
+            candidates = [
+                keychain.loadLocalKey(for: user.userID),
+                keychain.loadSynchronizableKey(for: user.userID)
+            ].compactMap { $0 }
+        }
+
+        for candidate in candidates {
+            if try await canDecryptCloudData(using: candidate, for: user) {
+                return candidate
+            }
+        }
+
+        return nil
+    }
+
+    private func canDecryptCloudData(using key: SymmetricKey, for user: UserAccount) async throws -> Bool {
+        guard let db else { return false }
+
+        let userRef = db.collection("users").document(user.userID)
+
+        let profileSnapshot = try await userRef.collection("secureProfile").document("current").getDocument()
+        if profileSnapshot.exists {
+            return (try? decryptDocument(UserProfile.self, from: profileSnapshot.data(), key: key)) != nil
+        }
+
+        let prefsSnapshot = try await userRef.collection("securePreferences").document("current").getDocument()
+        if prefsSnapshot.exists {
+            return (try? decryptDocument(UserPreferences.self, from: prefsSnapshot.data(), key: key)) != nil
+        }
+
+        let recordsSnapshot = try await userRef.collection("secureRecords").limit(to: 1).getDocuments()
+        if let firstRecord = recordsSnapshot.documents.first {
+            return (try? decryptDocument(DailyRecord.self, from: firstRecord.data(), key: key)) != nil
+        }
+
+        return true
     }
 
     private func deleteLegacyPlaintextCloudData(for user: UserAccount) async throws {

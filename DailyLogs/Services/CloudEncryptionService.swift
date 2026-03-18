@@ -244,6 +244,14 @@ struct CloudKeychainStore {
         loadKey(for: userID, synchronizable: true) ?? loadKey(for: userID, synchronizable: false)
     }
 
+    func loadSynchronizableKey(for userID: String) -> SymmetricKey? {
+        loadKey(for: userID, synchronizable: true)
+    }
+
+    func loadLocalKey(for userID: String) -> SymmetricKey? {
+        loadKey(for: userID, synchronizable: false)
+    }
+
     func deleteKey(for userID: String) {
         SecItemDelete(baseQuery(for: userID, synchronizable: true) as CFDictionary)
         SecItemDelete(baseQuery(for: userID, synchronizable: false) as CFDictionary)
