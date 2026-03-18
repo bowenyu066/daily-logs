@@ -7,6 +7,7 @@ struct SexualActivityEditorSheet: View {
     @State private var dateOnly: Bool
     @State private var draftTime: Date
     @State private var isMasturbation: Bool
+    @State private var draftNote: String
 
     let baseDate: Date
     let isEditable: Bool
@@ -26,6 +27,7 @@ struct SexualActivityEditorSheet: View {
         _dateOnly = State(initialValue: initialValue.time == nil)
         _draftTime = State(initialValue: initialValue.time ?? baseDate.settingTime(hour: 22, minute: 0, in: .autoupdatingCurrent))
         _isMasturbation = State(initialValue: initialValue.isMasturbation)
+        _draftNote = State(initialValue: initialValue.note ?? "")
         self.entryID = initialValue.id
         self.recordedTimeZoneIdentifier = initialValue.timeZoneIdentifier
         self.baseDate = baseDate
@@ -35,56 +37,61 @@ struct SexualActivityEditorSheet: View {
     }
 
     var body: some View {
-        VStack(spacing: 16) {
-            headerBar
-                .padding(.top, 8)
+        ScrollView {
+            VStack(spacing: 16) {
+                headerBar
+                    .padding(.top, 8)
 
-            Toggle(NSLocalizedString("仅记录有/无", comment: ""), isOn: $dateOnly)
-                .font(.system(size: 16, weight: .semibold, design: .rounded))
-                .tint(.pink)
-                .disabled(!isEditable)
-                .padding(.horizontal, 4)
-
-            if !dateOnly {
-                Text(appViewModel.displayedClockTime(
-                    for: draftTime,
-                    recordedTimeZoneIdentifier: recordedTimeZoneIdentifier
-                ))
-                    .font(.system(size: 34, weight: .bold, design: .rounded))
-                    .foregroundStyle(.pink)
-                    .monospacedDigit()
-
-                DatePicker(
-                    "",
-                    selection: $draftTime,
-                    displayedComponents: .hourAndMinute
-                )
-                .datePickerStyle(.wheel)
-                .labelsHidden()
-                .frame(maxHeight: 150)
-                .clipped()
-                .disabled(!isEditable)
-                .environment(\.timeZone, appViewModel.displayedTimeZone(for: recordedTimeZoneIdentifier))
-            }
-
-            if appViewModel.preferences.showMasturbationOption {
-                Toggle(NSLocalizedString("自慰", comment: ""), isOn: $isMasturbation)
+                Toggle(NSLocalizedString("仅记录有/无", comment: ""), isOn: $dateOnly)
                     .font(.system(size: 16, weight: .semibold, design: .rounded))
                     .tint(.pink)
                     .disabled(!isEditable)
                     .padding(.horizontal, 4)
-            }
 
-            if let onDelete {
-                Button(NSLocalizedString("删除记录", comment: ""), role: .destructive) {
-                    onDelete()
-                    dismiss()
+                if !dateOnly {
+                    Text(appViewModel.displayedClockTime(
+                        for: draftTime,
+                        recordedTimeZoneIdentifier: recordedTimeZoneIdentifier
+                    ))
+                        .font(.system(size: 34, weight: .bold, design: .rounded))
+                        .foregroundStyle(.pink)
+                        .monospacedDigit()
+
+                    DatePicker(
+                        "",
+                        selection: $draftTime,
+                        displayedComponents: .hourAndMinute
+                    )
+                    .datePickerStyle(.wheel)
+                    .labelsHidden()
+                    .frame(maxHeight: 150)
+                    .clipped()
+                    .disabled(!isEditable)
+                    .environment(\.timeZone, appViewModel.displayedTimeZone(for: recordedTimeZoneIdentifier))
                 }
-                .font(.system(size: 16, weight: .bold, design: .rounded))
+
+                if appViewModel.preferences.showMasturbationOption {
+                    Toggle(NSLocalizedString("自慰", comment: ""), isOn: $isMasturbation)
+                        .font(.system(size: 16, weight: .semibold, design: .rounded))
+                        .tint(.pink)
+                        .disabled(!isEditable)
+                        .padding(.horizontal, 4)
+                }
+
+                RecordNoteSection(note: $draftNote)
+                    .disabled(!isEditable)
+
+                if let onDelete {
+                    Button(NSLocalizedString("删除记录", comment: ""), role: .destructive) {
+                        onDelete()
+                        dismiss()
+                    }
+                    .font(.system(size: 16, weight: .bold, design: .rounded))
+                }
             }
+            .padding(.horizontal, 24)
+            .padding(.bottom, 20)
         }
-        .padding(.horizontal, 24)
-        .padding(.bottom, 20)
         .background(AppTheme.background.ignoresSafeArea())
     }
 
@@ -110,7 +117,8 @@ struct SexualActivityEditorSheet: View {
                             date: baseDate,
                             time: resolvedTime,
                             isMasturbation: appViewModel.preferences.showMasturbationOption ? isMasturbation : false,
-                            timeZoneIdentifier: resolvedTime != nil ? timeZone.identifier : nil
+                            timeZoneIdentifier: resolvedTime != nil ? timeZone.identifier : nil,
+                            note: draftNote
                         )
                     )
                     dismiss()

@@ -278,6 +278,13 @@ final class AppViewModel: ObservableObject {
         )
     }
 
+    func updateSleepNote(_ note: String?) async {
+        guard canEditSelectedDate else { return }
+        dailyRecord.sleepRecord.note = trimmedNote(note)
+        persistCurrentRecord()
+        await syncCurrentRecordToCloudIfNeeded()
+    }
+
     func updateBedtimeSchedule(_ schedule: BedtimeSchedule) async {
         preferences.bedtimeSchedule = schedule
         dailyRecord.sleepRecord.targetBedtime = schedule.target(for: selectedDate)
@@ -505,6 +512,7 @@ final class AppViewModel: ObservableObject {
         guard canEditSelectedDate else { return }
         var updated = entry
         updated.timeZoneIdentifier = editedTimeZoneIdentifier(for: entry.timeZoneIdentifier)
+        updated.note = trimmedNote(entry.note)
         if let index = dailyRecord.bowelMovements.firstIndex(where: { $0.id == entry.id }) {
             dailyRecord.bowelMovements[index] = updated
         } else {
@@ -525,6 +533,7 @@ final class AppViewModel: ObservableObject {
     func saveSexualActivity(_ entry: SexualActivityEntry) async {
         guard canEditSelectedDate else { return }
         var updated = entry
+        updated.note = trimmedNote(entry.note)
         if updated.time != nil {
             updated.timeZoneIdentifier = editedTimeZoneIdentifier(for: entry.timeZoneIdentifier)
         }
@@ -673,6 +682,11 @@ final class AppViewModel: ObservableObject {
 
     private func isDefaultMealEntry(_ entry: MealEntry) -> Bool {
         preferences.defaultMealSlots.contains { mealEntry(entry, matches: $0) }
+    }
+
+    private func trimmedNote(_ note: String?) -> String? {
+        let trimmed = note?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed?.isEmpty == false ? trimmed : nil
     }
 
     private func loadSelectedRecord() throws {

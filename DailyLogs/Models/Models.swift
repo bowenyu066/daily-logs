@@ -252,6 +252,7 @@ struct SleepRecord: Codable, Equatable {
     var source: RecordSource = .manual
     var stageIntervals: [SleepStageInterval] = []
     var timeZoneIdentifier: String?
+    var note: String?
 
     var duration: TimeInterval? {
         guard let bedtimePreviousNight, let wakeTimeCurrentDay else { return nil }
@@ -269,7 +270,7 @@ struct SleepRecord: Codable, Equatable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case bedtimePreviousNight, wakeTimeCurrentDay, targetBedtime, source, stageIntervals, timeZoneIdentifier
+        case bedtimePreviousNight, wakeTimeCurrentDay, targetBedtime, source, stageIntervals, timeZoneIdentifier, note
     }
 
     init(
@@ -278,7 +279,8 @@ struct SleepRecord: Codable, Equatable {
         targetBedtime: DateComponents? = nil,
         source: RecordSource = .manual,
         stageIntervals: [SleepStageInterval] = [],
-        timeZoneIdentifier: String? = nil
+        timeZoneIdentifier: String? = nil,
+        note: String? = nil
     ) {
         self.bedtimePreviousNight = bedtimePreviousNight
         self.wakeTimeCurrentDay = wakeTimeCurrentDay
@@ -286,6 +288,7 @@ struct SleepRecord: Codable, Equatable {
         self.source = source
         self.stageIntervals = stageIntervals
         self.timeZoneIdentifier = timeZoneIdentifier
+        self.note = note
     }
 
     init(from decoder: any Decoder) throws {
@@ -296,6 +299,7 @@ struct SleepRecord: Codable, Equatable {
         source = try container.decodeIfPresent(RecordSource.self, forKey: .source) ?? .manual
         stageIntervals = try container.decodeIfPresent([SleepStageInterval].self, forKey: .stageIntervals) ?? []
         timeZoneIdentifier = try container.decodeIfPresent(String.self, forKey: .timeZoneIdentifier)
+        note = try container.decodeIfPresent(String.self, forKey: .note)
     }
 }
 
@@ -441,19 +445,22 @@ struct BowelMovementEntry: Codable, Equatable, Identifiable {
     var id: UUID = UUID()
     var time: Date
     var timeZoneIdentifier: String?
+    var note: String?
 
     enum CodingKeys: String, CodingKey {
-        case id, time, timeZoneIdentifier
+        case id, time, timeZoneIdentifier, note
     }
 
     init(
         id: UUID = UUID(),
         time: Date,
-        timeZoneIdentifier: String? = nil
+        timeZoneIdentifier: String? = nil,
+        note: String? = nil
     ) {
         self.id = id
         self.time = time
         self.timeZoneIdentifier = timeZoneIdentifier
+        self.note = note
     }
 
     init(from decoder: any Decoder) throws {
@@ -461,6 +468,7 @@ struct BowelMovementEntry: Codable, Equatable, Identifiable {
         id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
         time = try container.decode(Date.self, forKey: .time)
         timeZoneIdentifier = try container.decodeIfPresent(String.self, forKey: .timeZoneIdentifier)
+        note = try container.decodeIfPresent(String.self, forKey: .note)
     }
 }
 
@@ -470,9 +478,10 @@ struct SexualActivityEntry: Codable, Equatable, Identifiable {
     var time: Date?
     var isMasturbation: Bool = false
     var timeZoneIdentifier: String?
+    var note: String?
 
     enum CodingKeys: String, CodingKey {
-        case id, date, time, isMasturbation, timeZoneIdentifier
+        case id, date, time, isMasturbation, timeZoneIdentifier, note
     }
 
     init(
@@ -480,13 +489,15 @@ struct SexualActivityEntry: Codable, Equatable, Identifiable {
         date: Date,
         time: Date? = nil,
         isMasturbation: Bool = false,
-        timeZoneIdentifier: String? = nil
+        timeZoneIdentifier: String? = nil,
+        note: String? = nil
     ) {
         self.id = id
         self.date = date
         self.time = time
         self.isMasturbation = isMasturbation
         self.timeZoneIdentifier = timeZoneIdentifier
+        self.note = note
     }
 
     init(from decoder: any Decoder) throws {
@@ -496,6 +507,7 @@ struct SexualActivityEntry: Codable, Equatable, Identifiable {
         time = try container.decodeIfPresent(Date.self, forKey: .time)
         isMasturbation = try container.decodeIfPresent(Bool.self, forKey: .isMasturbation) ?? false
         timeZoneIdentifier = try container.decodeIfPresent(String.self, forKey: .timeZoneIdentifier)
+        note = try container.decodeIfPresent(String.self, forKey: .note)
     }
 }
 

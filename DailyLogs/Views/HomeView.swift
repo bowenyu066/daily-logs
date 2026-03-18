@@ -16,6 +16,7 @@ struct HomeView: View {
     @State private var showingNewSexualActivity = false
     @State private var previewingPhotoURL: String?
     @State private var showingHealthKitSyncConfirmation = false
+    @State private var showingSleepNoteEditor = false
 
     var body: some View {
         NavigationStack {
@@ -82,6 +83,11 @@ struct HomeView: View {
             .sheet(isPresented: $showingTargetBedtime) {
                 TargetBedtimeSheet(initialValue: appViewModel.preferences.bedtimeSchedule) { schedule in
                     Task { await appViewModel.updateBedtimeSchedule(schedule) }
+                }
+            }
+            .sheet(isPresented: $showingSleepNoteEditor) {
+                SleepNoteEditorSheet(note: appViewModel.dailyRecord.sleepRecord.note) { note in
+                    Task { await appViewModel.updateSleepNote(note) }
                 }
             }
             .sheet(item: $editingMealContext) { context in
@@ -330,6 +336,20 @@ struct HomeView: View {
                     .buttonStyle(.plain)
                 }
                 Button {
+                    showingSleepNoteEditor = true
+                } label: {
+                    Label(NSLocalizedString("备注", comment: ""), systemImage: "plus")
+                        .font(.system(size: 13, weight: .semibold, design: .rounded))
+                        .foregroundStyle(AppTheme.secondaryText)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 7)
+                        .background(AppTheme.elevatedSurface)
+                        .clipShape(Capsule())
+                }
+                .buttonStyle(.plain)
+                .disabled(!appViewModel.canEditSelectedDate)
+                .opacity(appViewModel.canEditSelectedDate ? 1 : 0.45)
+                Button {
                     showingTargetBedtime = true
                 } label: {
                     Text(NSLocalizedString("目标入睡：", comment: "") + appViewModel.formattedTargetBedtime())
@@ -387,6 +407,10 @@ struct HomeView: View {
 
             if appViewModel.dailyRecord.sleepRecord.hasStageData {
                 SleepStageBar(intervals: appViewModel.dailyRecord.sleepRecord.stageIntervals)
+            }
+
+            if let note = appViewModel.dailyRecord.sleepRecord.note, !note.isEmpty {
+                notePreview(note)
             }
         }
         .sectionStyle()
@@ -655,31 +679,37 @@ struct HomeView: View {
                         if index > 0 {
                             Divider().padding(.leading, 4)
                         }
-                        HStack {
-                            Button {
-                                editingBowelMovement = entry
-                            } label: {
-                                Text(appViewModel.displayedShortTime(
-                                    for: entry.time,
-                                    recordedTimeZoneIdentifier: entry.timeZoneIdentifier
-                                ))
-                                    .font(.system(size: 17, weight: .bold, design: .rounded))
-                                    .foregroundStyle(.brown)
-                                    .monospacedDigit()
-                            }
-                            .buttonStyle(.plain)
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack {
+                                Button {
+                                    editingBowelMovement = entry
+                                } label: {
+                                    Text(appViewModel.displayedShortTime(
+                                        for: entry.time,
+                                        recordedTimeZoneIdentifier: entry.timeZoneIdentifier
+                                    ))
+                                        .font(.system(size: 17, weight: .bold, design: .rounded))
+                                        .foregroundStyle(.brown)
+                                        .monospacedDigit()
+                                }
+                                .buttonStyle(.plain)
 
-                            Spacer()
+                                Spacer()
 
-                            Button {
-                                Task { await appViewModel.deleteBowelMovement(entry) }
-                            } label: {
-                                Image(systemName: "trash")
-                                    .font(.system(size: 14, weight: .semibold))
-                                    .foregroundStyle(AppTheme.warning)
+                                Button {
+                                    Task { await appViewModel.deleteBowelMovement(entry) }
+                                } label: {
+                                    Image(systemName: "trash")
+                                        .font(.system(size: 14, weight: .semibold))
+                                        .foregroundStyle(AppTheme.warning)
+                                }
+                                .buttonStyle(.plain)
+                                .disabled(!appViewModel.canEditSelectedDate)
                             }
-                            .buttonStyle(.plain)
-                            .disabled(!appViewModel.canEditSelectedDate)
+
+                            if let note = entry.note, !note.isEmpty {
+                                notePreview(note)
+                            }
                         }
                         .padding(.vertical, 10)
                     }
@@ -728,48 +758,54 @@ struct HomeView: View {
                         if index > 0 {
                             Divider().padding(.leading, 4)
                         }
-                        HStack {
-                            Button {
-                                editingSexualActivity = entry
-                            } label: {
-                                HStack(spacing: 8) {
-                                    if let time = entry.time {
-                                        Text(appViewModel.displayedShortTime(
-                                            for: time,
-                                            recordedTimeZoneIdentifier: entry.timeZoneIdentifier
-                                        ))
-                                            .font(.system(size: 17, weight: .bold, design: .rounded))
-                                            .foregroundStyle(.pink)
-                                            .monospacedDigit()
-                                    } else {
-                                        Text(NSLocalizedString("已记录", comment: ""))
-                                            .font(.system(size: 17, weight: .bold, design: .rounded))
-                                            .foregroundStyle(.pink)
-                                    }
-                                    if entry.isMasturbation {
-                                        Text(NSLocalizedString("自慰", comment: ""))
-                                            .font(.system(size: 12, weight: .semibold, design: .rounded))
-                                            .foregroundStyle(.pink.opacity(0.7))
-                                            .padding(.horizontal, 8)
-                                            .padding(.vertical, 3)
-                                            .background(.pink.opacity(0.1))
-                                            .clipShape(Capsule())
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack {
+                                Button {
+                                    editingSexualActivity = entry
+                                } label: {
+                                    HStack(spacing: 8) {
+                                        if let time = entry.time {
+                                            Text(appViewModel.displayedShortTime(
+                                                for: time,
+                                                recordedTimeZoneIdentifier: entry.timeZoneIdentifier
+                                            ))
+                                                .font(.system(size: 17, weight: .bold, design: .rounded))
+                                                .foregroundStyle(.pink)
+                                                .monospacedDigit()
+                                        } else {
+                                            Text(NSLocalizedString("已记录", comment: ""))
+                                                .font(.system(size: 17, weight: .bold, design: .rounded))
+                                                .foregroundStyle(.pink)
+                                        }
+                                        if entry.isMasturbation {
+                                            Text(NSLocalizedString("自慰", comment: ""))
+                                                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                                                .foregroundStyle(.pink.opacity(0.7))
+                                                .padding(.horizontal, 8)
+                                                .padding(.vertical, 3)
+                                                .background(.pink.opacity(0.1))
+                                                .clipShape(Capsule())
+                                        }
                                     }
                                 }
-                            }
-                            .buttonStyle(.plain)
+                                .buttonStyle(.plain)
 
-                            Spacer()
+                                Spacer()
 
-                            Button {
-                                Task { await appViewModel.deleteSexualActivity(entry) }
-                            } label: {
-                                Image(systemName: "trash")
-                                    .font(.system(size: 14, weight: .semibold))
-                                    .foregroundStyle(AppTheme.warning)
+                                Button {
+                                    Task { await appViewModel.deleteSexualActivity(entry) }
+                                } label: {
+                                    Image(systemName: "trash")
+                                        .font(.system(size: 14, weight: .semibold))
+                                        .foregroundStyle(AppTheme.warning)
+                                }
+                                .buttonStyle(.plain)
+                                .disabled(!appViewModel.canEditSelectedDate)
                             }
-                            .buttonStyle(.plain)
-                            .disabled(!appViewModel.canEditSelectedDate)
+
+                            if let note = entry.note, !note.isEmpty {
+                                notePreview(note)
+                            }
                         }
                         .padding(.vertical, 10)
                     }
@@ -805,6 +841,14 @@ struct HomeView: View {
         case .dinner: AppTheme.sleepAccent
         case .custom: AppTheme.sunriseAccent
         }
+    }
+
+    private func notePreview(_ note: String) -> some View {
+        Text(note)
+            .font(.system(size: 14, weight: .medium, design: .rounded))
+            .foregroundStyle(AppTheme.secondaryText)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .fixedSize(horizontal: false, vertical: true)
     }
 
     private func openMealEditor(_ meal: MealEntry, with source: MealCaptureMode) {

@@ -137,3 +137,61 @@ struct SleepEditorSheet: View {
         }
     }
 }
+
+struct SleepNoteEditorSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var draftNote: String
+
+    let onSave: (String?) -> Void
+
+    init(note: String?, onSave: @escaping (String?) -> Void) {
+        _draftNote = State(initialValue: note ?? "")
+        self.onSave = onSave
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 22) {
+                    RecordNoteSection(note: $draftNote)
+                }
+                .padding(24)
+            }
+            .background(AppTheme.background.ignoresSafeArea())
+            .navigationTitle(NSLocalizedString("睡眠备注", comment: ""))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button(NSLocalizedString("取消", comment: "")) { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(NSLocalizedString("保存", comment: "")) {
+                        onSave(draftNote)
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+}
+
+struct RecordNoteSection: View {
+    @Binding var note: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(NSLocalizedString("备注", comment: ""))
+                .font(.system(size: 16, weight: .semibold, design: .rounded))
+                .foregroundStyle(AppTheme.secondaryText)
+
+            TextField(NSLocalizedString("备注", comment: ""), text: $note, axis: .vertical)
+                .font(.system(size: 16, design: .rounded))
+                .lineLimit(3, reservesSpace: false)
+                .padding(.horizontal, 18)
+                .padding(.vertical, 14)
+                .background(AppTheme.elevatedSurface)
+                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        }
+    }
+}

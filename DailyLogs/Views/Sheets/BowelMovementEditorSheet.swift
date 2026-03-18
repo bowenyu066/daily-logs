@@ -5,6 +5,7 @@ struct BowelMovementEditorSheet: View {
     @EnvironmentObject private var appViewModel: AppViewModel
 
     @State private var draftTime: Date
+    @State private var draftNote: String
 
     let baseDate: Date
     let isEditable: Bool
@@ -22,6 +23,7 @@ struct BowelMovementEditorSheet: View {
         onDelete: (() -> Void)?
     ) {
         _draftTime = State(initialValue: initialValue.time)
+        _draftNote = State(initialValue: initialValue.note ?? "")
         self.entryID = initialValue.id
         self.recordedTimeZoneIdentifier = initialValue.timeZoneIdentifier
         self.baseDate = baseDate
@@ -31,40 +33,45 @@ struct BowelMovementEditorSheet: View {
     }
 
     var body: some View {
-        VStack(spacing: 16) {
-            headerBar
-                .padding(.top, 8)
+        ScrollView {
+            VStack(spacing: 16) {
+                headerBar
+                    .padding(.top, 8)
 
-            Text(appViewModel.displayedClockTime(
-                for: draftTime,
-                recordedTimeZoneIdentifier: recordedTimeZoneIdentifier
-            ))
-                .font(.system(size: 34, weight: .bold, design: .rounded))
-                .foregroundStyle(.brown)
-                .monospacedDigit()
+                Text(appViewModel.displayedClockTime(
+                    for: draftTime,
+                    recordedTimeZoneIdentifier: recordedTimeZoneIdentifier
+                ))
+                    .font(.system(size: 34, weight: .bold, design: .rounded))
+                    .foregroundStyle(.brown)
+                    .monospacedDigit()
 
-            DatePicker(
-                "",
-                selection: $draftTime,
-                displayedComponents: .hourAndMinute
-            )
-            .datePickerStyle(.wheel)
-            .labelsHidden()
-            .frame(maxHeight: 150)
-            .clipped()
-            .disabled(!isEditable)
-            .environment(\.timeZone, appViewModel.displayedTimeZone(for: recordedTimeZoneIdentifier))
+                DatePicker(
+                    "",
+                    selection: $draftTime,
+                    displayedComponents: .hourAndMinute
+                )
+                .datePickerStyle(.wheel)
+                .labelsHidden()
+                .frame(maxHeight: 150)
+                .clipped()
+                .disabled(!isEditable)
+                .environment(\.timeZone, appViewModel.displayedTimeZone(for: recordedTimeZoneIdentifier))
 
-            if let onDelete {
-                Button(NSLocalizedString("删除记录", comment: ""), role: .destructive) {
-                    onDelete()
-                    dismiss()
+                RecordNoteSection(note: $draftNote)
+                    .disabled(!isEditable)
+
+                if let onDelete {
+                    Button(NSLocalizedString("删除记录", comment: ""), role: .destructive) {
+                        onDelete()
+                        dismiss()
+                    }
+                    .font(.system(size: 16, weight: .bold, design: .rounded))
                 }
-                .font(.system(size: 16, weight: .bold, design: .rounded))
             }
+            .padding(.horizontal, 24)
+            .padding(.bottom, 20)
         }
-        .padding(.horizontal, 24)
-        .padding(.bottom, 20)
         .background(AppTheme.background.ignoresSafeArea())
     }
 
@@ -85,7 +92,8 @@ struct BowelMovementEditorSheet: View {
                     onSave(
                         BowelMovementEntry(
                             id: entryID,
-                            time: normalizedTime
+                            time: normalizedTime,
+                            note: draftNote
                         )
                     )
                     dismiss()
