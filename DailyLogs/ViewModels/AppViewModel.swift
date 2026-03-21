@@ -440,9 +440,11 @@ final class AppViewModel: ObservableObject {
                 try deletePhotoIfLocal(at: oldPhotoURL)
             }
 
-            if updatedEntry.time != nil || updatedEntry.hasPhoto {
+            if updatedEntry.status == .logged || updatedEntry.time != nil || updatedEntry.hasPhoto {
                 updatedEntry.status = .logged
-                updatedEntry.timeZoneIdentifier = editedTimeZoneIdentifier(for: existingEntry?.timeZoneIdentifier ?? updatedEntry.timeZoneIdentifier)
+                updatedEntry.timeZoneIdentifier = updatedEntry.time != nil
+                    ? editedTimeZoneIdentifier(for: existingEntry?.timeZoneIdentifier ?? updatedEntry.timeZoneIdentifier)
+                    : nil
             }
             if let index = dailyRecord.meals.firstIndex(where: { $0.id == updatedEntry.id }) {
                 dailyRecord.meals[index] = updatedEntry
@@ -511,7 +513,7 @@ final class AppViewModel: ObservableObject {
             }
             var updatedEntry = entry
             updatedEntry.photoURL = nil
-            updatedEntry.status = updatedEntry.time == nil ? .empty : .logged
+            updatedEntry.status = (entry.status == .logged || updatedEntry.time != nil) ? .logged : .empty
             if let index = dailyRecord.meals.firstIndex(where: { $0.id == updatedEntry.id }) {
                 dailyRecord.meals[index] = updatedEntry
             } else {
@@ -550,14 +552,14 @@ final class AppViewModel: ObservableObject {
     func saveShower(_ shower: ShowerEntry) async {
         guard canEditSelectedDate else { return }
         var updatedShower = shower
-        updatedShower.timeZoneIdentifier = editedTimeZoneIdentifier(for: shower.timeZoneIdentifier)
+        updatedShower.timeZoneIdentifier = shower.time != nil ? editedTimeZoneIdentifier(for: shower.timeZoneIdentifier) : nil
         updatedShower.note = trimmedNote(shower.note)
         if let index = dailyRecord.showers.firstIndex(where: { $0.id == shower.id }) {
             dailyRecord.showers[index] = updatedShower
         } else {
             dailyRecord.showers.append(updatedShower)
-            dailyRecord.showers.sort { $0.time < $1.time }
         }
+        dailyRecord.showers.sort { sortOptionalTimes($0.time, $1.time) }
         persistCurrentRecord()
         await syncCurrentRecordToCloudIfNeeded()
     }
@@ -572,14 +574,14 @@ final class AppViewModel: ObservableObject {
     func saveBowelMovement(_ entry: BowelMovementEntry) async {
         guard canEditSelectedDate else { return }
         var updated = entry
-        updated.timeZoneIdentifier = editedTimeZoneIdentifier(for: entry.timeZoneIdentifier)
+        updated.timeZoneIdentifier = entry.time != nil ? editedTimeZoneIdentifier(for: entry.timeZoneIdentifier) : nil
         updated.note = trimmedNote(entry.note)
         if let index = dailyRecord.bowelMovements.firstIndex(where: { $0.id == entry.id }) {
             dailyRecord.bowelMovements[index] = updated
         } else {
             dailyRecord.bowelMovements.append(updated)
-            dailyRecord.bowelMovements.sort { $0.time < $1.time }
         }
+        dailyRecord.bowelMovements.sort { sortOptionalTimes($0.time, $1.time) }
         persistCurrentRecord()
         await syncCurrentRecordToCloudIfNeeded()
     }
@@ -699,7 +701,7 @@ final class AppViewModel: ObservableObject {
 
     func syncHealthKitForCurrentDate(overwritingExistingData: Bool = false) async {
         guard preferences.healthKitSyncEnabled, let user else { return }
-        guard overwritingExistingData || !dailyRecord.sleepRecord.blocksHealthKitSync else { return }
+        guard overwritingExistingData || shouldAttemptAutomaticHealthKitSync() else { return }
         do {
             guard let hkSleep = try await healthSyncAdapter.fetchSleepData(
                 for: selectedDate,
@@ -710,7 +712,7 @@ final class AppViewModel: ObservableObject {
             dailyRecord.sleepRecord.wakeTimeCurrentDay = hkSleep.wakeTimeCurrentDay
             dailyRecord.sleepRecord.stageIntervals = hkSleep.stageIntervals
             dailyRecord.sleepRecord.source = .healthKit
-            dailyRecord.sleepRecord.timeZoneIdentifier = TimeZone.autoupdatingCurrent.identifier
+            dailyRecord.sleepRecord.timeZoneIdentifier = hkSleep.timeZoneIdentifier ?? TimeZone.autoupdatingCurrent.identifier
             persistCurrentRecord()
             await syncCurrentRecordToCloudIfNeeded()
         } catch {
@@ -777,6 +779,7 @@ final class AppViewModel: ObservableObject {
             dailyRecord.date = selectedDate.startOfDay
             dailyRecord.sleepRecord.targetBedtime = preferences.bedtimeSchedule.target(for: selectedDate)
             dailyRecord = mergedRecord(dailyRecord, with: preferences)
+            dailyRecord.modifiedAt = .now
             try repository.saveRecord(dailyRecord, userID: user.userID)
             try loadAllRecords(for: user.userID)
         } catch {
@@ -867,24 +870,30 @@ final class AppViewModel: ObservableObject {
                 let localRecordMap = database.recordsByUser[user.userID] ?? [:]
                 let remoteRecordMap = Self.recordsByStorageKey(payload.records)
                 var merged = remoteRecordMap
+                var recordsToPush: [DailyRecord] = []
                 for (key, localRecord) in localRecordMap {
                     guard let remoteRecord = merged[key] else {
                         merged[key] = localRecord
+                        recordsToPush.append(localRecord)
                         continue
                     }
-                    // Prefer the local record on conflicts so newer offline edits
-                    // aren't overwritten by stale cloud data. Backfill remote photo
-                    // URLs when the local copy doesn't have one yet.
-                    var mergedRecord = localRecord
-                    for i in mergedRecord.meals.indices {
-                        if let localPhoto = mergedRecord.meals[i].photoURL,
-                           FileManager.default.fileExists(atPath: localPhoto) {
-                            continue
+                    var mergedRecord = Self.preferredRecord(between: localRecord, and: remoteRecord)
+                    if mergedRecord == localRecord {
+                        if localRecord != remoteRecord {
+                            recordsToPush.append(localRecord)
                         }
+                        // Keep remote photo references when the preferred local
+                        // copy doesn't currently have an accessible image.
+                        for i in mergedRecord.meals.indices {
+                            if let localPhoto = mergedRecord.meals[i].photoURL,
+                               FileManager.default.fileExists(atPath: localPhoto) {
+                                continue
+                            }
 
-                        if let remoteMeal = remoteRecord.meals.first(where: { $0.id == mergedRecord.meals[i].id }),
-                           let remotePhoto = remoteMeal.photoURL {
-                            mergedRecord.meals[i].photoURL = remotePhoto
+                            if let remoteMeal = remoteRecord.meals.first(where: { $0.id == mergedRecord.meals[i].id }),
+                               let remotePhoto = remoteMeal.photoURL {
+                                mergedRecord.meals[i].photoURL = remotePhoto
+                            }
                         }
                     }
                     merged[key] = mergedRecord.backfillingRecordedTimeZones(TimeZone.autoupdatingCurrent.identifier)
@@ -895,8 +904,15 @@ final class AppViewModel: ObservableObject {
                 try store.save(database)
                 allRecords = database.recordsByUser[user.userID]?.values.sorted { $0.date < $1.date } ?? []
                 await refreshRemotePhotoCache()
+
+                for record in deduplicatedPendingUploads(recordsToPush) {
+                    try await cloudSyncService.pushRecord(record, user: user)
+                }
             }
         } catch {
+            if isConnectivityError(error) {
+                return
+            }
             if let securityError = error as? CloudSyncSecurityError,
                securityError == .encryptedSyncLocked {
                 cloudEncryptionState = .locked
@@ -912,6 +928,9 @@ final class AppViewModel: ObservableObject {
         do {
             try await cloudSyncService.pushPreferences(preferences, user: user)
         } catch {
+            if isConnectivityError(error) {
+                return
+            }
             if let securityError = error as? CloudSyncSecurityError,
                securityError == .encryptedSyncLocked {
                 cloudEncryptionState = .locked
@@ -927,6 +946,9 @@ final class AppViewModel: ObservableObject {
         do {
             try await cloudSyncService.pushRecord(dailyRecord, user: user)
         } catch {
+            if isConnectivityError(error) {
+                return
+            }
             if let securityError = error as? CloudSyncSecurityError,
                securityError == .encryptedSyncLocked {
                 cloudEncryptionState = .locked
@@ -1047,6 +1069,10 @@ final class AppViewModel: ObservableObject {
     }
 
     private nonisolated static func preferredRecord(between lhs: DailyRecord, and rhs: DailyRecord) -> DailyRecord {
+        if lhs.effectiveModifiedAt != rhs.effectiveModifiedAt {
+            return lhs.effectiveModifiedAt > rhs.effectiveModifiedAt ? lhs : rhs
+        }
+
         let lhsScore = completenessScore(for: lhs)
         let rhsScore = completenessScore(for: rhs)
 
@@ -1171,5 +1197,53 @@ final class AppViewModel: ObservableObject {
         case .recorded:
             return recordedTimeZoneIdentifier ?? TimeZone.autoupdatingCurrent.identifier
         }
+    }
+
+    private func shouldAttemptAutomaticHealthKitSync() -> Bool {
+        guard selectedDate.startOfDay == Date().startOfDay else { return false }
+        return !dailyRecord.sleepRecord.hasSleepData
+    }
+
+    private func sortOptionalTimes(_ lhs: Date?, _ rhs: Date?) -> Bool {
+        switch (lhs, rhs) {
+        case let (.some(lhs), .some(rhs)):
+            return lhs < rhs
+        case (.none, .some):
+            return false
+        case (.some, .none):
+            return true
+        case (.none, .none):
+            return false
+        }
+    }
+
+    private func deduplicatedPendingUploads(_ records: [DailyRecord]) -> [DailyRecord] {
+        let deduplicated = Self.recordsByStorageKey(records)
+        return deduplicated.values.sorted { $0.date < $1.date }
+    }
+
+    private func isConnectivityError(_ error: Error) -> Bool {
+        let nsError = error as NSError
+        if nsError.domain == NSURLErrorDomain {
+            let connectivityCodes: Set<Int> = [
+                URLError.notConnectedToInternet.rawValue,
+                URLError.networkConnectionLost.rawValue,
+                URLError.cannotConnectToHost.rawValue,
+                URLError.cannotFindHost.rawValue,
+                URLError.timedOut.rawValue,
+                URLError.internationalRoamingOff.rawValue,
+                URLError.callIsActive.rawValue,
+                URLError.dataNotAllowed.rawValue
+            ]
+            return connectivityCodes.contains(nsError.code)
+        }
+
+        if let underlying = nsError.userInfo[NSUnderlyingErrorKey] as? NSError,
+           isConnectivityError(underlying) {
+            return true
+        }
+
+        let message = nsError.localizedDescription.lowercased()
+        return message.contains("offline") || message.contains("network") || message.contains("internet")
     }
 }

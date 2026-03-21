@@ -333,8 +333,12 @@ struct MealEntry: Codable, Equatable, Identifiable {
         photoURL?.isEmpty == false
     }
 
+    var isLoggedWithoutTime: Bool {
+        effectiveStatus(on: .now, relativeTo: .now) == .logged && time == nil
+    }
+
     func effectiveStatus(on recordDate: Date, relativeTo referenceDate: Date = .now) -> MealStatus {
-        if time != nil || hasPhoto {
+        if status == .logged || time != nil || hasPhoto {
             return .logged
         }
         if status == .skipped {
@@ -416,7 +420,7 @@ enum HomeSectionKind: String, Codable, CaseIterable, Identifiable {
 
 struct ShowerEntry: Codable, Equatable, Identifiable {
     var id: UUID = UUID()
-    var time: Date
+    var time: Date?
     var timeZoneIdentifier: String?
     var note: String?
 
@@ -426,7 +430,7 @@ struct ShowerEntry: Codable, Equatable, Identifiable {
 
     init(
         id: UUID = UUID(),
-        time: Date,
+        time: Date? = nil,
         timeZoneIdentifier: String? = nil,
         note: String? = nil
     ) {
@@ -439,7 +443,7 @@ struct ShowerEntry: Codable, Equatable, Identifiable {
     init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
-        time = try container.decode(Date.self, forKey: .time)
+        time = try container.decodeIfPresent(Date.self, forKey: .time)
         timeZoneIdentifier = try container.decodeIfPresent(String.self, forKey: .timeZoneIdentifier)
         note = try container.decodeIfPresent(String.self, forKey: .note)
     }
@@ -447,7 +451,7 @@ struct ShowerEntry: Codable, Equatable, Identifiable {
 
 struct BowelMovementEntry: Codable, Equatable, Identifiable {
     var id: UUID = UUID()
-    var time: Date
+    var time: Date?
     var timeZoneIdentifier: String?
     var note: String?
 
@@ -457,7 +461,7 @@ struct BowelMovementEntry: Codable, Equatable, Identifiable {
 
     init(
         id: UUID = UUID(),
-        time: Date,
+        time: Date? = nil,
         timeZoneIdentifier: String? = nil,
         note: String? = nil
     ) {
@@ -470,7 +474,7 @@ struct BowelMovementEntry: Codable, Equatable, Identifiable {
     init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
-        time = try container.decode(Date.self, forKey: .time)
+        time = try container.decodeIfPresent(Date.self, forKey: .time)
         timeZoneIdentifier = try container.decodeIfPresent(String.self, forKey: .timeZoneIdentifier)
         note = try container.decodeIfPresent(String.self, forKey: .note)
     }
@@ -523,9 +527,10 @@ struct DailyRecord: Codable, Equatable {
     var bowelMovements: [BowelMovementEntry]
     var sexualActivities: [SexualActivityEntry]
     var sunTimes: SunTimes?
+    var modifiedAt: Date?
 
     enum CodingKeys: String, CodingKey {
-        case date, sleepRecord, meals, showers, bowelMovements, sexualActivities, sunTimes
+        case date, sleepRecord, meals, showers, bowelMovements, sexualActivities, sunTimes, modifiedAt
     }
 
     init(
@@ -535,7 +540,8 @@ struct DailyRecord: Codable, Equatable {
         showers: [ShowerEntry],
         bowelMovements: [BowelMovementEntry] = [],
         sexualActivities: [SexualActivityEntry] = [],
-        sunTimes: SunTimes? = nil
+        sunTimes: SunTimes? = nil,
+        modifiedAt: Date? = nil
     ) {
         self.date = date
         self.sleepRecord = sleepRecord
@@ -544,6 +550,7 @@ struct DailyRecord: Codable, Equatable {
         self.bowelMovements = bowelMovements
         self.sexualActivities = sexualActivities
         self.sunTimes = sunTimes
+        self.modifiedAt = modifiedAt
     }
 
     init(from decoder: any Decoder) throws {
@@ -555,6 +562,7 @@ struct DailyRecord: Codable, Equatable {
         bowelMovements = try container.decodeIfPresent([BowelMovementEntry].self, forKey: .bowelMovements) ?? []
         sexualActivities = try container.decodeIfPresent([SexualActivityEntry].self, forKey: .sexualActivities) ?? []
         sunTimes = try container.decodeIfPresent(SunTimes.self, forKey: .sunTimes)
+        modifiedAt = try container.decodeIfPresent(Date.self, forKey: .modifiedAt)
     }
 
     static func empty(for date: Date, preferences: UserPreferences) -> DailyRecord {
@@ -757,8 +765,12 @@ struct UserPreferences: Codable, Equatable {
 }
 
 extension SleepRecord {
-    var hasUserEnteredSleepData: Bool {
+    var hasSleepData: Bool {
         bedtimePreviousNight != nil || wakeTimeCurrentDay != nil || !stageIntervals.isEmpty
+    }
+
+    var hasUserEnteredSleepData: Bool {
+        hasSleepData
     }
 
     var blocksHealthKitSync: Bool {
@@ -792,7 +804,7 @@ extension MealEntry {
 
 extension ShowerEntry {
     var needsRecordedTimeZoneMigration: Bool {
-        timeZoneIdentifier == nil
+        time != nil && timeZoneIdentifier == nil
     }
 
     func backfillingRecordedTimeZone(_ identifier: String) -> ShowerEntry {
@@ -818,7 +830,7 @@ extension SunTimes {
 
 extension BowelMovementEntry {
     var needsRecordedTimeZoneMigration: Bool {
-        timeZoneIdentifier == nil
+        time != nil && timeZoneIdentifier == nil
     }
 
     func backfillingRecordedTimeZone(_ identifier: String) -> BowelMovementEntry {
@@ -843,6 +855,10 @@ extension SexualActivityEntry {
 }
 
 extension DailyRecord {
+    var effectiveModifiedAt: Date {
+        modifiedAt ?? date.startOfDay
+    }
+
     var needsRecordedTimeZoneMigration: Bool {
         sleepRecord.needsRecordedTimeZoneMigration
             || meals.contains(where: \.needsRecordedTimeZoneMigration)

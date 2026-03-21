@@ -8,6 +8,7 @@ struct SexualActivityEditorSheet: View {
     @State private var draftTime: Date
     @State private var isMasturbation: Bool
     @State private var draftNote: String
+    @State private var showingDeleteConfirmation = false
 
     let baseDate: Date
     let isEditable: Bool
@@ -83,16 +84,25 @@ struct SexualActivityEditorSheet: View {
 
                 if let onDelete {
                     Button(NSLocalizedString("删除记录", comment: ""), role: .destructive) {
-                        onDelete()
-                        dismiss()
+                        showingDeleteConfirmation = true
                     }
                     .font(.system(size: 16, weight: .bold, design: .rounded))
+                    .foregroundStyle(.red)
                 }
             }
             .padding(.horizontal, 24)
             .padding(.bottom, 20)
         }
         .background(AppTheme.background.ignoresSafeArea())
+        .alert(NSLocalizedString("删除记录？", comment: ""), isPresented: $showingDeleteConfirmation) {
+            Button(NSLocalizedString("取消", comment: ""), role: .cancel) {}
+            Button(NSLocalizedString("删除记录", comment: ""), role: .destructive) {
+                onDelete?()
+                dismiss()
+            }
+        } message: {
+            Text(NSLocalizedString("此操作无法撤销。", comment: ""))
+        }
     }
 
     private var headerBar: some View {

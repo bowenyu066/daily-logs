@@ -506,7 +506,11 @@ final class FirebaseCloudSyncService: CloudSyncService, Sendable {
     }
 
     private func preferredRecord(between lhs: DailyRecord, and rhs: DailyRecord) -> DailyRecord {
-        score(for: rhs) >= score(for: lhs) ? rhs : lhs
+        if lhs.effectiveModifiedAt != rhs.effectiveModifiedAt {
+            return lhs.effectiveModifiedAt > rhs.effectiveModifiedAt ? lhs : rhs
+        }
+
+        return score(for: rhs) >= score(for: lhs) ? rhs : lhs
     }
 
     private func score(for record: DailyRecord) -> Int {
@@ -515,10 +519,10 @@ final class FirebaseCloudSyncService: CloudSyncService, Sendable {
         if record.sleepRecord.wakeTimeCurrentDay != nil { total += 2 }
         if record.sleepRecord.note?.isEmpty == false { total += 1 }
         total += record.sleepRecord.stageIntervals.count
-        total += record.meals.filter { $0.time != nil || $0.photoURL != nil || $0.note?.isEmpty == false }.count * 2
-        total += record.showers.filter { $0.time != nil || $0.note?.isEmpty == false }.count * 2
-        total += record.bowelMovements.filter { $0.time != nil || $0.note?.isEmpty == false }.count * 2
-        total += record.sexualActivities.filter { $0.time != nil || $0.note?.isEmpty == false }.count * 2
+        total += record.meals.filter { $0.status == .logged || $0.time != nil || $0.photoURL != nil || $0.note?.isEmpty == false }.count * 2
+        total += record.showers.count * 2
+        total += record.bowelMovements.count * 2
+        total += record.sexualActivities.count * 2
         if record.sunTimes != nil { total += 2 }
         return total
     }

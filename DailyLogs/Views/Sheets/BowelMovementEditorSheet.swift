@@ -5,7 +5,9 @@ struct BowelMovementEditorSheet: View {
     @EnvironmentObject private var appViewModel: AppViewModel
 
     @State private var draftTime: Date
+    @State private var logsExistenceOnly: Bool
     @State private var draftNote: String
+    @State private var showingDeleteConfirmation = false
 
     let baseDate: Date
     let isEditable: Bool
@@ -22,7 +24,9 @@ struct BowelMovementEditorSheet: View {
         onSave: @escaping (BowelMovementEntry) -> Void,
         onDelete: (() -> Void)?
     ) {
-        _draftTime = State(initialValue: initialValue.time)
+        let fallbackTime = initialValue.time ?? baseDate.settingTime(hour: 8, minute: 0, in: .autoupdatingCurrent)
+        _draftTime = State(initialValue: fallbackTime)
+        _logsExistenceOnly = State(initialValue: initialValue.time == nil)
         _draftNote = State(initialValue: initialValue.note ?? "")
         self.entryID = initialValue.id
         self.recordedTimeZoneIdentifier = initialValue.timeZoneIdentifier
@@ -38,41 +42,58 @@ struct BowelMovementEditorSheet: View {
                 headerBar
                     .padding(.top, 24)
 
-                Text(appViewModel.displayedClockTime(
-                    for: draftTime,
-                    recordedTimeZoneIdentifier: recordedTimeZoneIdentifier
-                ))
-                    .font(.system(size: 34, weight: .bold, design: .rounded))
-                    .foregroundStyle(.brown)
-                    .monospacedDigit()
+                Toggle(NSLocalizedString("仅记录有/无", comment: ""), isOn: $logsExistenceOnly)
+                    .font(.system(size: 16, weight: .semibold, design: .rounded))
+                    .tint(.brown)
+                    .disabled(!isEditable)
+                    .padding(.horizontal, 4)
 
-                DatePicker(
-                    "",
-                    selection: $draftTime,
-                    displayedComponents: .hourAndMinute
-                )
-                .datePickerStyle(.wheel)
-                .labelsHidden()
-                .frame(maxHeight: 150)
-                .clipped()
-                .disabled(!isEditable)
-                .environment(\.timeZone, appViewModel.displayedTimeZone(for: recordedTimeZoneIdentifier))
+                if !logsExistenceOnly {
+                    Text(appViewModel.displayedClockTime(
+                        for: draftTime,
+                        recordedTimeZoneIdentifier: recordedTimeZoneIdentifier
+                    ))
+                        .font(.system(size: 34, weight: .bold, design: .rounded))
+                        .foregroundStyle(.brown)
+                        .monospacedDigit()
+
+                    DatePicker(
+                        "",
+                        selection: $draftTime,
+                        displayedComponents: .hourAndMinute
+                    )
+                    .datePickerStyle(.wheel)
+                    .labelsHidden()
+                    .frame(maxHeight: 150)
+                    .clipped()
+                    .disabled(!isEditable)
+                    .environment(\.timeZone, appViewModel.displayedTimeZone(for: recordedTimeZoneIdentifier))
+                }
 
                 RecordNoteSection(note: $draftNote)
                     .disabled(!isEditable)
 
                 if let onDelete {
                     Button(NSLocalizedString("删除记录", comment: ""), role: .destructive) {
-                        onDelete()
-                        dismiss()
+                        showingDeleteConfirmation = true
                     }
                     .font(.system(size: 16, weight: .bold, design: .rounded))
+                    .foregroundStyle(.red)
                 }
             }
             .padding(.horizontal, 24)
             .padding(.bottom, 20)
         }
         .background(AppTheme.background.ignoresSafeArea())
+        .alert(NSLocalizedString("删除记录？", comment: ""), isPresented: $showingDeleteConfirmation) {
+            Button(NSLocalizedString("取消", comment: ""), role: .cancel) {}
+            Button(NSLocalizedString("删除记录", comment: ""), role: .destructive) {
+                onDelete?()
+                dismiss()
+            }
+        } message: {
+            Text(NSLocalizedString("此操作无法撤销。", comment: ""))
+        }
     }
 
     private var headerBar: some View {
@@ -92,7 +113,8 @@ struct BowelMovementEditorSheet: View {
                     onSave(
                         BowelMovementEntry(
                             id: entryID,
-                            time: normalizedTime,
+                            time: logsExistenceOnly ? nil : normalizedTime,
+                            timeZoneIdentifier: logsExistenceOnly ? nil : appViewModel.displayedTimeZone(for: recordedTimeZoneIdentifier).identifier,
                             note: draftNote
                         )
                     )

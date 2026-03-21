@@ -26,6 +26,7 @@ struct SleepEditorSheet: View {
     @EnvironmentObject private var appViewModel: AppViewModel
 
     @State private var selectedTime: Date
+    @State private var showingClearConfirmation = false
 
     let target: SleepEditorTarget
     let hasExistingValue: Bool
@@ -82,16 +83,25 @@ struct SleepEditorSheet: View {
 
             if hasExistingValue {
                 Button(NSLocalizedString("清除记录", comment: ""), role: .destructive) {
-                    onSave(nil)
-                    dismiss()
+                    showingClearConfirmation = true
                 }
                 .font(.system(size: 16, weight: .semibold, design: .rounded))
+                .foregroundStyle(.red)
             }
 
             Spacer(minLength: 0)
         }
         .padding(24)
         .background(AppTheme.background.ignoresSafeArea())
+        .alert(NSLocalizedString("清除记录？", comment: ""), isPresented: $showingClearConfirmation) {
+            Button(NSLocalizedString("取消", comment: ""), role: .cancel) {}
+            Button(NSLocalizedString("清除记录", comment: ""), role: .destructive) {
+                onSave(nil)
+                dismiss()
+            }
+        } message: {
+            Text(NSLocalizedString("此操作会清除当前时间记录，且无法撤销。", comment: ""))
+        }
     }
 
     private var headerBar: some View {

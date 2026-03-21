@@ -329,7 +329,8 @@ struct AnalyticsView: View {
 
     private func formatClock(_ minutes: Double?) -> String {
         guard let minutes else { return "--" }
-        let total = Int(minutes.rounded()) % (24 * 60)
+        let fullDay = 24 * 60
+        let total = ((Int(minutes.rounded()) % fullDay) + fullDay) % fullDay
         let hour = total / 60
         let minute = total % 60
         return String(format: "%02d:%02d", hour, minute)

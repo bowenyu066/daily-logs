@@ -17,6 +17,7 @@ struct HomeView: View {
     @State private var previewingPhotoURL: String?
     @State private var showingHealthKitSyncConfirmation = false
     @State private var showingSleepNoteEditor = false
+    @State private var pendingDestructiveAction: PendingDestructiveAction?
 
     var body: some View {
         NavigationStack {
@@ -228,6 +229,16 @@ struct HomeView: View {
                 }
             } message: {
                 Text(NSLocalizedString("此操作将会覆盖已有数据。", comment: ""))
+            }
+            .alert(item: $pendingDestructiveAction) { action in
+                Alert(
+                    title: Text(action.title),
+                    message: Text(action.message),
+                    primaryButton: .destructive(Text(action.confirmTitle)) {
+                        perform(action)
+                    },
+                    secondaryButton: .cancel(Text(NSLocalizedString("取消", comment: "")))
+                )
             }
             .fullScreenCover(item: Binding(
                 get: { previewingPhotoURL.map { IdentifiablePhoto(url: $0) } },
@@ -448,15 +459,9 @@ struct HomeView: View {
                         entry: MealEntry(
                             mealKind: .custom,
                             customTitle: NSLocalizedString("加餐", comment: ""),
-                            status: .logged,
-                            time: appViewModel.selectedDate.settingTime(
-                                hour: 15,
-                                minute: 0,
-                                in: appViewModel.displayedTimeZone(for: nil)
-                            ),
-                            photoURL: nil
+                            status: .empty
                         ),
-                        preferredSource: .timeOnly
+                        preferredSource: .editRecord
                     )
                 } label: {
                     HStack(spacing: 8) {
@@ -484,7 +489,7 @@ struct HomeView: View {
 
         return HStack(spacing: 12) {
             Menu {
-                let isLogged = meal.time != nil || meal.hasPhoto
+                let isLogged = meal.effectiveStatus(on: appViewModel.selectedDate) == .logged
                 let canDeleteMeal = appViewModel.canDeleteMealEntry(meal)
 
                 if isLogged {
@@ -493,33 +498,25 @@ struct HomeView: View {
                     }
                     if meal.hasPhoto {
                         Button(NSLocalizedString("删除照片", comment: ""), role: .destructive) {
-                            Task { await appViewModel.removeMealPhoto(meal) }
+                            pendingDestructiveAction = .removeMealPhoto(meal)
                         }
                     }
                     if canDeleteMeal {
                         Button(NSLocalizedString("删除餐次", comment: ""), role: .destructive) {
-                            Task { await appViewModel.deleteMeal(meal) }
+                            pendingDestructiveAction = .deleteMeal(meal)
                         }
                     } else {
                         Button(NSLocalizedString("删除记录", comment: ""), role: .destructive) {
-                            Task { await appViewModel.clearMealRecord(meal) }
+                            pendingDestructiveAction = .clearMealRecord(meal)
                         }
                     }
                 } else {
-                    if UIImagePickerController.isSourceTypeAvailable(.camera) {
-                        Button(NSLocalizedString("拍照", comment: "")) {
-                            openMealEditor(meal, with: .camera)
-                        }
-                    }
-                    Button(NSLocalizedString("选择相册照片", comment: "")) {
-                        openMealEditor(meal, with: .photoLibrary)
-                    }
-                    Button(NSLocalizedString("仅记录时间", comment: "")) {
-                        openMealEditor(meal, with: .timeOnly)
+                    Button(NSLocalizedString("添加记录", comment: "")) {
+                        openMealEditor(meal, with: .editRecord)
                     }
                     if canDeleteMeal {
                         Button(NSLocalizedString("删除餐次", comment: ""), role: .destructive) {
-                            Task { await appViewModel.deleteMeal(meal) }
+                            pendingDestructiveAction = .deleteMeal(meal)
                         }
                     }
                     Button(NSLocalizedString("跳过", comment: ""), role: .destructive) {
@@ -617,10 +614,12 @@ struct HomeView: View {
                                 Button {
                                     editingShower = shower
                                 } label: {
-                                    Text(appViewModel.displayedShortTime(
-                                        for: shower.time,
-                                        recordedTimeZoneIdentifier: shower.timeZoneIdentifier
-                                    ))
+                                    Text(shower.time.map {
+                                        appViewModel.displayedShortTime(
+                                            for: $0,
+                                            recordedTimeZoneIdentifier: shower.timeZoneIdentifier
+                                        )
+                                    } ?? NSLocalizedString("已记录", comment: ""))
                                         .font(.system(size: 17, weight: .bold, design: .rounded))
                                         .foregroundStyle(AppTheme.showerAccent)
                                         .monospacedDigit()
@@ -630,11 +629,11 @@ struct HomeView: View {
                                 Spacer()
 
                                 Button {
-                                    Task { await appViewModel.deleteShower(shower) }
+                                    pendingDestructiveAction = .deleteShower(shower)
                                 } label: {
                                     Image(systemName: "trash")
                                         .font(.system(size: 14, weight: .semibold))
-                                        .foregroundStyle(AppTheme.warning)
+                                        .foregroundStyle(.red)
                                 }
                                 .buttonStyle(.plain)
                                 .disabled(!appViewModel.canEditSelectedDate)
@@ -696,10 +695,12 @@ struct HomeView: View {
                                 Button {
                                     editingBowelMovement = entry
                                 } label: {
-                                    Text(appViewModel.displayedShortTime(
-                                        for: entry.time,
-                                        recordedTimeZoneIdentifier: entry.timeZoneIdentifier
-                                    ))
+                                    Text(entry.time.map {
+                                        appViewModel.displayedShortTime(
+                                            for: $0,
+                                            recordedTimeZoneIdentifier: entry.timeZoneIdentifier
+                                        )
+                                    } ?? NSLocalizedString("已记录", comment: ""))
                                         .font(.system(size: 17, weight: .bold, design: .rounded))
                                         .foregroundStyle(.brown)
                                         .monospacedDigit()
@@ -709,11 +710,11 @@ struct HomeView: View {
                                 Spacer()
 
                                 Button {
-                                    Task { await appViewModel.deleteBowelMovement(entry) }
+                                    pendingDestructiveAction = .deleteBowelMovement(entry)
                                 } label: {
                                     Image(systemName: "trash")
                                         .font(.system(size: 14, weight: .semibold))
-                                        .foregroundStyle(AppTheme.warning)
+                                        .foregroundStyle(.red)
                                 }
                                 .buttonStyle(.plain)
                                 .disabled(!appViewModel.canEditSelectedDate)
@@ -805,11 +806,11 @@ struct HomeView: View {
                                 Spacer()
 
                                 Button {
-                                    Task { await appViewModel.deleteSexualActivity(entry) }
+                                    pendingDestructiveAction = .deleteSexualActivity(entry)
                                 } label: {
                                     Image(systemName: "trash")
                                         .font(.system(size: 14, weight: .semibold))
-                                        .foregroundStyle(AppTheme.warning)
+                                        .foregroundStyle(.red)
                                 }
                                 .buttonStyle(.plain)
                                 .disabled(!appViewModel.canEditSelectedDate)
@@ -868,6 +869,23 @@ struct HomeView: View {
             editingMealContext = MealEditorContext(entry: meal, preferredSource: source)
         }
     }
+
+    private func perform(_ action: PendingDestructiveAction) {
+        switch action {
+        case .removeMealPhoto(let meal):
+            Task { await appViewModel.removeMealPhoto(meal) }
+        case .deleteMeal(let meal):
+            Task { await appViewModel.deleteMeal(meal) }
+        case .clearMealRecord(let meal):
+            Task { await appViewModel.clearMealRecord(meal) }
+        case .deleteShower(let shower):
+            Task { await appViewModel.deleteShower(shower) }
+        case .deleteBowelMovement(let entry):
+            Task { await appViewModel.deleteBowelMovement(entry) }
+        case .deleteSexualActivity(let entry):
+            Task { await appViewModel.deleteSexualActivity(entry) }
+        }
+    }
 }
 
 struct MealEditorContext: Identifiable {
@@ -876,6 +894,67 @@ struct MealEditorContext: Identifiable {
 
     var id: String {
         "\(entry.id.uuidString)-\(String(describing: preferredSource))"
+    }
+}
+
+private enum PendingDestructiveAction: Identifiable {
+    case removeMealPhoto(MealEntry)
+    case deleteMeal(MealEntry)
+    case clearMealRecord(MealEntry)
+    case deleteShower(ShowerEntry)
+    case deleteBowelMovement(BowelMovementEntry)
+    case deleteSexualActivity(SexualActivityEntry)
+
+    var id: String {
+        switch self {
+        case .removeMealPhoto(let meal):
+            return "remove-photo-\(meal.id)"
+        case .deleteMeal(let meal):
+            return "delete-meal-\(meal.id)"
+        case .clearMealRecord(let meal):
+            return "clear-meal-\(meal.id)"
+        case .deleteShower(let shower):
+            return "delete-shower-\(shower.id)"
+        case .deleteBowelMovement(let entry):
+            return "delete-bowel-\(entry.id)"
+        case .deleteSexualActivity(let entry):
+            return "delete-sex-\(entry.id)"
+        }
+    }
+
+    var title: String {
+        switch self {
+        case .removeMealPhoto:
+            return NSLocalizedString("删除照片？", comment: "")
+        case .deleteMeal:
+            return NSLocalizedString("删除餐次？", comment: "")
+        case .clearMealRecord:
+            return NSLocalizedString("删除记录？", comment: "")
+        case .deleteShower, .deleteBowelMovement, .deleteSexualActivity:
+            return NSLocalizedString("删除记录？", comment: "")
+        }
+    }
+
+    var message: String {
+        switch self {
+        case .removeMealPhoto:
+            return NSLocalizedString("此操作会移除这张照片，且无法撤销。", comment: "")
+        case .deleteMeal:
+            return NSLocalizedString("此操作会删除整个餐次，且无法撤销。", comment: "")
+        case .clearMealRecord, .deleteShower, .deleteBowelMovement, .deleteSexualActivity:
+            return NSLocalizedString("此操作无法撤销。", comment: "")
+        }
+    }
+
+    var confirmTitle: String {
+        switch self {
+        case .removeMealPhoto:
+            return NSLocalizedString("删除照片", comment: "")
+        case .deleteMeal:
+            return NSLocalizedString("删除餐次", comment: "")
+        case .clearMealRecord, .deleteShower, .deleteBowelMovement, .deleteSexualActivity:
+            return NSLocalizedString("删除记录", comment: "")
+        }
     }
 }
 

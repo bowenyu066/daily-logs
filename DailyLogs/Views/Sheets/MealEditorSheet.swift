@@ -22,8 +22,11 @@ struct MealEditorSheet: View {
     @State private var pickerSource: UIImagePickerController.SourceType?
     @State private var showingImagePicker = false
     @State private var didApplyInitialMode = false
+    @State private var logsExistenceOnly: Bool
     @State private var showingTimePicker: Bool
     @State private var showingLocationPicker = false
+    @State private var showingDeleteMealConfirmation = false
+    @State private var showingRemovePhotoConfirmation = false
 
     let baseDate: Date
     let preferredSource: MealCaptureMode
@@ -42,6 +45,7 @@ struct MealEditorSheet: View {
         onDelete: @escaping () -> Void
     ) {
         _draft = State(initialValue: entry)
+        _logsExistenceOnly = State(initialValue: entry.status == .logged && entry.time == nil)
         _showingTimePicker = State(initialValue: true)
         self.baseDate = baseDate
         self.preferredSource = preferredSource
@@ -66,9 +70,7 @@ struct MealEditorSheet: View {
 
                     timeSection
 
-                    if shouldShowPhotoSection {
-                        photoSection
-                    }
+                    photoSection
 
                     noteSection
                     locationSection
@@ -92,9 +94,9 @@ struct MealEditorSheet: View {
                 if canDelete {
                     ToolbarItem(placement: .bottomBar) {
                         Button(NSLocalizedString("删除餐次", comment: ""), role: .destructive) {
-                            onDelete()
-                            dismiss()
+                            showingDeleteMealConfirmation = true
                         }
+                        .tint(.red)
                     }
                 }
             }
@@ -112,43 +114,68 @@ struct MealEditorSheet: View {
                     }
                 }
             }
+            .alert(NSLocalizedString("删除餐次？", comment: ""), isPresented: $showingDeleteMealConfirmation) {
+                Button(NSLocalizedString("取消", comment: ""), role: .cancel) {}
+                Button(NSLocalizedString("删除餐次", comment: ""), role: .destructive) {
+                    onDelete()
+                    dismiss()
+                }
+            } message: {
+                Text(NSLocalizedString("此操作会删除整个餐次，且无法撤销。", comment: ""))
+            }
+            .alert(NSLocalizedString("删除照片？", comment: ""), isPresented: $showingRemovePhotoConfirmation) {
+                Button(NSLocalizedString("取消", comment: ""), role: .cancel) {}
+                Button(NSLocalizedString("删除照片", comment: ""), role: .destructive) {
+                    selectedImage = nil
+                    draft.photoURL = nil
+                }
+            } message: {
+                Text(NSLocalizedString("此操作会移除这张照片，且无法撤销。", comment: ""))
+            }
         }
     }
 
     private var timeSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(NSLocalizedString("时间", comment: ""))
+            Toggle(NSLocalizedString("仅记录有/无", comment: ""), isOn: $logsExistenceOnly)
                 .font(.system(size: 16, weight: .semibold, design: .rounded))
-                .foregroundStyle(AppTheme.secondaryText)
+                .tint(timeAccent)
+                .disabled(!isEditable)
 
-            VStack(spacing: 12) {
-                Text(appViewModel.displayedClockTime(
-                    for: draft.time ?? defaultLoggedTime,
-                    recordedTimeZoneIdentifier: draft.timeZoneIdentifier
-                ))
-                    .font(.system(size: 34, weight: .bold, design: .rounded))
-                    .foregroundStyle(timeAccent)
-                    .monospacedDigit()
+            if !logsExistenceOnly {
+                Text(NSLocalizedString("时间", comment: ""))
+                    .font(.system(size: 16, weight: .semibold, design: .rounded))
+                    .foregroundStyle(AppTheme.secondaryText)
 
-                DatePicker(
-                    "",
-                    selection: Binding(
-                        get: { draft.time ?? defaultLoggedTime },
-                        set: {
-                            draft.time = $0
-                            draft.status = .logged
-                        }
-                    ),
-                    displayedComponents: .hourAndMinute
-                )
-                .datePickerStyle(.wheel)
-                .labelsHidden()
-                .environment(\.timeZone, appViewModel.displayedTimeZone(for: draft.timeZoneIdentifier))
+                VStack(spacing: 12) {
+                    Text(appViewModel.displayedClockTime(
+                        for: draft.time ?? defaultLoggedTime,
+                        recordedTimeZoneIdentifier: draft.timeZoneIdentifier
+                    ))
+                        .font(.system(size: 34, weight: .bold, design: .rounded))
+                        .foregroundStyle(timeAccent)
+                        .monospacedDigit()
+
+                    DatePicker(
+                        "",
+                        selection: Binding(
+                            get: { draft.time ?? defaultLoggedTime },
+                            set: {
+                                draft.time = $0
+                                draft.status = .logged
+                            }
+                        ),
+                        displayedComponents: .hourAndMinute
+                    )
+                    .datePickerStyle(.wheel)
+                    .labelsHidden()
+                    .environment(\.timeZone, appViewModel.displayedTimeZone(for: draft.timeZoneIdentifier))
+                }
+                .padding(18)
+                .frame(maxWidth: .infinity)
+                .background(AppTheme.elevatedSurface)
+                .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
             }
-            .padding(18)
-            .frame(maxWidth: .infinity)
-            .background(AppTheme.elevatedSurface)
-            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
         }
     }
 
@@ -179,6 +206,15 @@ struct MealEditorSheet: View {
                     pickerSource = .photoLibrary
                     showingImagePicker = true
                 }
+            }
+
+            if selectedImage != nil || draft.photoURL != nil {
+                Button(NSLocalizedString("移除照片", comment: ""), role: .destructive) {
+                    showingRemovePhotoConfirmation = true
+                }
+                .font(.system(size: 15, weight: .semibold, design: .rounded))
+                .foregroundStyle(.red)
+                .disabled(!isEditable)
             }
         }
     }
@@ -264,15 +300,6 @@ struct MealEditorSheet: View {
         }
     }
 
-    private var shouldShowPhotoSection: Bool {
-        switch preferredSource {
-        case .timeOnly, .editTime:
-            return selectedImage != nil || draft.photoURL != nil
-        case .camera, .photoLibrary, .addPhoto, .editPhoto, .editRecord:
-            return true
-        }
-    }
-
     private var normalizedDraft: MealEntry {
         var entry = draft
         let trimmed = entry.customTitle?.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -283,7 +310,11 @@ struct MealEditorSheet: View {
         let trimmedNote = entry.note?.trimmingCharacters(in: .whitespacesAndNewlines)
         entry.note = trimmedNote?.isEmpty == false ? trimmedNote : nil
 
-        if selectedImage != nil || entry.photoURL != nil || entry.time != nil {
+        if logsExistenceOnly {
+            entry.status = .logged
+            entry.time = nil
+            entry.timeZoneIdentifier = nil
+        } else if selectedImage != nil || entry.photoURL != nil || entry.time != nil || preferredSource == .editRecord {
             entry.status = .logged
             entry.time = entry.time ?? defaultLoggedTime
             entry.timeZoneIdentifier = appViewModel.displayedTimeZone(for: entry.timeZoneIdentifier).identifier
@@ -331,14 +362,19 @@ struct MealEditorSheet: View {
         case .timeOnly, .editTime:
             draft.status = .logged
             draft.time = draft.time ?? defaultLoggedTime
+            logsExistenceOnly = false
         case .camera:
             draft.status = .logged
+            logsExistenceOnly = false
             openPicker(.camera)
         case .photoLibrary:
             draft.status = .logged
+            logsExistenceOnly = false
             openPicker(.photoLibrary)
         case .addPhoto, .editPhoto, .editRecord:
-            draft.status = .logged
+            if draft.status == .logged && draft.time == nil {
+                logsExistenceOnly = true
+            }
         }
     }
 

@@ -83,7 +83,9 @@ final class LocalAuthService: AuthService {
         FirebaseBootstrap.configureIfPossible()
         guard FirebaseBootstrap.isConfigured, let firebaseUser = Auth.auth().currentUser else {
             if let session = persistedSession, !session.isGuest {
-                defaults.removeObject(forKey: key)
+                let refreshed = refreshUser(session) ?? session
+                persistSession(refreshed)
+                return refreshed
             }
             return nil
         }
@@ -798,11 +800,13 @@ enum AnalyticsCalculator {
         let historicalRecords = historicalBounds.map { bounds in
             chartFiltered.filter { $0.date >= bounds.lowerBound && $0.date <= bounds.upperBound }
         } ?? []
+        .sorted { $0.date < $1.date }
 
         let averageSleepHours = historicalDays.compactMap(\.sleepHours).averageOptional
-        let averageBedtimeMinutes = historicalDays.compactMap(\.bedtimeMinutes).averageOptional
+        let averageBedtimeMinutes = averageBedtimeClockMinutes(historicalDays.compactMap(\.bedtimeMinutes))
         let averageWakeMinutes = historicalDays.compactMap(\.wakeMinutes).averageOptional
-        let averageShowers = historicalDays.map { Double($0.showers) }.averageOptional
+        let showerRecords = historicalRecordsStartingAtFirstMatch(in: historicalRecords) { !$0.showers.isEmpty }
+        let averageShowers = showerRecords.map { Double($0.showers.count) }.averageOptional
 
         let defaultMealEntries = historicalRecords.flatMap { record in
             record.meals.filter { [.breakfast, .lunch, .dinner].contains($0.mealKind) }.map { (record, $0) }
@@ -865,17 +869,21 @@ enum AnalyticsCalculator {
             }
 
         let showerPoints = chartFiltered.flatMap { record in
-            record.showers.enumerated().map { index, shower in
-                AnalyticsScatterPoint(
+            record.showers.enumerated().compactMap { index, shower -> AnalyticsScatterPoint? in
+                guard let time = shower.time else { return nil }
+                return AnalyticsScatterPoint(
                     id: "\(record.date.storageKey())-shower-\(index)",
                     date: record.date,
-                    minutes: clockMinutes(shower.time, timeZoneIdentifier: shower.timeZoneIdentifier)
+                    minutes: clockMinutes(time, timeZoneIdentifier: shower.timeZoneIdentifier)
                 )
             }
         }
-        let averageShowerMinutes = historicalRecords
+        let averageShowerMinutes = showerRecords
             .flatMap(\.showers)
-            .map { clockMinutes($0.time, timeZoneIdentifier: $0.timeZoneIdentifier) }
+            .compactMap { entry in
+                guard let time = entry.time else { return nil }
+                return clockMinutes(time, timeZoneIdentifier: entry.timeZoneIdentifier)
+            }
             .averageOptional
 
         let averageLightSleepHours = historicalDays.compactMap(\.lightSleepHours).averageOptional
@@ -884,18 +892,23 @@ enum AnalyticsCalculator {
 
         // Bowel movement analytics
         let bowelMovementPoints = chartFiltered.flatMap { record in
-            record.bowelMovements.enumerated().map { index, entry in
-                AnalyticsScatterPoint(
+            record.bowelMovements.enumerated().compactMap { index, entry -> AnalyticsScatterPoint? in
+                guard let time = entry.time else { return nil }
+                return AnalyticsScatterPoint(
                     id: "\(record.date.storageKey())-bm-\(index)",
                     date: record.date,
-                    minutes: clockMinutes(entry.time, timeZoneIdentifier: entry.timeZoneIdentifier)
+                    minutes: clockMinutes(time, timeZoneIdentifier: entry.timeZoneIdentifier)
                 )
             }
         }
-        let averageBowelMovements = historicalDays.map { Double($0.bowelMovements) }.averageOptional
-        let averageBowelMovementMinutes = historicalRecords
+        let bowelMovementRecords = historicalRecordsStartingAtFirstMatch(in: historicalRecords) { !$0.bowelMovements.isEmpty }
+        let averageBowelMovements = bowelMovementRecords.map { Double($0.bowelMovements.count) }.averageOptional
+        let averageBowelMovementMinutes = bowelMovementRecords
             .flatMap(\.bowelMovements)
-            .map { clockMinutes($0.time, timeZoneIdentifier: $0.timeZoneIdentifier) }
+            .compactMap { entry in
+                guard let time = entry.time else { return nil }
+                return clockMinutes(time, timeZoneIdentifier: entry.timeZoneIdentifier)
+            }
             .averageOptional
 
         // Sexual activity analytics (weekly aggregation)
@@ -923,8 +936,15 @@ enum AnalyticsCalculator {
             )
         }.sorted { $0.weekStart < $1.weekStart }
 
-        let totalWeeks = max(1.0, Double(Set(saRecords.map { isoCalendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: $0.0) }).count))
-        let averageSexualActivity: Double? = saRecords.isEmpty ? nil : Double(saRecords.count) / totalWeeks
+        let historicalSexualActivityRecords = historicalRecordsStartingAtFirstMatch(in: historicalRecords) { !$0.sexualActivities.isEmpty }
+        let historicalSexualActivityDates = historicalSexualActivityRecords.flatMap { record in
+            record.sexualActivities.map { _ in record.date }
+        }
+        let averageSexualActivity: Double? = averageSexualActivityPerWeek(
+            activityDates: historicalSexualActivityDates,
+            upperBound: historicalUpperBound,
+            calendar: isoCalendar
+        )
 
         return AnalyticsSummary(
             averageSleepHours: averageSleepHours,
@@ -959,6 +979,49 @@ enum AnalyticsCalculator {
     private static func chartMinutes(_ date: Date, timeZoneIdentifier: String? = nil) -> Double {
         let minutes = clockMinutes(date, timeZoneIdentifier: timeZoneIdentifier)
         return minutes < 18 * 60 ? minutes + 24 * 60 : minutes
+    }
+
+    private static func averageBedtimeClockMinutes(_ values: [Double]) -> Double? {
+        guard !values.isEmpty else { return nil }
+        let averaged = values.map(signedBedtimeMinutes).average
+        return normalizedClockMinutes(averaged)
+    }
+
+    private static func signedBedtimeMinutes(_ minutes: Double) -> Double {
+        minutes >= 12 * 60 ? minutes - 24 * 60 : minutes
+    }
+
+    private static func normalizedClockMinutes(_ minutes: Double) -> Double {
+        let fullDay = 24.0 * 60.0
+        var normalized = minutes.truncatingRemainder(dividingBy: fullDay)
+        if normalized < 0 {
+            normalized += fullDay
+        }
+        return normalized
+    }
+
+    private static func historicalRecordsStartingAtFirstMatch(
+        in records: [DailyRecord],
+        matches: (DailyRecord) -> Bool
+    ) -> [DailyRecord] {
+        guard let startDate = records.first(where: matches)?.date else { return [] }
+        return records.filter { $0.date >= startDate }
+    }
+
+    private static func averageSexualActivityPerWeek(
+        activityDates: [Date],
+        upperBound: Date,
+        calendar: Calendar
+    ) -> Double? {
+        guard let firstDate = activityDates.min() else { return nil }
+        guard let firstWeekStart = calendar.date(from: calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: firstDate)),
+              let lastWeekStart = calendar.date(from: calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: upperBound)) else {
+            return nil
+        }
+
+        let weekDistance = calendar.dateComponents([.weekOfYear], from: firstWeekStart, to: lastWeekStart).weekOfYear ?? 0
+        let totalWeeks = max(1.0, Double(weekDistance + 1))
+        return Double(activityDates.count) / totalWeeks
     }
 
     private static func mealSortRank(for key: String, title: String) -> String {

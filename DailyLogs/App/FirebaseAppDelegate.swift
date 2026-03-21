@@ -1,7 +1,12 @@
 import FirebaseCore
 import UIKit
 
-final class FirebaseAppDelegate: NSObject, UIApplicationDelegate {
+final class FirebaseAppDelegate: UIResponder, UIApplicationDelegate {
+    override init() {
+        super.init()
+        FirebaseBootstrap.prepareForLaunch()
+    }
+
     func application(
         _ application: UIApplication,
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey : Any]? = nil
@@ -12,7 +17,20 @@ final class FirebaseAppDelegate: NSObject, UIApplicationDelegate {
 }
 
 enum FirebaseBootstrap {
+    private static let lock = NSLock()
+    private nonisolated(unsafe) static var didConfigureLogging = false
+
+    static func prepareForLaunch() {
+        configureLoggingIfNeeded()
+        configureIfPossible()
+    }
+
     static func configureIfPossible() {
+        configureLoggingIfNeeded()
+
+        lock.lock()
+        defer { lock.unlock() }
+
         guard FirebaseApp.app() == nil else { return }
         let optionsURL = Bundle.main.url(forResource: "GoogleService-Info", withExtension: "plist")
 
@@ -39,5 +57,21 @@ enum FirebaseBootstrap {
 
     static var isConfigured: Bool {
         FirebaseApp.app() != nil
+    }
+
+    private static func configureLoggingIfNeeded() {
+        lock.lock()
+        defer { lock.unlock() }
+
+        guard !didConfigureLogging else { return }
+        if isRunningTests {
+            FirebaseConfiguration.shared.setLoggerLevel(.min)
+        }
+        didConfigureLogging = true
+    }
+
+    private static var isRunningTests: Bool {
+        ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+            || NSClassFromString("XCTestCase") != nil
     }
 }

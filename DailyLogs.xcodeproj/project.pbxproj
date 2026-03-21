@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 77;
+	objectVersion = 63;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -89,12 +89,12 @@
 		AD29B42237DCB9360592DF9A /* BowelMovementEditorSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BowelMovementEditorSheet.swift; sourceTree = "<group>"; };
 		B9A87F79CBFFD14BE517E83B /* DailyLogsApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyLogsApp.swift; sourceTree = "<group>"; };
 		BF5762DCFE4B315E3833D8BC /* SleepEditorSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepEditorSheet.swift; sourceTree = "<group>"; };
-		C9487DDA529E9809A07AD9D7 /* DailyLogs.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = DailyLogs.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		C9487DDA529E9809A07AD9D7 /* DailyLogs.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = DailyLogs.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		D0441CFAFE3F0A7AF7E9C46A /* AnalyticsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalyticsView.swift; sourceTree = "<group>"; };
 		D93232686CA86483D4885BF9 /* DatePickerSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatePickerSheet.swift; sourceTree = "<group>"; };
 		E0CAE3F01F1BDE18FCC36472 /* AuthGateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthGateView.swift; sourceTree = "<group>"; };
 		E5A341935FF077F6662CD605 /* TimeZoneModePicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeZoneModePicker.swift; sourceTree = "<group>"; };
-		E6AB97CC73CE19F1AA905122 /* DailyLogsTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = DailyLogsTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		E6AB97CC73CE19F1AA905122 /* DailyLogsTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DailyLogsTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		EE60FE8CF9037EBAB7A0F009 /* PhotoContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoContentView.swift; sourceTree = "<group>"; };
 		EF0B19B41CFCCC70905BDEFD /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabView.swift; sourceTree = "<group>"; };
 		F10E071B07E641BCA90A6676 /* Date+Helpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Date+Helpers.swift"; sourceTree = "<group>"; };
@@ -326,7 +326,6 @@
 			packageReferences = (
 				23F98C8001E58D22D91C9AEF /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
 			);
-			preferredProjectObjectVersion = 77;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
@@ -478,7 +477,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 5;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -557,7 +556,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 5;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
