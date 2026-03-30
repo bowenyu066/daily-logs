@@ -200,6 +200,7 @@ final class AppViewModel: ObservableObject {
                 selectedDate = max(selectedDate, user.createdAt.startOfDay)
                 analyticsCustomDateRange = defaultAnalyticsCustomRange(startingAt: user.createdAt)
                 try loadAllRecords(for: user.userID)
+                try loadSelectedRecord()
                 await refreshFromCloudIfNeeded(for: user)
                 await refreshCloudEncryptionState()
                 await ensureAutomaticCloudEncryptionIfNeeded()
@@ -283,6 +284,7 @@ final class AppViewModel: ObservableObject {
             selectedDate = max(Date().startOfDay, availableStartDate)
             analyticsCustomDateRange = defaultAnalyticsCustomRange(startingAt: availableStartDate)
             try loadAllRecords(for: user?.userID ?? "")
+            try loadSelectedRecord()
             if let user {
                 await refreshFromCloudIfNeeded(for: user)
                 await refreshCloudEncryptionState()
@@ -307,6 +309,7 @@ final class AppViewModel: ObservableObject {
             selectedDate = max(Date().startOfDay, availableStartDate)
             analyticsCustomDateRange = defaultAnalyticsCustomRange(startingAt: availableStartDate)
             try loadAllRecords(for: user?.userID ?? "")
+            try loadSelectedRecord()
             if let user {
                 await refreshFromCloudIfNeeded(for: user)
                 await refreshCloudEncryptionState()
@@ -546,7 +549,11 @@ final class AppViewModel: ObservableObject {
         guard canEditSelectedDate else { return }
         var updatedEntry = entry
         do {
-            let existingEntry = dailyRecord.meals.first(where: { $0.id == updatedEntry.id })
+            let existingMatch = existingMealMatch(for: updatedEntry)
+            let existingEntry = existingMatch?.entry
+            if let existingEntry, existingEntry.id != updatedEntry.id {
+                updatedEntry.id = existingEntry.id
+            }
             if let image {
                 if let path = existingEntry?.photoURL {
                     try deletePhotoIfLocal(at: path)
@@ -562,7 +569,7 @@ final class AppViewModel: ObservableObject {
                     ? editedTimeZoneIdentifier(for: existingEntry?.timeZoneIdentifier ?? updatedEntry.timeZoneIdentifier)
                     : nil
             }
-            if let index = dailyRecord.meals.firstIndex(where: { $0.id == updatedEntry.id }) {
+            if let index = existingMatch?.index {
                 dailyRecord.meals[index] = updatedEntry
             } else {
                 dailyRecord.meals.append(updatedEntry)
@@ -581,10 +588,11 @@ final class AppViewModel: ObservableObject {
     func deleteMeal(_ entry: MealEntry) async {
         guard canEditSelectedDate, canDeleteMealEntry(entry) else { return }
         do {
-            if let photoURL = entry.photoURL {
+            let existingEntry = existingMealMatch(for: entry)?.entry ?? entry
+            if let photoURL = existingEntry.photoURL {
                 try deletePhotoIfLocal(at: photoURL)
             }
-            dailyRecord.meals.removeAll { $0.id == entry.id }
+            removeMealEntry(entry)
             persistCurrentRecord()
             await syncCurrentRecordToCloudIfNeeded()
         } catch {
@@ -595,21 +603,23 @@ final class AppViewModel: ObservableObject {
     func clearMealRecord(_ entry: MealEntry) async {
         guard canEditSelectedDate else { return }
         do {
-            if let photoURL = entry.photoURL {
+            let existingMatch = existingMealMatch(for: entry)
+            let existingEntry = existingMatch?.entry ?? entry
+            if let photoURL = existingEntry.photoURL {
                 try deletePhotoIfLocal(at: photoURL)
             }
             if canDeleteMealEntry(entry) {
-                dailyRecord.meals.removeAll { $0.id == entry.id }
+                removeMealEntry(entry)
                 persistCurrentRecord()
                 await syncCurrentRecordToCloudIfNeeded()
                 return
             }
-            var updatedEntry = entry
+            var updatedEntry = existingEntry
             updatedEntry.status = .empty
             updatedEntry.time = nil
             updatedEntry.photoURL = nil
             updatedEntry.timeZoneIdentifier = nil
-            if let index = dailyRecord.meals.firstIndex(where: { $0.id == updatedEntry.id }) {
+            if let index = existingMatch?.index {
                 dailyRecord.meals[index] = updatedEntry
             } else {
                 dailyRecord.meals.append(updatedEntry)
@@ -624,13 +634,15 @@ final class AppViewModel: ObservableObject {
     func removeMealPhoto(_ entry: MealEntry) async {
         guard canEditSelectedDate else { return }
         do {
-            if let photoURL = entry.photoURL {
+            let existingMatch = existingMealMatch(for: entry)
+            let existingEntry = existingMatch?.entry ?? entry
+            if let photoURL = existingEntry.photoURL {
                 try deletePhotoIfLocal(at: photoURL)
             }
-            var updatedEntry = entry
+            var updatedEntry = existingEntry
             updatedEntry.photoURL = nil
-            updatedEntry.status = (entry.status == .logged || updatedEntry.time != nil) ? .logged : .empty
-            if let index = dailyRecord.meals.firstIndex(where: { $0.id == updatedEntry.id }) {
+            updatedEntry.status = (existingEntry.status == .logged || updatedEntry.time != nil) ? .logged : .empty
+            if let index = existingMatch?.index {
                 dailyRecord.meals[index] = updatedEntry
             } else {
                 dailyRecord.meals.append(updatedEntry)
@@ -645,15 +657,17 @@ final class AppViewModel: ObservableObject {
     func skipMeal(_ entry: MealEntry) async {
         guard canEditSelectedDate else { return }
         do {
-            if let photoURL = entry.photoURL {
+            let existingMatch = existingMealMatch(for: entry)
+            let existingEntry = existingMatch?.entry ?? entry
+            if let photoURL = existingEntry.photoURL {
                 try deletePhotoIfLocal(at: photoURL)
             }
-            var updatedEntry = entry
+            var updatedEntry = existingEntry
             updatedEntry.status = .skipped
             updatedEntry.time = nil
             updatedEntry.photoURL = nil
             updatedEntry.timeZoneIdentifier = nil
-            if let index = dailyRecord.meals.firstIndex(where: { $0.id == updatedEntry.id }) {
+            if let index = existingMatch?.index {
                 dailyRecord.meals[index] = updatedEntry
             } else {
                 dailyRecord.meals.append(updatedEntry)
@@ -785,6 +799,11 @@ final class AppViewModel: ObservableObject {
     }
 
     func refreshHomeData() async {
+        do {
+            try loadSelectedRecord()
+        } catch {
+            errorMessage = NSLocalizedString("刷新记录失败：", comment: "") + error.localizedDescription
+        }
         if let user {
             await refreshFromCloudIfNeeded(for: user)
         }
@@ -927,13 +946,9 @@ final class AppViewModel: ObservableObject {
     private func mergedRecord(_ record: DailyRecord, with preferences: UserPreferences) -> DailyRecord {
         var updated = record
         updated.sleepRecord.targetBedtime = preferences.bedtimeSchedule.target(for: updated.date)
+        updated.meals = deduplicatedMeals(updated.meals)
         for slot in preferences.defaultMealSlots {
-            let exists = updated.meals.contains {
-                if slot.kind == .custom {
-                    return $0.mealKind == .custom && $0.customTitle == slot.title
-                }
-                return $0.mealKind == slot.kind
-            }
+            let exists = updated.meals.contains { mealEntry($0, matches: slot) }
             if !exists {
                 updated.meals.append(
                     MealEntry(
@@ -1302,10 +1317,98 @@ final class AppViewModel: ObservableObject {
     }
 
     private func mealEntry(_ entry: MealEntry, matches slot: MealSlot) -> Bool {
-        if slot.kind == .custom {
-            return entry.mealKind == .custom && entry.customTitle == slot.title
+        guard entry.mealKind == slot.kind else { return false }
+        guard slot.kind == .custom else { return true }
+        return normalizedCustomMealTitle(entry.customTitle) == normalizedCustomMealTitle(slot.title)
+    }
+
+    private func existingMealMatch(for entry: MealEntry) -> (index: Int, entry: MealEntry)? {
+        if let index = dailyRecord.meals.firstIndex(where: { $0.id == entry.id }) {
+            return (index, dailyRecord.meals[index])
         }
-        return entry.mealKind == slot.kind
+        guard let slotKey = logicalMealSlotKey(for: entry) else { return nil }
+        guard let index = dailyRecord.meals.firstIndex(where: { logicalMealSlotKey(for: $0) == slotKey }) else {
+            return nil
+        }
+        return (index, dailyRecord.meals[index])
+    }
+
+    private func removeMealEntry(_ entry: MealEntry) {
+        if let index = existingMealMatch(for: entry)?.index {
+            dailyRecord.meals.remove(at: index)
+            return
+        }
+        dailyRecord.meals.removeAll { $0.id == entry.id }
+    }
+
+    private func deduplicatedMeals(_ meals: [MealEntry]) -> [MealEntry] {
+        var bySlot: [String: MealEntry] = [:]
+        var extras: [MealEntry] = []
+
+        for meal in meals {
+            guard let slotKey = logicalMealSlotKey(for: meal) else {
+                extras.append(meal)
+                continue
+            }
+
+            if let existing = bySlot[slotKey] {
+                bySlot[slotKey] = preferredMealEntry(between: existing, and: meal)
+            } else {
+                bySlot[slotKey] = meal
+            }
+        }
+
+        return Array(bySlot.values) + extras
+    }
+
+    private func preferredMealEntry(between lhs: MealEntry, and rhs: MealEntry) -> MealEntry {
+        let lhsScore = mealCompletenessScore(lhs)
+        let rhsScore = mealCompletenessScore(rhs)
+        if lhsScore != rhsScore {
+            return lhsScore > rhsScore ? lhs : rhs
+        }
+
+        if lhs.id == rhs.id {
+            return lhs
+        }
+
+        return lhs.id.uuidString < rhs.id.uuidString ? lhs : rhs
+    }
+
+    private func mealCompletenessScore(_ meal: MealEntry) -> Int {
+        var score = 0
+        switch meal.status {
+        case .logged:
+            score += 3
+        case .skipped:
+            score += 2
+        case .empty:
+            break
+        }
+        if meal.time != nil { score += 2 }
+        if meal.photoURL?.isEmpty == false { score += 1 }
+        if trimmedNote(meal.note) != nil { score += 1 }
+        if meal.locationName?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false { score += 1 }
+        if meal.latitude != nil || meal.longitude != nil { score += 1 }
+        return score
+    }
+
+    private func logicalMealSlotKey(for entry: MealEntry) -> String? {
+        switch entry.mealKind {
+        case .breakfast, .lunch, .dinner:
+            return entry.mealKind.rawValue
+        case .custom:
+            guard let title = normalizedCustomMealTitle(entry.customTitle) else { return nil }
+            return "custom:\(title)"
+        }
+    }
+
+    private func normalizedCustomMealTitle(_ title: String?) -> String? {
+        let normalized = title?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+        guard let normalized, !normalized.isEmpty else { return nil }
+        return normalized
     }
 
     private func deletePhotoIfLocal(at path: String) throws {

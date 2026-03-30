@@ -697,6 +697,179 @@ struct DailyLogsTests {
     }
 
     @Test @MainActor
+    func bootstrapLoadsLocalTodayRecordBeforeCloudBootstrapReturns() async {
+        let today = Date().startOfDay
+        let localSleep = SleepRecord(
+            bedtimePreviousNight: today.adding(days: -1).settingTime(hour: 23, minute: 40),
+            wakeTimeCurrentDay: today.settingTime(hour: 8, minute: 5),
+            targetBedtime: nil,
+            source: .manual
+        )
+
+        var localRecord = DailyRecord.empty(for: today, preferences: UserPreferences())
+        localRecord.sleepRecord = localSleep
+
+        let repository = InMemoryDailyRecordRepository(records: [today.storageKey(): localRecord])
+        let user = UserAccount(
+            userID: "cloud-user",
+            displayName: "Tester",
+            email: nil,
+            authMode: .apple,
+            createdAt: today.adding(days: -30)
+        )
+        let cloudSyncService = BlockingCloudSyncService()
+        let viewModel = AppViewModel(
+            authService: MockAuthService(user: user),
+            repository: repository,
+            preferencesStore: MockPreferencesStore(preferences: UserPreferences()),
+            photoStorageService: MockPhotoStorageService(),
+            sunTimesService: MockSunTimesService(),
+            healthSyncAdapter: MockHealthSyncAdapter(sleepRecord: nil),
+            cloudSyncService: cloudSyncService,
+            aiInsightNarrativeService: NoopAIInsightNarrativeService(),
+            openAIKeyStore: MockOpenAIKeyStore(),
+            locationService: LocationService(),
+            selectedDate: today,
+            dailyRecord: DailyRecord.empty(for: today, preferences: UserPreferences()),
+            preferences: UserPreferences()
+        )
+
+        let bootstrapTask = Task {
+            await viewModel.bootstrap()
+        }
+
+        await cloudSyncService.waitUntilBootstrapStarts()
+
+        #expect(viewModel.dailyRecord.sleepRecord.bedtimePreviousNight == localSleep.bedtimePreviousNight)
+        #expect(viewModel.dailyRecord.sleepRecord.wakeTimeCurrentDay == localSleep.wakeTimeCurrentDay)
+
+        await cloudSyncService.resumeBootstrap()
+        await bootstrapTask.value
+    }
+
+    @Test @MainActor
+    func saveMealReusesExistingLogicalSlotWhenEditorHasStaleMealID() async {
+        let today = Date().startOfDay
+        let existingBreakfast = MealEntry(
+            id: UUID(),
+            mealKind: .breakfast,
+            status: .empty
+        )
+        let existingRecord = DailyRecord(
+            date: today,
+            sleepRecord: SleepRecord(),
+            meals: [
+                existingBreakfast,
+                MealEntry(mealKind: .lunch),
+                MealEntry(mealKind: .dinner)
+            ],
+            showers: [],
+            bowelMovements: [],
+            sexualActivities: [],
+            sunTimes: nil
+        )
+
+        let user = UserAccount(
+            userID: "meal-user",
+            displayName: "Tester",
+            email: nil,
+            authMode: .guest,
+            createdAt: today.adding(days: -30)
+        )
+        let viewModel = AppViewModel(
+            authService: MockAuthService(user: user),
+            repository: InMemoryDailyRecordRepository(records: [today.storageKey(): existingRecord]),
+            preferencesStore: MockPreferencesStore(preferences: UserPreferences()),
+            photoStorageService: MockPhotoStorageService(),
+            sunTimesService: MockSunTimesService(),
+            healthSyncAdapter: MockHealthSyncAdapter(sleepRecord: nil),
+            cloudSyncService: NoopCloudSyncService(),
+            aiInsightNarrativeService: NoopAIInsightNarrativeService(),
+            openAIKeyStore: MockOpenAIKeyStore(),
+            locationService: LocationService(),
+            selectedDate: today,
+            dailyRecord: existingRecord,
+            preferences: UserPreferences()
+        )
+
+        let staleBreakfastFromEditor = MealEntry(
+            id: UUID(),
+            mealKind: .breakfast,
+            status: .logged,
+            time: today.settingTime(hour: 8, minute: 20)
+        )
+
+        await viewModel.saveMeal(staleBreakfastFromEditor, image: nil)
+
+        let breakfasts = viewModel.dailyRecord.meals.filter { $0.mealKind == .breakfast }
+        #expect(breakfasts.count == 1)
+        #expect(breakfasts.first?.id == existingBreakfast.id)
+        #expect(breakfasts.first?.status == .logged)
+        #expect(breakfasts.first?.time == today.settingTime(hour: 8, minute: 20))
+    }
+
+    @Test @MainActor
+    func bootstrapDeduplicatesDuplicateMealSlotsAndKeepsRicherMeal() async {
+        let today = Date().startOfDay
+        let richerBreakfast = MealEntry(
+            id: UUID(),
+            mealKind: .breakfast,
+            status: .logged,
+            time: today.settingTime(hour: 8, minute: 10)
+        )
+        let duplicateBreakfast = MealEntry(
+            id: UUID(),
+            mealKind: .breakfast,
+            status: .empty
+        )
+        let duplicatedRecord = DailyRecord(
+            date: today,
+            sleepRecord: SleepRecord(),
+            meals: [
+                duplicateBreakfast,
+                richerBreakfast,
+                MealEntry(mealKind: .lunch),
+                MealEntry(mealKind: .dinner)
+            ],
+            showers: [],
+            bowelMovements: [],
+            sexualActivities: [],
+            sunTimes: nil
+        )
+
+        let user = UserAccount(
+            userID: "dup-user",
+            displayName: "Tester",
+            email: nil,
+            authMode: .guest,
+            createdAt: today.adding(days: -30)
+        )
+        let viewModel = AppViewModel(
+            authService: MockAuthService(user: user),
+            repository: InMemoryDailyRecordRepository(records: [today.storageKey(): duplicatedRecord]),
+            preferencesStore: MockPreferencesStore(preferences: UserPreferences()),
+            photoStorageService: MockPhotoStorageService(),
+            sunTimesService: MockSunTimesService(),
+            healthSyncAdapter: MockHealthSyncAdapter(sleepRecord: nil),
+            cloudSyncService: NoopCloudSyncService(),
+            aiInsightNarrativeService: NoopAIInsightNarrativeService(),
+            openAIKeyStore: MockOpenAIKeyStore(),
+            locationService: LocationService(),
+            selectedDate: today,
+            dailyRecord: DailyRecord.empty(for: today, preferences: UserPreferences()),
+            preferences: UserPreferences()
+        )
+
+        await viewModel.bootstrap()
+
+        let breakfasts = viewModel.dailyRecord.meals.filter { $0.mealKind == .breakfast }
+        #expect(breakfasts.count == 1)
+        #expect(breakfasts.first?.id == richerBreakfast.id)
+        #expect(breakfasts.first?.status == .logged)
+        #expect(breakfasts.first?.time == richerBreakfast.time)
+    }
+
+    @Test @MainActor
     func automaticHealthKitSyncOnlyRunsOnceForToday() async {
         let today = Date().startOfDay
         let healthKitSleep = SleepRecord(
@@ -977,5 +1150,63 @@ private final class MockHealthSyncAdapter: HealthSyncAdapter {
     func fetchSleepData(for date: Date, after registrationDate: Date) async throws -> SleepRecord? {
         fetchCount += 1
         return sleepRecord
+    }
+}
+
+private actor BlockingCloudSyncGate {
+    private var bootstrapStarted = false
+    private var continuation: CheckedContinuation<CloudBootstrapPayload, Never>?
+
+    func awaitBootstrap() async -> CloudBootstrapPayload {
+        bootstrapStarted = true
+        return await withCheckedContinuation { continuation in
+            self.continuation = continuation
+        }
+    }
+
+    func waitUntilStarted() async {
+        while !bootstrapStarted {
+            await Task.yield()
+        }
+    }
+
+    func resume(payload: CloudBootstrapPayload = CloudBootstrapPayload(profile: nil, preferences: nil, records: [])) {
+        continuation?.resume(returning: payload)
+        continuation = nil
+    }
+}
+
+private final class BlockingCloudSyncService: CloudSyncService, @unchecked Sendable {
+    private let gate = BlockingCloudSyncGate()
+
+    var isAvailable: Bool { true }
+
+    func bootstrap(user: UserAccount, localPreferences: UserPreferences, localRecords: [DailyRecord]) async throws -> CloudBootstrapPayload {
+        await gate.awaitBootstrap()
+    }
+
+    func pushPreferences(_ preferences: UserPreferences, user: UserAccount) async throws {}
+
+    func pushRecord(_ record: DailyRecord, user: UserAccount) async throws {}
+
+    func pushProfile(_ user: UserAccount) async throws {}
+
+    func protectionSnapshot(for user: UserAccount) async throws -> CloudProtectionSnapshot {
+        CloudProtectionSnapshot(mode: .disabled, localKeyAvailable: false)
+    }
+
+    func enableAutomaticEndToEndEncryption(
+        user: UserAccount,
+        localPreferences: UserPreferences,
+        localRecords: [DailyRecord],
+        progress: @escaping @Sendable (CloudMigrationProgress) async -> Void
+    ) async throws {}
+
+    func waitUntilBootstrapStarts() async {
+        await gate.waitUntilStarted()
+    }
+
+    func resumeBootstrap() async {
+        await gate.resume()
     }
 }
