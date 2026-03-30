@@ -13,6 +13,11 @@ struct MainTabView: View {
                     Label(NSLocalizedString("数据", comment: ""), systemImage: "chart.line.uptrend.xyaxis")
                 }
 
+            AIInsightsView()
+                .tabItem {
+                    Label(NSLocalizedString("AI", comment: ""), systemImage: "sparkles.rectangle.stack")
+                }
+
             SettingsView()
                 .tabItem {
                     Label(NSLocalizedString("设置", comment: ""), systemImage: "slider.horizontal.3")

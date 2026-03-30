@@ -878,6 +878,73 @@ extension DailyRecord {
         updated.sunTimes = sunTimes?.backfillingRecordedTimeZone(identifier)
         return updated
     }
+
+    func anchoredToStorageKey(_ key: String, calendar: Calendar = .current) -> DailyRecord {
+        guard let anchoredDate = Date.fromStorageKey(key, calendar: calendar) else { return self }
+        var updated = self
+        updated.date = anchoredDate
+        return updated
+    }
+
+    func canonicalStorageKey(fallback fallbackKey: String? = nil) -> String {
+        let fallbackKey = fallbackKey ?? date.storageKey()
+        let candidates = inferredStorageKeyCandidates()
+        guard !candidates.isEmpty else { return fallbackKey }
+
+        let counts = Dictionary(candidates.map { ($0, 1) }, uniquingKeysWith: +)
+        let bestCount = counts.values.max() ?? 0
+        let bestKeys = counts
+            .filter { $0.value == bestCount }
+            .map(\.key)
+            .sorted()
+
+        if bestKeys.contains(fallbackKey) {
+            return fallbackKey
+        }
+        return bestKeys.first ?? fallbackKey
+    }
+
+    private func inferredStorageKeyCandidates() -> [String] {
+        var candidates: [String] = []
+
+        if let wakeTime = sleepRecord.wakeTimeCurrentDay {
+            let timeZone = TimeZone(identifier: sleepRecord.timeZoneIdentifier ?? "") ?? .autoupdatingCurrent
+            candidates.append(wakeTime.storageKey(in: timeZone))
+        }
+
+        candidates += meals.compactMap {
+            guard let time = $0.time else { return nil }
+            let timeZone = TimeZone(identifier: $0.timeZoneIdentifier ?? "") ?? .autoupdatingCurrent
+            return time.storageKey(in: timeZone)
+        }
+
+        candidates += showers.compactMap {
+            guard let time = $0.time else { return nil }
+            let timeZone = TimeZone(identifier: $0.timeZoneIdentifier ?? "") ?? .autoupdatingCurrent
+            return time.storageKey(in: timeZone)
+        }
+
+        candidates += bowelMovements.compactMap {
+            guard let time = $0.time else { return nil }
+            let timeZone = TimeZone(identifier: $0.timeZoneIdentifier ?? "") ?? .autoupdatingCurrent
+            return time.storageKey(in: timeZone)
+        }
+
+        candidates += sexualActivities.map { entry in
+            if let time = entry.time {
+                let timeZone = TimeZone(identifier: entry.timeZoneIdentifier ?? "") ?? .autoupdatingCurrent
+                return time.storageKey(in: timeZone)
+            }
+            return entry.date.storageKey()
+        }
+
+        if let sunrise = sunTimes?.sunrise {
+            let timeZone = TimeZone(identifier: sunTimes?.timeZoneIdentifier ?? "") ?? .autoupdatingCurrent
+            candidates.append(sunrise.storageKey(in: timeZone))
+        }
+
+        return candidates
+    }
 }
 
 enum AnalyticsMetricKind: String, Codable, CaseIterable, Identifiable {

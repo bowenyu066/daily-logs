@@ -73,7 +73,7 @@ struct BowelMovementEditorSheet: View {
                 RecordNoteSection(note: $draftNote)
                     .disabled(!isEditable)
 
-                if let onDelete {
+                if onDelete != nil {
                     Button(NSLocalizedString("删除记录", comment: ""), role: .destructive) {
                         showingDeleteConfirmation = true
                     }

@@ -9,6 +9,8 @@ struct SettingsView: View {
     @State private var isEditingNickname = false
     @State private var nicknameText = ""
     @State private var showingHomeSections = false
+    @State private var showingAISettings = false
+    @State private var aiAPIKeyText = ""
 
     var body: some View {
         NavigationStack {
@@ -19,6 +21,7 @@ struct SettingsView: View {
                     VStack(alignment: .leading, spacing: 18) {
                         accountCard
                         preferenceCard
+                        aiInsightsCard
                         cloudEncryptionCard
                         homeSectionsCard
                         defaultMealsCard
@@ -48,6 +51,21 @@ struct SettingsView: View {
                     .presentationDetents([.fraction(0.34), .medium])
                     .presentationDragIndicator(.visible)
             }
+            .sheet(isPresented: $showingAISettings) {
+                AISettingsSheet(
+                    hasAPIKey: appViewModel.hasOpenAIAPIKey,
+                    apiKeyText: $aiAPIKeyText,
+                    onSave: {
+                        appViewModel.saveOpenAIAPIKey(aiAPIKeyText)
+                    },
+                    onDelete: {
+                        appViewModel.deleteOpenAIAPIKey()
+                        aiAPIKeyText = ""
+                    }
+                )
+                .presentationDetents([.medium])
+                .presentationDragIndicator(.visible)
+            }
             .alert(NSLocalizedString("修改昵称", comment: ""), isPresented: $isEditingNickname) {
                 TextField(NSLocalizedString("昵称", comment: ""), text: $nicknameText)
                 Button(NSLocalizedString("取消", comment: ""), role: .cancel) {}
@@ -68,6 +86,7 @@ struct SettingsView: View {
             }
             .task(id: appViewModel.user?.userID) {
                 await appViewModel.refreshCloudEncryptionState()
+                appViewModel.refreshOpenAIConfigurationState()
             }
         }
     }
@@ -221,6 +240,50 @@ struct SettingsView: View {
                 actionButtons
             }
         }
+        .padding(22)
+        .appCardStyle()
+    }
+
+    private var aiInsightsCard: some View {
+        Button {
+            appViewModel.refreshOpenAIConfigurationState()
+            aiAPIKeyText = ""
+            showingAISettings = true
+        } label: {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(NSLocalizedString("AI 洞察", comment: ""))
+                            .font(.system(size: 18, weight: .bold, design: .rounded))
+                            .foregroundStyle(AppTheme.primaryText)
+
+                        Text(NSLocalizedString("默认有本地兜底；配置 OpenAI 后，昨日评分和解读都会交给 AI。", comment: ""))
+                            .font(.system(size: 13, weight: .medium, design: .rounded))
+                            .foregroundStyle(AppTheme.secondaryText)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    Spacer(minLength: 12)
+
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(AppTheme.secondaryText)
+                }
+
+                HStack(spacing: 10) {
+                    Circle()
+                        .fill(appViewModel.hasOpenAIAPIKey ? Color(red: 0.20, green: 0.63, blue: 0.60) : AppTheme.warning)
+                        .frame(width: 10, height: 10)
+
+                    Text(appViewModel.hasOpenAIAPIKey
+                        ? NSLocalizedString("OpenAI API Key 已配置", comment: "")
+                        : NSLocalizedString("当前使用本地兜底评分", comment: ""))
+                        .font(.system(size: 14, weight: .semibold, design: .rounded))
+                        .foregroundStyle(AppTheme.primaryText)
+                }
+            }
+        }
+        .buttonStyle(.plain)
         .padding(22)
         .appCardStyle()
     }
@@ -547,6 +610,111 @@ private struct LocationPermissionToggleRow: View {
                 .tint(AppTheme.accent)
         }
         .padding(.vertical, 2)
+    }
+}
+
+private struct AISettingsSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    let hasAPIKey: Bool
+    @Binding var apiKeyText: String
+    let onSave: () -> Void
+    let onDelete: () -> Void
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                AppTheme.background.ignoresSafeArea()
+
+                ScrollView(.vertical, showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 18) {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text(NSLocalizedString("OpenAI API Key", comment: ""))
+                                .font(.system(size: 18, weight: .bold, design: .rounded))
+                                .foregroundStyle(AppTheme.primaryText)
+
+                            Text(NSLocalizedString("这个 key 只会保存在当前设备的 Keychain 中，不会同步到云端。", comment: ""))
+                                .font(.system(size: 14, weight: .medium, design: .rounded))
+                                .foregroundStyle(AppTheme.secondaryText)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+
+                        VStack(alignment: .leading, spacing: 12) {
+                            SecureField(NSLocalizedString("粘贴 sk-... 或其他 OpenAI API Key", comment: ""), text: $apiKeyText)
+                                .textInputAutocapitalization(.never)
+                                .autocorrectionDisabled()
+                                .font(.system(size: 15, weight: .medium, design: .monospaced))
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 14)
+                                .background(AppTheme.surface)
+                                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                        .stroke(AppTheme.border, lineWidth: 1)
+                                )
+
+                            if hasAPIKey {
+                                Text(NSLocalizedString("当前已经有本地保存的 key。你可以直接粘贴新的 key 覆盖，或者删除它。", comment: ""))
+                                    .font(.system(size: 13, weight: .medium, design: .rounded))
+                                    .foregroundStyle(AppTheme.secondaryText)
+                            } else {
+                                Text(NSLocalizedString("如果你暂时不填，AI 页仍然会显示本地评分，只是不会生成额外的 AI 文案。", comment: ""))
+                                    .font(.system(size: 13, weight: .medium, design: .rounded))
+                                    .foregroundStyle(AppTheme.secondaryText)
+                            }
+                        }
+
+                        VStack(spacing: 10) {
+                            Button {
+                                onSave()
+                                dismiss()
+                            } label: {
+                                Text(NSLocalizedString("保存 Key", comment: ""))
+                                    .font(.system(size: 15, weight: .bold, design: .rounded))
+                                    .foregroundStyle(.white)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 14)
+                                    .background(AppTheme.actionFill)
+                                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                            }
+                            .buttonStyle(.plain)
+                            .disabled(apiKeyText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                            .opacity(apiKeyText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0.55 : 1)
+
+                            if hasAPIKey {
+                                Button(role: .destructive) {
+                                    onDelete()
+                                    dismiss()
+                                } label: {
+                                    Text(NSLocalizedString("删除本地 Key", comment: ""))
+                                        .font(.system(size: 15, weight: .bold, design: .rounded))
+                                        .foregroundStyle(AppTheme.warning)
+                                        .frame(maxWidth: .infinity)
+                                        .padding(.vertical, 14)
+                                        .background(AppTheme.elevatedSurface)
+                                        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                                .stroke(AppTheme.warning.opacity(0.24), lineWidth: 1)
+                                        )
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 18)
+                }
+            }
+            .navigationTitle(NSLocalizedString("AI 洞察", comment: ""))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(NSLocalizedString("完成", comment: "")) { dismiss() }
+                        .foregroundStyle(AppTheme.accent)
+                }
+            }
+        }
     }
 }
 

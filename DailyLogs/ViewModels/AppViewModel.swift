@@ -34,6 +34,11 @@ final class AppViewModel: ObservableObject {
     @Published private(set) var cloudMigrationProgress: Double = 0
     @Published private(set) var cloudMigrationMessage: String?
     @Published private(set) var cloudMigrationError: String?
+    @Published private(set) var dailyInsightNarrative: DailyInsightNarrative?
+    @Published private(set) var dailyInsightNarrativeDate: Date?
+    @Published private(set) var isGeneratingDailyInsightNarrative = false
+    @Published private(set) var hasOpenAIAPIKey = false
+    @Published private(set) var aiInsightErrorMessage: String?
 
     let locationService: LocationService
 
@@ -44,11 +49,14 @@ final class AppViewModel: ObservableObject {
     private let sunTimesService: SunTimesService
     private var healthSyncAdapter: HealthSyncAdapter
     private let cloudSyncService: CloudSyncService
+    private let aiInsightNarrativeService: AIInsightNarrativeGenerating
+    private let openAIKeyStore: OpenAIKeyStoring
     private var cancellables = Set<AnyCancellable>()
 
     static func live() -> AppViewModel {
         let store = LocalJSONStore()
         let preferences = UserPreferences()
+        let openAIKeyStore = OpenAIKeychainStore()
         return AppViewModel(
             authService: LocalAuthService(store: store),
             repository: LocalDailyRecordRepository(store: store),
@@ -57,6 +65,8 @@ final class AppViewModel: ObservableObject {
             sunTimesService: AstronomySunTimesService(),
             healthSyncAdapter: HealthKitService(),
             cloudSyncService: FirebaseCloudSyncService(),
+            aiInsightNarrativeService: OpenAIResponsesInsightService(keyStore: openAIKeyStore),
+            openAIKeyStore: openAIKeyStore,
             locationService: LocationService(),
             selectedDate: .now.startOfDay,
             dailyRecord: DailyRecord.empty(for: .now, preferences: preferences),
@@ -72,6 +82,8 @@ final class AppViewModel: ObservableObject {
         sunTimesService: SunTimesService,
         healthSyncAdapter: HealthSyncAdapter,
         cloudSyncService: CloudSyncService,
+        aiInsightNarrativeService: AIInsightNarrativeGenerating,
+        openAIKeyStore: OpenAIKeyStoring,
         locationService: LocationService,
         selectedDate: Date,
         dailyRecord: DailyRecord,
@@ -84,6 +96,8 @@ final class AppViewModel: ObservableObject {
         self.sunTimesService = sunTimesService
         self.healthSyncAdapter = healthSyncAdapter
         self.cloudSyncService = cloudSyncService
+        self.aiInsightNarrativeService = aiInsightNarrativeService
+        self.openAIKeyStore = openAIKeyStore
         self.locationService = locationService
         self.selectedDate = selectedDate.startOfDay
         self.dailyRecord = dailyRecord
@@ -135,9 +149,48 @@ final class AppViewModel: ObservableObject {
         }
     }
 
+    var dailyInsightTargetDate: Date? {
+        let today = Date().startOfDay
+        let yesterday = today.adding(days: -1)
+        if availableStartDate <= yesterday {
+            return yesterday
+        }
+        return availableStartDate <= today ? today : nil
+    }
+
+    var dailyInsightReport: DailyInsightReport? {
+        guard let targetDate = dailyInsightTargetDate else { return nil }
+        let record = allRecords.first(where: { $0.date.startOfDay == targetDate.startOfDay })
+            ?? DailyRecord.empty(for: targetDate, preferences: preferences)
+        let locale = preferences.appLanguage.locale ?? Locale.autoupdatingCurrent
+        return DailyInsightAnalyzer.buildReport(
+            for: mergedRecord(record, with: preferences),
+            preferences: preferences,
+            locale: locale
+        )
+    }
+
+    var displayedDailyInsightReport: DailyInsightReport? {
+        guard let baseReport = dailyInsightReport,
+              let targetDate = dailyInsightTargetDate,
+              dailyInsightNarrativeDate?.startOfDay == targetDate.startOfDay else {
+            return dailyInsightReport
+        }
+        return baseReport.applyingAIOverrides(dailyInsightNarrative)
+    }
+
+    var isDisplayingAIScoredInsight: Bool {
+        guard let targetDate = dailyInsightTargetDate,
+              dailyInsightNarrativeDate?.startOfDay == targetDate.startOfDay else {
+            return false
+        }
+        return dailyInsightNarrative?.hasAIScoring == true
+    }
+
     func bootstrap() async {
         guard !isBootstrapped else { return }
         isBootstrapped = true
+        refreshOpenAIConfigurationState()
         user = authService.restoreSession()
         do {
             preferences = hydratedPreferences(from: try preferencesStore.loadPreferences(userID: user?.userID))
@@ -157,6 +210,68 @@ final class AppViewModel: ObservableObject {
         } catch {
             errorMessage = NSLocalizedString("初始化失败：", comment: "") + error.localizedDescription
         }
+    }
+
+    func refreshOpenAIConfigurationState() {
+        hasOpenAIAPIKey = openAIKeyStore.hasAPIKey
+    }
+
+    func saveOpenAIAPIKey(_ key: String) {
+        let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            deleteOpenAIAPIKey()
+            return
+        }
+        do {
+            try openAIKeyStore.saveAPIKey(trimmed)
+            hasOpenAIAPIKey = true
+            aiInsightErrorMessage = nil
+            invalidateDailyInsightNarrative()
+        } catch {
+            errorMessage = NSLocalizedString("保存 OpenAI Key 失败：", comment: "") + error.localizedDescription
+        }
+    }
+
+    func deleteOpenAIAPIKey() {
+        openAIKeyStore.deleteAPIKey()
+        hasOpenAIAPIKey = false
+        aiInsightErrorMessage = nil
+        invalidateDailyInsightNarrative()
+    }
+
+    func refreshDailyInsightNarrative(force: Bool = false) async {
+        guard dailyInsightReport != nil,
+              let targetDate = dailyInsightTargetDate else { return }
+        guard hasOpenAIAPIKey else {
+            aiInsightErrorMessage = nil
+            return
+        }
+        if !force,
+           dailyInsightNarrativeDate?.startOfDay == targetDate.startOfDay,
+           dailyInsightNarrative?.hasAIScoring == true {
+            return
+        }
+
+        let record = allRecords.first(where: { $0.date.startOfDay == targetDate.startOfDay })
+            ?? DailyRecord.empty(for: targetDate, preferences: preferences)
+        let locale = preferences.appLanguage.locale ?? Locale.autoupdatingCurrent
+        let payload = DailyInsightAnalyzer.makePayload(
+            record: mergedRecord(record, with: preferences),
+            preferences: preferences,
+            language: preferences.appLanguage,
+            locale: locale
+        )
+
+        isGeneratingDailyInsightNarrative = true
+        aiInsightErrorMessage = nil
+        do {
+            let narrative = try await aiInsightNarrativeService.generateNarrative(from: payload)
+            dailyInsightNarrative = narrative
+            dailyInsightNarrativeDate = targetDate.startOfDay
+        } catch {
+            aiInsightErrorMessage = NSLocalizedString("AI 解读生成失败：", comment: "") + error.localizedDescription
+        }
+        isGeneratingDailyInsightNarrative = false
     }
 
     func handleAppleSignIn(_ result: Result<ASAuthorization, Error>) async {
@@ -263,6 +378,7 @@ final class AppViewModel: ObservableObject {
             cloudMigrationProgress = 0
             cloudMigrationMessage = nil
             cloudMigrationError = nil
+            invalidateDailyInsightNarrative()
             Task { await refreshRemotePhotoCache() }
         } catch {
             errorMessage = NSLocalizedString("退出失败：", comment: "") + error.localizedDescription
@@ -782,6 +898,7 @@ final class AppViewModel: ObservableObject {
             dailyRecord.modifiedAt = .now
             try repository.saveRecord(dailyRecord, userID: user.userID)
             try loadAllRecords(for: user.userID)
+            invalidateDailyInsightNarrative()
         } catch {
             errorMessage = NSLocalizedString("保存记录失败：", comment: "") + error.localizedDescription
         }
@@ -791,9 +908,16 @@ final class AppViewModel: ObservableObject {
         do {
             preferences.locationPermissionState = locationService.permissionState
             try preferencesStore.savePreferences(preferences, userID: user?.userID)
+            invalidateDailyInsightNarrative()
         } catch {
             errorMessage = NSLocalizedString("保存偏好失败：", comment: "") + error.localizedDescription
         }
+    }
+
+    private func invalidateDailyInsightNarrative() {
+        dailyInsightNarrative = nil
+        dailyInsightNarrativeDate = nil
+        aiInsightErrorMessage = nil
     }
 
     private func mergeMealsWithPreferences() {
@@ -864,10 +988,27 @@ final class AppViewModel: ObservableObject {
                 try preferencesStore.savePreferences(preferences, userID: user.userID)
             }
 
+            let registrationCutoffKey = user.createdAt.storageKey()
+            let store = LocalJSONStore()
+            var database = try store.load()
+            let prunedLocalRecordMap = Self.recordsByStorageKey(
+                (database.recordsByUser[user.userID] ?? [:]).compactMap { entry in
+                    guard entry.key >= registrationCutoffKey else { return nil }
+                    return entry.value.anchoredToStorageKey(entry.key)
+                }
+            )
+
+            if payload.records.isEmpty {
+                if database.recordsByUser[user.userID] != prunedLocalRecordMap {
+                    database.recordsByUser[user.userID] = prunedLocalRecordMap
+                    try store.save(database)
+                }
+                allRecords = prunedLocalRecordMap.values.sorted { $0.date < $1.date }
+                await refreshRemotePhotoCache()
+            }
+
             if !payload.records.isEmpty {
-                let store = LocalJSONStore()
-                var database = try store.load()
-                let localRecordMap = database.recordsByUser[user.userID] ?? [:]
+                let localRecordMap = prunedLocalRecordMap
                 let remoteRecordMap = Self.recordsByStorageKey(payload.records)
                 var merged = remoteRecordMap
                 var recordsToPush: [DailyRecord] = []
@@ -898,11 +1039,16 @@ final class AppViewModel: ObservableObject {
                     }
                     merged[key] = mergedRecord.backfillingRecordedTimeZones(TimeZone.autoupdatingCurrent.identifier)
                 }
-                database.recordsByUser[user.userID] = merged.mapValues {
+                database.recordsByUser[user.userID] = merged
+                    .filter { $0.key >= registrationCutoffKey }
+                    .mapValues {
                     $0.backfillingRecordedTimeZones(TimeZone.autoupdatingCurrent.identifier)
                 }
                 try store.save(database)
-                allRecords = database.recordsByUser[user.userID]?.values.sorted { $0.date < $1.date } ?? []
+                allRecords = database.recordsByUser[user.userID]?
+                    .values
+                    .filter { $0.date >= user.createdAt.startOfDay }
+                    .sorted { $0.date < $1.date } ?? []
                 await refreshRemotePhotoCache()
 
                 for record in deduplicatedPendingUploads(recordsToPush) {
@@ -1052,7 +1198,7 @@ final class AppViewModel: ObservableObject {
     nonisolated static func recordsByStorageKey(_ records: [DailyRecord]) -> [String: DailyRecord] {
         records.reduce(into: [:]) { partialResult, record in
             let normalized = normalizedRecord(record)
-            let key = normalized.date.storageKey()
+            let key = normalized.canonicalStorageKey(fallback: normalized.date.storageKey())
 
             if let existing = partialResult[key] {
                 partialResult[key] = preferredRecord(between: existing, and: normalized)
@@ -1063,9 +1209,8 @@ final class AppViewModel: ObservableObject {
     }
 
     private nonisolated static func normalizedRecord(_ record: DailyRecord) -> DailyRecord {
-        var normalized = record
-        normalized.date = record.date.startOfDay
-        return normalized
+        let key = record.canonicalStorageKey(fallback: record.date.storageKey())
+        return record.anchoredToStorageKey(key)
     }
 
     private nonisolated static func preferredRecord(between lhs: DailyRecord, and rhs: DailyRecord) -> DailyRecord {

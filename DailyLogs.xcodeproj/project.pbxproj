@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 63;
+	objectVersion = 77;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -18,6 +18,7 @@
 		33EE19C380FDBA8C2032C9D4 /* SleepEditorSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF5762DCFE4B315E3833D8BC /* SleepEditorSheet.swift */; };
 		37488E578F0831EDC367F502 /* DailyLogsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36526958B7B61CD2ECE3F26D /* DailyLogsTests.swift */; };
 		3991E7CC5ED6AF776D468041 /* InfoPlist.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 79B4E886DE6656D5D3AA361F /* InfoPlist.xcstrings */; };
+		3B58CDC95707DD319A8F9FD6 /* AIInsightsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A01E709CC8C82D4CB8A89D4E /* AIInsightsView.swift */; };
 		3C1E82FA10FFF691B8022B72 /* HealthKitService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0AB65DE0793FD9C1F33F55FA /* HealthKitService.swift */; };
 		3D512CFF3C2D0D5257224329 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = 4838E9CE6AD9A49B1CBD28D2 /* FirebaseAuth */; };
 		3F0A3F64BDF1AF401997CFD1 /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF0B19B41CFCCC70905BDEFD /* MainTabView.swift */; };
@@ -45,6 +46,7 @@
 		D8F616382DD0712C9476C738 /* AnalyticsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0441CFAFE3F0A7AF7E9C46A /* AnalyticsView.swift */; };
 		D945D660D8D556FA0B7E6900 /* MealEditorSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 68D65F2FD02AA371BF0CB871 /* MealEditorSheet.swift */; };
 		DEAFBF139E59BF3CD1C66C1A /* SectionHeader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 432E478CA32978E10CBE8E93 /* SectionHeader.swift */; };
+		DF2E45FD5F99A533C913C3CE /* AIInsightsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 960FB10CC796935FB009AF75 /* AIInsightsService.swift */; };
 		EBAD80E1B4B1CBBB28DBAC22 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12C02AFAD5427640EE2B07E9 /* RootView.swift */; };
 		FAA742A273B4A2565F8E72C3 /* DefaultMealSlotsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0EE15D79A393C8AB962EBC89 /* DefaultMealSlotsSheet.swift */; };
 		FF08C0273CB48779032AC8FC /* RemotePhotoCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 189BC1E086E2F96A134F1D4D /* RemotePhotoCache.swift */; };
@@ -85,16 +87,18 @@
 		87050F5756327B4F773FB04E /* AppViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppViewModel.swift; sourceTree = "<group>"; };
 		919F3E3BD18392570EBCA49A /* FirebaseAppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FirebaseAppDelegate.swift; sourceTree = "<group>"; };
 		91DBA8249D731FF743149D0B /* CloudEncryptionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudEncryptionService.swift; sourceTree = "<group>"; };
+		960FB10CC796935FB009AF75 /* AIInsightsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIInsightsService.swift; sourceTree = "<group>"; };
 		9DABA8EC0910397E76119987 /* icon.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = icon.png; sourceTree = "<group>"; };
+		A01E709CC8C82D4CB8A89D4E /* AIInsightsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIInsightsView.swift; sourceTree = "<group>"; };
 		AD29B42237DCB9360592DF9A /* BowelMovementEditorSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BowelMovementEditorSheet.swift; sourceTree = "<group>"; };
 		B9A87F79CBFFD14BE517E83B /* DailyLogsApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyLogsApp.swift; sourceTree = "<group>"; };
 		BF5762DCFE4B315E3833D8BC /* SleepEditorSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepEditorSheet.swift; sourceTree = "<group>"; };
-		C9487DDA529E9809A07AD9D7 /* DailyLogs.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = DailyLogs.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		C9487DDA529E9809A07AD9D7 /* DailyLogs.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = DailyLogs.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		D0441CFAFE3F0A7AF7E9C46A /* AnalyticsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalyticsView.swift; sourceTree = "<group>"; };
 		D93232686CA86483D4885BF9 /* DatePickerSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatePickerSheet.swift; sourceTree = "<group>"; };
 		E0CAE3F01F1BDE18FCC36472 /* AuthGateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthGateView.swift; sourceTree = "<group>"; };
 		E5A341935FF077F6662CD605 /* TimeZoneModePicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeZoneModePicker.swift; sourceTree = "<group>"; };
-		E6AB97CC73CE19F1AA905122 /* DailyLogsTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DailyLogsTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		E6AB97CC73CE19F1AA905122 /* DailyLogsTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = DailyLogsTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		EE60FE8CF9037EBAB7A0F009 /* PhotoContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoContentView.swift; sourceTree = "<group>"; };
 		EF0B19B41CFCCC70905BDEFD /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabView.swift; sourceTree = "<group>"; };
 		F10E071B07E641BCA90A6676 /* Date+Helpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Date+Helpers.swift"; sourceTree = "<group>"; };
@@ -168,6 +172,7 @@
 		6C3B89BFF44251B5F3CFDC57 /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				A01E709CC8C82D4CB8A89D4E /* AIInsightsView.swift */,
 				D0441CFAFE3F0A7AF7E9C46A /* AnalyticsView.swift */,
 				E0CAE3F01F1BDE18FCC36472 /* AuthGateView.swift */,
 				F39D33BAEB12FE282E58CCEC /* HomeView.swift */,
@@ -210,6 +215,7 @@
 		9E86BFC7AE6894EBAF365180 /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				960FB10CC796935FB009AF75 /* AIInsightsService.swift */,
 				91DBA8249D731FF743149D0B /* CloudEncryptionService.swift */,
 				6CDD5864423CDE853439D36C /* CloudSyncService.swift */,
 				0AB65DE0793FD9C1F33F55FA /* HealthKitService.swift */,
@@ -326,6 +332,7 @@
 			packageReferences = (
 				23F98C8001E58D22D91C9AEF /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
 			);
+			preferredProjectObjectVersion = 77;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
@@ -356,6 +363,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				DF2E45FD5F99A533C913C3CE /* AIInsightsService.swift in Sources */,
+				3B58CDC95707DD319A8F9FD6 /* AIInsightsView.swift in Sources */,
 				D8F616382DD0712C9476C738 /* AnalyticsView.swift in Sources */,
 				602BFF12A72316CB2C6715B5 /* AppTheme.swift in Sources */,
 				A4C4FA79F7F4B8B95326DEA5 /* AppViewModel.swift in Sources */,
@@ -477,7 +486,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 5;
+				CURRENT_PROJECT_VERSION = 4;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -556,7 +565,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 5;
+				CURRENT_PROJECT_VERSION = 4;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;

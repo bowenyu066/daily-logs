@@ -15,9 +15,16 @@ extension Date {
     func storageKey(calendar: Calendar = .current) -> String {
         let formatter = DateFormatter()
         formatter.calendar = calendar
+        formatter.timeZone = calendar.timeZone
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "yyyy-MM-dd"
-        return formatter.string(from: self.startOfDay)
+        return formatter.string(from: calendar.startOfDay(for: self))
+    }
+
+    func storageKey(in timeZone: TimeZone) -> String {
+        var calendar = Calendar.current
+        calendar.timeZone = timeZone
+        return storageKey(calendar: calendar)
     }
 
     func adding(days: Int) -> Date {
@@ -74,6 +81,24 @@ extension Date {
 
     var displayISO8601: String {
         ISO8601DateFormatter().string(from: self)
+    }
+
+    static func fromStorageKey(_ key: String, calendar: Calendar = .current) -> Date? {
+        let parts = key.split(separator: "-").compactMap { Int($0) }
+        guard parts.count == 3 else { return nil }
+
+        var anchoredCalendar = calendar
+        anchoredCalendar.timeZone = calendar.timeZone
+        let components = DateComponents(
+            timeZone: anchoredCalendar.timeZone,
+            year: parts[0],
+            month: parts[1],
+            day: parts[2],
+            hour: 12,
+            minute: 0,
+            second: 0
+        )
+        return anchoredCalendar.date(from: components)
     }
 }
 

@@ -129,16 +129,10 @@ final class FirebaseCloudSyncService: CloudSyncService, Sendable {
             let userRef = db.collection("users").document(user.userID)
             let profileSnapshot = try await userRef.collection("secureProfile").document("current").getDocument()
             let prefsSnapshot = try await userRef.collection("securePreferences").document("current").getDocument()
-            let recordsSnapshot = try await userRef.collection("secureRecords").getDocuments()
 
             let remoteProfile = try decryptDocument(UserProfile.self, from: profileSnapshot.data(), key: key)
             let remotePreferences = try decryptDocument(UserPreferences.self, from: prefsSnapshot.data(), key: key)
-            let decryptedRecords = try recordsSnapshot.documents.map { document in
-                try decryptDocument(DailyRecord.self, from: document.data(), key: key)
-            }
-            let remoteRecords = decryptedRecords.compactMap { $0 }.sorted { lhs, rhs in
-                lhs.date < rhs.date
-            }
+            let remoteRecords = try await loadEncryptedRecords(user: user, key: key, registrationDate: user.createdAt)
 
             if prefsSnapshot.exists == false {
                 try await pushEncryptedPreferences(localPreferences, user: user, key: key)
@@ -160,14 +154,10 @@ final class FirebaseCloudSyncService: CloudSyncService, Sendable {
         let userRef = db.collection("users").document(user.userID)
         let profileSnapshot = try await userRef.getDocument()
         let prefsSnapshot = try await userRef.collection("preferences").document("current").getDocument()
-        let recordsSnapshot = try await userRef.collection("records").getDocuments()
 
         let remoteProfile = try profileSnapshot.data().flatMap { try decode(UserProfile.self, from: $0) }
         let remotePreferences = try prefsSnapshot.data().flatMap { try decode(UserPreferences.self, from: $0) }
-        let remoteRecords = try recordsSnapshot.documents.compactMap { document in
-            try decode(DailyRecord.self, from: document.data())
-        }
-        .sorted { $0.date < $1.date }
+        let remoteRecords = try await loadPlaintextRecords(user: user, registrationDate: user.createdAt)
 
         if prefsSnapshot.exists == false {
             try await pushPreferences(localPreferences, user: user)
@@ -212,8 +202,10 @@ final class FirebaseCloudSyncService: CloudSyncService, Sendable {
             return
         }
         let userRef = db.collection("users").document(user.userID)
-        let cloudReadyRecord = try await preparedPlaintextRecord(record, userID: user.userID)
-        try await userRef.collection("records").document(record.date.storageKey()).setData(try encode(cloudReadyRecord))
+        let canonicalKey = record.canonicalStorageKey(fallback: record.date.storageKey())
+        let anchoredRecord = record.anchoredToStorageKey(canonicalKey)
+        let cloudReadyRecord = try await preparedPlaintextRecord(anchoredRecord, userID: user.userID)
+        try await userRef.collection("records").document(canonicalKey).setData(try encode(cloudReadyRecord))
         try await upsertProfile(user, encrypted: false)
     }
 
@@ -350,9 +342,11 @@ final class FirebaseCloudSyncService: CloudSyncService, Sendable {
     private func pushEncryptedRecord(_ record: DailyRecord, user: UserAccount, key: SymmetricKey) async throws {
         guard let db else { return }
         let userRef = db.collection("users").document(user.userID)
-        let cloudReadyRecord = try await preparedEncryptedRecord(record, userID: user.userID, key: key)
+        let canonicalKey = record.canonicalStorageKey(fallback: record.date.storageKey())
+        let anchoredRecord = record.anchoredToStorageKey(canonicalKey)
+        let cloudReadyRecord = try await preparedEncryptedRecord(anchoredRecord, userID: user.userID, key: key)
         let envelope = try crypto.encrypt(cloudReadyRecord, key: key)
-        try await userRef.collection("secureRecords").document(record.date.storageKey()).setData(try encode(envelope))
+        try await userRef.collection("secureRecords").document(canonicalKey).setData(try encode(envelope))
     }
 
     private func preparedEncryptedRecord(_ record: DailyRecord, userID: String, key: SymmetricKey) async throws -> DailyRecord {
@@ -454,14 +448,10 @@ final class FirebaseCloudSyncService: CloudSyncService, Sendable {
         let userRef = db.collection("users").document(user.userID)
         let profileSnapshot = try await userRef.getDocument()
         let prefsSnapshot = try await userRef.collection("preferences").document("current").getDocument()
-        let recordsSnapshot = try await userRef.collection("records").getDocuments()
 
         let remoteProfile = try profileSnapshot.data().flatMap { try decode(UserProfile.self, from: $0) }
         let remotePreferences = try prefsSnapshot.data().flatMap { try decode(UserPreferences.self, from: $0) }
-        let remoteRecords = try recordsSnapshot.documents.compactMap { document in
-            try decode(DailyRecord.self, from: document.data())
-        }
-        .sorted { $0.date < $1.date }
+        let remoteRecords = try await loadPlaintextRecords(user: user, registrationDate: user.createdAt)
 
         return CloudBootstrapPayload(
             profile: remoteProfile,
@@ -489,16 +479,62 @@ final class FirebaseCloudSyncService: CloudSyncService, Sendable {
         return false
     }
 
+    private func loadPlaintextRecords(user: UserAccount, registrationDate: Date) async throws -> [DailyRecord] {
+        guard let db else { return [] }
+        let userRef = db.collection("users").document(user.userID)
+        let recordsSnapshot = try await userRef.collection("records").getDocuments()
+        let keyedRecords = try recordsSnapshot.documents.map { document in
+            (document.documentID, try decode(DailyRecord.self, from: document.data()))
+        }
+        let canonicalized = canonicalizedRecordMap(from: keyedRecords)
+        let cutoffKey = registrationDate.storageKey()
+        let filteredCanonicalized = canonicalized.filter { $0.key >= cutoffKey }
+        let needsRepair = keyedRecords.count != filteredCanonicalized.count
+            || keyedRecords.contains { $0.1.canonicalStorageKey(fallback: $0.0) != $0.0 }
+            || canonicalized.count != filteredCanonicalized.count
+
+        if needsRepair {
+            try await rewritePlaintextRecords(filteredCanonicalized, originalDocumentIDs: keyedRecords.map(\.0), user: user)
+        }
+
+        return filteredCanonicalized.values.sorted { $0.date < $1.date }
+    }
+
+    private func loadEncryptedRecords(user: UserAccount, key: SymmetricKey, registrationDate: Date) async throws -> [DailyRecord] {
+        guard let db else { return [] }
+        let userRef = db.collection("users").document(user.userID)
+        let recordsSnapshot = try await userRef.collection("secureRecords").getDocuments()
+        let keyedRecords = try recordsSnapshot.documents.compactMap { document -> (String, DailyRecord)? in
+            guard let record = try decryptDocument(DailyRecord.self, from: document.data(), key: key) else {
+                return nil
+            }
+            return (document.documentID, record)
+        }
+        let canonicalized = canonicalizedRecordMap(from: keyedRecords)
+        let cutoffKey = registrationDate.storageKey()
+        let filteredCanonicalized = canonicalized.filter { $0.key >= cutoffKey }
+        let needsRepair = keyedRecords.count != filteredCanonicalized.count
+            || keyedRecords.contains { $0.1.canonicalStorageKey(fallback: $0.0) != $0.0 }
+            || canonicalized.count != filteredCanonicalized.count
+
+        if needsRepair {
+            try await rewriteEncryptedRecords(filteredCanonicalized, originalDocumentIDs: keyedRecords.map(\.0), user: user, key: key)
+        }
+
+        return filteredCanonicalized.values.sorted { $0.date < $1.date }
+    }
+
     private func mergeRecords(_ localRecords: [DailyRecord], with remoteRecords: [DailyRecord]) -> [DailyRecord] {
         var merged: [String: DailyRecord] = [:]
 
         for record in remoteRecords + localRecords {
-            let key = record.date.storageKey()
             let normalized = record.backfillingRecordedTimeZones(TimeZone.autoupdatingCurrent.identifier)
+            let key = normalized.canonicalStorageKey(fallback: normalized.date.storageKey())
+            let anchored = normalized.anchoredToStorageKey(key)
             if let existing = merged[key] {
-                merged[key] = preferredRecord(between: existing, and: normalized)
+                merged[key] = preferredRecord(between: existing, and: anchored)
             } else {
-                merged[key] = normalized
+                merged[key] = anchored
             }
         }
 
@@ -525,6 +561,56 @@ final class FirebaseCloudSyncService: CloudSyncService, Sendable {
         total += record.sexualActivities.count * 2
         if record.sunTimes != nil { total += 2 }
         return total
+    }
+
+    private func canonicalizedRecordMap(from keyedRecords: [(String, DailyRecord)]) -> [String: DailyRecord] {
+        keyedRecords.reduce(into: [:]) { partialResult, entry in
+            let canonicalKey = entry.1.canonicalStorageKey(fallback: entry.0)
+            let anchored = entry.1.anchoredToStorageKey(canonicalKey)
+            if let existing = partialResult[canonicalKey] {
+                partialResult[canonicalKey] = preferredRecord(between: existing, and: anchored)
+            } else {
+                partialResult[canonicalKey] = anchored
+            }
+        }
+    }
+
+    private func rewritePlaintextRecords(
+        _ records: [String: DailyRecord],
+        originalDocumentIDs: [String],
+        user: UserAccount
+    ) async throws {
+        guard let db else { return }
+        let userRef = db.collection("users").document(user.userID)
+        for (key, record) in records {
+            let prepared = try await preparedPlaintextRecord(record.anchoredToStorageKey(key), userID: user.userID)
+            try await userRef.collection("records").document(key).setData(try encode(prepared))
+        }
+
+        let canonicalKeys = Set(records.keys)
+        for documentID in Set(originalDocumentIDs).subtracting(canonicalKeys) {
+            try? await userRef.collection("records").document(documentID).delete()
+        }
+    }
+
+    private func rewriteEncryptedRecords(
+        _ records: [String: DailyRecord],
+        originalDocumentIDs: [String],
+        user: UserAccount,
+        key: SymmetricKey
+    ) async throws {
+        guard let db else { return }
+        let userRef = db.collection("users").document(user.userID)
+        for (documentID, record) in records {
+            let prepared = try await preparedEncryptedRecord(record.anchoredToStorageKey(documentID), userID: user.userID, key: key)
+            let envelope = try crypto.encrypt(prepared, key: key)
+            try await userRef.collection("secureRecords").document(documentID).setData(try encode(envelope))
+        }
+
+        let canonicalKeys = Set(records.keys)
+        for documentID in Set(originalDocumentIDs).subtracting(canonicalKeys) {
+            try? await userRef.collection("secureRecords").document(documentID).delete()
+        }
     }
 
     private func fetchEncryptionMetadata(for user: UserAccount) async throws -> CloudEncryptionMetadata? {

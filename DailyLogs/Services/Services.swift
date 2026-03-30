@@ -234,33 +234,39 @@ final class LocalAuthService: AuthService {
 
     private func refreshUser(_ session: UserAccount) -> UserAccount? {
         do {
-            let database = try store.load()
+            var database = try store.load()
             if let profile = database.profilesByUser[session.userID] {
+                let authoritativeCreatedAt = max(profile.createdAt.startOfDay, session.createdAt.startOfDay)
+                if profile.createdAt.startOfDay != authoritativeCreatedAt {
+                    var updatedProfile = profile
+                    updatedProfile.createdAt = authoritativeCreatedAt
+                    database.profilesByUser[session.userID] = updatedProfile
+                    try store.save(database)
+                }
                 return UserAccount(
                     userID: session.userID,
                     displayName: resolvedDisplayName(for: session, profile: profile),
                     email: profile.email ?? session.email,
                     authMode: profile.authMode ?? session.authMode,
-                    createdAt: profile.createdAt
+                    createdAt: authoritativeCreatedAt
                 )
             }
 
-            let fallbackCreatedAt = earliestKnownDate(for: session.userID, database: database) ?? session.createdAt
-            var updatedDatabase = database
-            updatedDatabase.profilesByUser[session.userID] = UserProfile(
+            let authoritativeCreatedAt = session.createdAt.startOfDay
+            database.profilesByUser[session.userID] = UserProfile(
                 userID: session.userID,
                 displayName: session.displayName,
                 email: session.email,
                 authMode: session.authMode,
-                createdAt: fallbackCreatedAt.startOfDay
+                createdAt: authoritativeCreatedAt
             )
-            try store.save(updatedDatabase)
+            try store.save(database)
             return UserAccount(
                 userID: session.userID,
                 displayName: session.displayName,
                 email: session.email,
                 authMode: session.authMode,
-                createdAt: fallbackCreatedAt.startOfDay
+                createdAt: authoritativeCreatedAt
             )
         } catch {
             return session
@@ -270,18 +276,14 @@ final class LocalAuthService: AuthService {
     private func saveProfile(for user: UserAccount) throws -> UserAccount {
         var database = try store.load()
         let existingProfile = database.profilesByUser[user.userID]
-        let existingCreatedAt = existingProfile?.createdAt
-        let earliestCreatedAt = [existingCreatedAt, earliestKnownDate(for: user.userID, database: database), user.createdAt]
-            .compactMap { $0 }
-            .min()?
-            .startOfDay ?? user.createdAt.startOfDay
+        let authoritativeCreatedAt = max(existingProfile?.createdAt.startOfDay ?? user.createdAt.startOfDay, user.createdAt.startOfDay)
         let mergedDisplayName = resolvedDisplayName(for: user, profile: existingProfile)
         database.profilesByUser[user.userID] = UserProfile(
             userID: user.userID,
             displayName: mergedDisplayName,
             email: user.email ?? existingProfile?.email,
             authMode: user.authMode,
-            createdAt: earliestCreatedAt
+            createdAt: authoritativeCreatedAt
         )
         try store.save(database)
         return UserAccount(
@@ -289,7 +291,7 @@ final class LocalAuthService: AuthService {
             displayName: mergedDisplayName,
             email: user.email ?? existingProfile?.email,
             authMode: user.authMode,
-            createdAt: earliestCreatedAt
+            createdAt: authoritativeCreatedAt
         )
     }
 
@@ -313,8 +315,8 @@ final class LocalAuthService: AuthService {
 
     private func earliestKnownDate(for userID: String, database: LocalJSONStore.Database) -> Date? {
         database.recordsByUser[userID]?
-            .values
-            .map(\.date)
+            .keys
+            .compactMap { Date.fromStorageKey($0) }
             .min()
     }
 
@@ -499,8 +501,13 @@ final class LocalDailyRecordRepository: DailyRecordRepository {
 
     func loadRecord(for date: Date, preferences: UserPreferences, userID: String) throws -> DailyRecord {
         let key = date.storageKey()
-        let database = try store.load()
-        if let record = database.recordsByUser[userID]?[key] {
+        var database = try store.load()
+        let canonicalRecords = canonicalizedRecordMap(database.recordsByUser[userID] ?? [:])
+        if canonicalRecords != (database.recordsByUser[userID] ?? [:]) {
+            database.recordsByUser[userID] = canonicalRecords
+            try store.save(database)
+        }
+        if let record = canonicalRecords[key] {
             return record
         }
         return DailyRecord.empty(for: date, preferences: preferences)
@@ -508,15 +515,70 @@ final class LocalDailyRecordRepository: DailyRecordRepository {
 
     func saveRecord(_ record: DailyRecord, userID: String) throws {
         var database = try store.load()
-        var records = database.recordsByUser[userID] ?? [:]
-        records[record.date.storageKey()] = record
-        database.recordsByUser[userID] = records
+        var records = canonicalizedRecordMap(database.recordsByUser[userID] ?? [:])
+        let key = record.canonicalStorageKey(fallback: record.date.storageKey())
+        records[key] = record.anchoredToStorageKey(key)
+        database.recordsByUser[userID] = canonicalizedRecordMap(records)
         try store.save(database)
     }
 
     func loadAllRecords(userID: String) throws -> [DailyRecord] {
-        let database = try store.load()
-        return (database.recordsByUser[userID] ?? [:]).values.sorted { $0.date < $1.date }
+        var database = try store.load()
+        let canonicalRecords = canonicalizedRecordMap(database.recordsByUser[userID] ?? [:])
+        if canonicalRecords != (database.recordsByUser[userID] ?? [:]) {
+            database.recordsByUser[userID] = canonicalRecords
+            try store.save(database)
+        }
+        return canonicalRecords.values.sorted { $0.date < $1.date }
+    }
+
+    private func canonicalizedRecordMap(_ records: [String: DailyRecord]) -> [String: DailyRecord] {
+        records.reduce(into: [:]) { partialResult, entry in
+            let canonicalKey = entry.value.canonicalStorageKey(fallback: entry.key)
+            let anchored = entry.value.anchoredToStorageKey(canonicalKey)
+            if let existing = partialResult[canonicalKey] {
+                partialResult[canonicalKey] = preferredRecord(between: existing, and: anchored)
+            } else {
+                partialResult[canonicalKey] = anchored
+            }
+        }
+    }
+
+    private func preferredRecord(between lhs: DailyRecord, and rhs: DailyRecord) -> DailyRecord {
+        if lhs.effectiveModifiedAt != rhs.effectiveModifiedAt {
+            return lhs.effectiveModifiedAt > rhs.effectiveModifiedAt ? lhs : rhs
+        }
+
+        let lhsScore = completenessScore(for: lhs)
+        let rhsScore = completenessScore(for: rhs)
+        if lhsScore != rhsScore {
+            return lhsScore > rhsScore ? lhs : rhs
+        }
+
+        return lhs.date >= rhs.date ? lhs : rhs
+    }
+
+    private func completenessScore(for record: DailyRecord) -> Int {
+        var score = 0
+        if record.sleepRecord.bedtimePreviousNight != nil { score += 2 }
+        if record.sleepRecord.wakeTimeCurrentDay != nil { score += 2 }
+        score += record.sleepRecord.stageIntervals.count * 2
+        score += record.showers.count
+        score += record.bowelMovements.count
+        score += record.sexualActivities.count
+
+        for meal in record.meals {
+            switch meal.status {
+            case .logged: score += 2
+            case .skipped: score += 1
+            case .empty: break
+            }
+            if meal.time != nil { score += 1 }
+            if meal.photoURL?.isEmpty == false { score += 1 }
+        }
+
+        if record.sunTimes != nil { score += 1 }
+        return score
     }
 }
 

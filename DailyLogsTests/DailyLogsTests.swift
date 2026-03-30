@@ -146,6 +146,236 @@ struct DailyLogsTests {
     }
 
     @Test
+    func dailyInsightReportOnlyIncludesEnabledOptionalSections() throws {
+        let day = Calendar.current.date(from: DateComponents(year: 2026, month: 3, day: 20))!
+        let preferences = UserPreferences(
+            visibleHomeSections: [.sleep, .meals, .showers]
+        )
+        let record = DailyRecord(
+            date: day,
+            sleepRecord: SleepRecord(
+                bedtimePreviousNight: day.adding(days: -1).settingTime(hour: 23, minute: 40),
+                wakeTimeCurrentDay: day.settingTime(hour: 7, minute: 20),
+                targetBedtime: DateComponents(hour: 23, minute: 30),
+                source: RecordSource.manual
+            ),
+            meals: [
+                MealEntry(mealKind: .breakfast, status: .logged, time: day.settingTime(hour: 8, minute: 10)),
+                MealEntry(mealKind: .lunch, status: .logged),
+                MealEntry(mealKind: .dinner, status: .skipped)
+            ],
+            showers: [
+                ShowerEntry(time: day.settingTime(hour: 21, minute: 5))
+            ],
+            bowelMovements: [
+                BowelMovementEntry(time: day.settingTime(hour: 7, minute: 45))
+            ],
+            sexualActivities: [],
+            sunTimes: nil
+        )
+
+        let report = DailyInsightAnalyzer.buildReport(
+            for: record,
+            preferences: preferences,
+            locale: Locale(identifier: "en_US")
+        )
+
+        let showerComponent = try #require(report.components.first(where: { $0.kind == .shower }))
+        let bowelComponent = try #require(report.components.first(where: { $0.kind == .bowelMovement }))
+
+        #expect(showerComponent.isIncluded == true)
+        #expect(bowelComponent.isIncluded == false)
+        #expect(report.includedComponents.count == 3)
+        #expect(report.overallScore > 0)
+    }
+
+    @Test
+    func dailyInsightPayloadPreservesMealStatusesAndSectionFlags() throws {
+        let day = Calendar.current.date(from: DateComponents(year: 2026, month: 3, day: 20))!
+        let preferences = UserPreferences(
+            appLanguage: .en,
+            visibleHomeSections: [.sleep, .meals]
+        )
+        let record = DailyRecord(
+            date: day,
+            sleepRecord: SleepRecord(
+                bedtimePreviousNight: day.adding(days: -1).settingTime(hour: 0, minute: 5),
+                wakeTimeCurrentDay: day.settingTime(hour: 7, minute: 10),
+                source: RecordSource.manual
+            ),
+            meals: [
+                MealEntry(mealKind: .breakfast, status: .logged, time: day.settingTime(hour: 8, minute: 0)),
+                MealEntry(mealKind: .lunch, status: .logged),
+                MealEntry(mealKind: .dinner, status: .skipped),
+                MealEntry(mealKind: .custom, customTitle: "Snack")
+            ],
+            showers: [],
+            bowelMovements: [],
+            sexualActivities: [],
+            sunTimes: nil
+        )
+
+        let payload = DailyInsightAnalyzer.makePayload(
+            record: record,
+            preferences: preferences,
+            language: .en,
+            locale: Locale(identifier: "en_US")
+        )
+        let payloadJSON = String(decoding: try JSONEncoder().encode(payload), as: UTF8.self)
+
+        #expect(payload.meals.map(\.status) == ["logged_with_time", "logged_without_time", "skipped", "unrecorded"])
+        #expect(payload.showerEnabled == false)
+        #expect(payload.bowelMovementEnabled == false)
+        #expect(payloadJSON.contains("\"overallScore\"") == false)
+        #expect(payloadJSON.contains("\"scoreBreakdown\"") == false)
+        #expect(payloadJSON.contains("\"localSummary\"") == false)
+    }
+
+    @Test
+    func dailyInsightNarrativeDecodesWithoutGeneratedAt() throws {
+        let json = """
+        {
+          "headline": "昨天还不错",
+          "summary": "睡眠和餐食比较稳。",
+          "bullets": ["睡了 7.2 小时", "三餐里有两餐已记录"]
+        }
+        """
+
+        let narrative = try JSONDecoder().decode(DailyInsightNarrative.self, from: Data(json.utf8))
+
+        #expect(narrative.headline == "昨天还不错")
+        #expect(narrative.summary == "睡眠和餐食比较稳。")
+        #expect(narrative.bullets.count == 2)
+    }
+
+    @Test
+    func dailyInsightNarrativeWithoutScoresIsDetected() throws {
+        let narrative = DailyInsightNarrative(
+            headline: "只有文案",
+            summary: "没有分数",
+            bullets: ["bullet 1", "bullet 2"]
+        )
+
+        #expect(narrative.hasAIScoring == false)
+    }
+
+    @Test
+    func dailyInsightReportAppliesAIScoreOverrides() {
+        let baseReport = DailyInsightReport(
+            date: Date().startOfDay,
+            overallScore: 61,
+            title: "本地标题",
+            summary: "本地总结",
+            components: [
+                DailyInsightComponent(kind: .sleep, score: 24, maxScore: 45, detail: "本地睡眠", isIncluded: true),
+                DailyInsightComponent(kind: .meals, score: 18, maxScore: 35, detail: "本地餐食", isIncluded: true),
+                DailyInsightComponent(kind: .shower, score: 4, maxScore: 10, detail: "本地洗澡", isIncluded: true),
+                DailyInsightComponent(kind: .bowelMovement, score: 0, maxScore: 10, detail: "本地排便", isIncluded: false)
+            ],
+            highlights: ["本地观察 1", "本地观察 2"]
+        )
+        let narrative = DailyInsightNarrative(
+            headline: "AI 说昨天很稳",
+            summary: "AI 总结",
+            bullets: ["AI 观察 1", "AI 观察 2"],
+            overallScore: 88,
+            components: [
+                "sleep": .init(score: 91, maxScore: 100, detail: "AI 睡眠", included: true),
+                "meals": .init(score: 82, maxScore: 100, detail: "AI 餐食", included: true),
+                "shower": .init(score: 76, maxScore: 100, detail: "AI 洗澡", included: true),
+                "bowelMovement": .init(score: 0, maxScore: 100, detail: "AI 排便未纳入", included: false)
+            ]
+        )
+
+        let resolved = baseReport.applyingAIOverrides(narrative)
+
+        #expect(resolved.overallScore == 88)
+        #expect(resolved.title == "AI 说昨天很稳")
+        #expect(resolved.summary == "AI 总结")
+        #expect(resolved.highlights == ["AI 观察 1", "AI 观察 2"])
+        #expect(resolved.components.first(where: { $0.kind == .sleep })?.score == 91)
+        #expect(resolved.components.first(where: { $0.kind == .sleep })?.maxScore == 100)
+        #expect(resolved.components.first(where: { $0.kind == .bowelMovement })?.isIncluded == false)
+    }
+
+    @Test @MainActor
+    func refreshDailyInsightNarrativeRegeneratesWhenCachedNarrativeHasNoAIScoring() async {
+        let today = Date().startOfDay
+        let yesterday = today.adding(days: -1)
+        let preferences = UserPreferences(
+            healthKitSyncEnabled: false,
+            visibleHomeSections: [.sleep, .meals, .showers]
+        )
+        let user = UserAccount(
+            userID: "test-user",
+            displayName: "Tester",
+            email: nil,
+            authMode: .guest,
+            createdAt: today.adding(days: -30)
+        )
+        let record = DailyRecord(
+            date: yesterday,
+            sleepRecord: SleepRecord(
+                bedtimePreviousNight: yesterday.adding(days: -1).settingTime(hour: 23, minute: 40),
+                wakeTimeCurrentDay: yesterday.settingTime(hour: 7, minute: 20),
+                source: .manual
+            ),
+            meals: [
+                MealEntry(mealKind: .breakfast, status: .logged, time: yesterday.settingTime(hour: 8, minute: 0))
+            ],
+            showers: [],
+            bowelMovements: [],
+            sexualActivities: [],
+            sunTimes: nil
+        )
+        let aiService = MockAIInsightNarrativeService(responses: [
+            DailyInsightNarrative(
+                headline: "旧版文案",
+                summary: "没有分数",
+                bullets: ["旧 bullet 1", "旧 bullet 2"]
+            ),
+            DailyInsightNarrative(
+                headline: "新版 AI 打分",
+                summary: "现在带分数了",
+                bullets: ["新 bullet 1", "新 bullet 2"],
+                overallScore: 84,
+                components: [
+                    "sleep": .init(score: 86, maxScore: 100, detail: "AI 睡眠", included: true),
+                    "meals": .init(score: 80, maxScore: 100, detail: "AI 餐食", included: true),
+                    "shower": .init(score: 65, maxScore: 100, detail: "AI 洗澡", included: true),
+                    "bowelMovement": .init(score: 0, maxScore: 100, detail: "AI 排便未纳入", included: false)
+                ]
+            )
+        ])
+        let viewModel = AppViewModel(
+            authService: MockAuthService(user: user),
+            repository: InMemoryDailyRecordRepository(records: [yesterday.storageKey(): record]),
+            preferencesStore: MockPreferencesStore(preferences: preferences),
+            photoStorageService: MockPhotoStorageService(),
+            sunTimesService: MockSunTimesService(),
+            healthSyncAdapter: MockHealthSyncAdapter(sleepRecord: nil),
+            cloudSyncService: NoopCloudSyncService(),
+            aiInsightNarrativeService: aiService,
+            openAIKeyStore: MockOpenAIKeyStore(key: "test-key"),
+            locationService: LocationService(),
+            selectedDate: yesterday,
+            dailyRecord: DailyRecord.empty(for: yesterday, preferences: preferences),
+            preferences: preferences
+        )
+
+        await viewModel.bootstrap()
+        await viewModel.refreshDailyInsightNarrative(force: true)
+        #expect(viewModel.isDisplayingAIScoredInsight == false)
+
+        await viewModel.refreshDailyInsightNarrative()
+
+        #expect(aiService.callCount == 2)
+        #expect(viewModel.dailyInsightNarrative?.headline == "新版 AI 打分")
+        #expect(viewModel.isDisplayingAIScoredInsight == true)
+        #expect(viewModel.displayedDailyInsightReport?.overallScore == 84)
+    }
+
+    @Test
     func recordsByStorageKeyDeduplicatesSameDayRemoteRecords() {
         let calendar = Calendar.current
         let day = calendar.date(from: DateComponents(year: 2026, month: 3, day: 16, hour: 0, minute: 0))!
@@ -183,15 +413,16 @@ struct DailyLogsTests {
         )
 
         let deduplicated = AppViewModel.recordsByStorageKey([sparseRecord, richerRecord])
-
-        #expect(deduplicated.count == 1)
-        #expect(deduplicated[day.storageKey()] == DailyRecord(
-            date: day.startOfDay,
+        let expected = DailyRecord(
+            date: richerRecord.date,
             sleepRecord: richerRecord.sleepRecord,
             meals: richerRecord.meals,
             showers: richerRecord.showers,
             sunTimes: richerRecord.sunTimes
-        ))
+        ).anchoredToStorageKey(day.storageKey())
+
+        #expect(deduplicated.count == 1)
+        #expect(deduplicated[day.storageKey()] == expected)
     }
 
     @Test
@@ -220,15 +451,139 @@ struct DailyLogsTests {
         )
 
         let deduplicated = AppViewModel.recordsByStorageKey([olderRecord, newerRecord])
-
-        #expect(deduplicated[day.storageKey()] == DailyRecord(
-            date: day.startOfDay,
+        let expected = DailyRecord(
+            date: newerRecord.date,
             sleepRecord: newerRecord.sleepRecord,
             meals: newerRecord.meals,
             showers: newerRecord.showers,
             sunTimes: newerRecord.sunTimes,
             modifiedAt: newerRecord.modifiedAt
-        ))
+        ).anchoredToStorageKey(day.storageKey())
+
+        #expect(deduplicated[day.storageKey()] == expected)
+    }
+
+    @Test
+    func recordsByStorageKeyCollapsesShiftedTravelDuplicatesUsingRecordedTimeZones() {
+        let formatter = ISO8601DateFormatter()
+        let london = TimeZone(identifier: "Europe/London")!
+        let shiftedDate = formatter.date(from: "2026-03-27T00:00:00Z")!
+
+        let shiftedRecord = DailyRecord(
+            date: shiftedDate,
+            sleepRecord: SleepRecord(
+                bedtimePreviousNight: formatter.date(from: "2026-03-26T23:40:00Z"),
+                wakeTimeCurrentDay: formatter.date(from: "2026-03-27T07:20:00Z"),
+                source: .manual,
+                timeZoneIdentifier: london.identifier
+            ),
+            meals: [
+                MealEntry(
+                    mealKind: .breakfast,
+                    status: .logged,
+                    time: formatter.date(from: "2026-03-27T08:10:00Z"),
+                    timeZoneIdentifier: london.identifier
+                )
+            ],
+            showers: [],
+            bowelMovements: [],
+            sexualActivities: [],
+            sunTimes: nil,
+            modifiedAt: formatter.date(from: "2026-03-27T12:00:00Z")
+        )
+
+        let duplicate = shiftedRecord.anchoredToStorageKey("2026-03-27")
+        let deduplicated = AppViewModel.recordsByStorageKey([shiftedRecord, duplicate])
+
+        #expect(deduplicated.count == 1)
+        #expect(deduplicated["2026-03-27"]?.date.storageKey() == "2026-03-27")
+    }
+
+    @Test
+    func storageKeyRoundTripPreservesCalendarDayAcrossTimeZones() throws {
+        var londonCalendar = Calendar(identifier: .gregorian)
+        londonCalendar.timeZone = TimeZone(identifier: "Europe/London")!
+        let stored = try #require(Date.fromStorageKey("2026-03-27", calendar: londonCalendar))
+
+        var bostonCalendar = Calendar(identifier: .gregorian)
+        bostonCalendar.timeZone = TimeZone(identifier: "America/New_York")!
+
+        #expect(stored.storageKey(calendar: londonCalendar) == "2026-03-27")
+        #expect(stored.storageKey(calendar: bostonCalendar) == "2026-03-27")
+    }
+
+    @Test
+    func localRepositoryAnchorsStoredRecordsToTheirDictionaryKeys() throws {
+        let formatter = ISO8601DateFormatter()
+        let filename = "dailylogs-tests-\(UUID().uuidString).json"
+        let store = LocalJSONStore(filename: filename)
+        let repository = LocalDailyRecordRepository(store: store)
+        let userID = "travel-user"
+        let storedKey = "2026-03-27"
+
+        var database = LocalJSONStore.Database()
+        database.recordsByUser[userID] = [
+            storedKey: DailyRecord(
+                date: formatter.date(from: "2026-03-27T00:00:00Z")!,
+                sleepRecord: SleepRecord(
+                    bedtimePreviousNight: formatter.date(from: "2026-03-26T23:50:00Z"),
+                    wakeTimeCurrentDay: formatter.date(from: "2026-03-27T07:10:00Z"),
+                    source: .manual,
+                    timeZoneIdentifier: "Europe/London"
+                ),
+                meals: [],
+                showers: [],
+                bowelMovements: [],
+                sexualActivities: [],
+                sunTimes: nil
+            )
+        ]
+        try store.save(database)
+
+        let loaded = try repository.loadAllRecords(userID: userID)
+
+        #expect(loaded.count == 1)
+        #expect(loaded.first?.date.storageKey() == storedKey)
+    }
+
+    @Test @MainActor
+    func updatingProfileDoesNotMoveRegistrationDateEarlier() throws {
+        let filename = "dailylogs-auth-tests-\(UUID().uuidString).json"
+        let store = LocalJSONStore(filename: filename)
+        let authService = LocalAuthService(store: store)
+        let userID = "travel-auth-user"
+        let pollutedDate = try #require(Date.fromStorageKey("2026-03-12"))
+        let authoritativeDate = try #require(Date.fromStorageKey("2026-03-13"))
+
+        var database = LocalJSONStore.Database()
+        database.profilesByUser[userID] = UserProfile(
+            userID: userID,
+            displayName: "Tester",
+            email: nil,
+            authMode: .apple,
+            createdAt: pollutedDate
+        )
+        database.recordsByUser[userID] = [
+            "2026-03-12": DailyRecord.empty(
+                for: pollutedDate,
+                preferences: UserPreferences()
+            )
+        ]
+        try store.save(database)
+
+        let authoritativeUser = UserAccount(
+            userID: userID,
+            displayName: "Tester",
+            email: nil,
+            authMode: .apple,
+            createdAt: authoritativeDate
+        )
+
+        let updated = try authService.updateDisplayName("Updated Tester", for: authoritativeUser)
+        let savedProfile = try #require(store.load().profilesByUser[userID])
+
+        #expect(updated.createdAt.storageKey() == "2026-03-13")
+        #expect(savedProfile.createdAt.storageKey() == "2026-03-13")
     }
 
     @Test
@@ -319,6 +674,8 @@ struct DailyLogsTests {
             sunTimesService: MockSunTimesService(),
             healthSyncAdapter: healthSyncAdapter,
             cloudSyncService: NoopCloudSyncService(),
+            aiInsightNarrativeService: NoopAIInsightNarrativeService(),
+            openAIKeyStore: MockOpenAIKeyStore(),
             locationService: LocationService(),
             selectedDate: today,
             dailyRecord: DailyRecord.empty(for: today, preferences: preferences),
@@ -366,6 +723,8 @@ struct DailyLogsTests {
             sunTimesService: MockSunTimesService(),
             healthSyncAdapter: healthSyncAdapter,
             cloudSyncService: NoopCloudSyncService(),
+            aiInsightNarrativeService: NoopAIInsightNarrativeService(),
+            openAIKeyStore: MockOpenAIKeyStore(),
             locationService: LocationService(),
             selectedDate: today,
             dailyRecord: DailyRecord.empty(for: today, preferences: preferences),
@@ -412,6 +771,8 @@ struct DailyLogsTests {
             sunTimesService: MockSunTimesService(),
             healthSyncAdapter: healthSyncAdapter,
             cloudSyncService: NoopCloudSyncService(),
+            aiInsightNarrativeService: NoopAIInsightNarrativeService(),
+            openAIKeyStore: MockOpenAIKeyStore(),
             locationService: LocationService(),
             selectedDate: yesterday,
             dailyRecord: DailyRecord.empty(for: yesterday, preferences: preferences),
@@ -531,6 +892,50 @@ private final class InMemoryDailyRecordRepository: DailyRecordRepository {
 
     func loadAllRecords(userID: String) throws -> [DailyRecord] {
         Array(records.values)
+    }
+}
+
+private struct MockOpenAIKeyStore: OpenAIKeyStoring {
+    var key: String? = nil
+
+    var hasAPIKey: Bool {
+        key?.isEmpty == false
+    }
+
+    func loadAPIKey() -> String? {
+        key
+    }
+
+    func saveAPIKey(_ key: String) throws {}
+
+    func deleteAPIKey() {}
+}
+
+private final class MockAIInsightNarrativeService: AIInsightNarrativeGenerating, @unchecked Sendable {
+    private let lock = NSLock()
+    private let responses: [DailyInsightNarrative]
+    private var nextIndex = 0
+    private var storedCallCount = 0
+
+    init(responses: [DailyInsightNarrative]) {
+        self.responses = responses
+    }
+
+    var callCount: Int {
+        lock.withLock { storedCallCount }
+    }
+
+    var isConfigured: Bool { true }
+
+    func generateNarrative(from payload: DailyInsightPayload) async throws -> DailyInsightNarrative {
+        lock.withLock {
+            storedCallCount += 1
+            let response = responses[min(nextIndex, responses.count - 1)]
+            if nextIndex < responses.count - 1 {
+                nextIndex += 1
+            }
+            return response
+        }
     }
 }
 
