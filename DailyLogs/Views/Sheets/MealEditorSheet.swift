@@ -24,7 +24,7 @@ struct MealEditorSheet: View {
     @State private var showingImagePicker = false
     @State private var showingPhotoLibraryPicker = false
     @State private var photoPickerItems: [PhotosPickerItem] = []
-    @State private var showingPhotoSourceDialog = false
+    @State private var showingPhotoSourcePopover = false
     @State private var didApplyInitialMode = false
     @State private var logsExistenceOnly: Bool
     @State private var showingLocationPicker = false
@@ -124,20 +124,6 @@ struct MealEditorSheet: View {
                 matching: .images,
                 preferredItemEncoding: .automatic
             )
-            .confirmationDialog(
-                NSLocalizedString("添加照片", comment: ""),
-                isPresented: $showingPhotoSourceDialog
-            ) {
-                if UIImagePickerController.isSourceTypeAvailable(.camera) {
-                    Button(NSLocalizedString("拍照", comment: "")) {
-                        openPicker(.camera)
-                    }
-                }
-                Button(NSLocalizedString("选择相册照片", comment: "")) {
-                    showingPhotoLibraryPicker = true
-                }
-                Button(NSLocalizedString("取消", comment: ""), role: .cancel) {}
-            }
             .alert(NSLocalizedString("删除餐次？", comment: ""), isPresented: $showingDeleteMealConfirmation) {
                 Button(NSLocalizedString("取消", comment: ""), role: .cancel) {}
                 Button(NSLocalizedString("删除餐次", comment: ""), role: .destructive) {
@@ -197,41 +183,39 @@ struct MealEditorSheet: View {
     private var photoSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             if allPhotoCount == 0 {
-                Button {
-                    presentPhotoSourceOptions()
-                } label: {
+                photoSourceTrigger {
                     DashedMealPhotoPlaceholder(title: NSLocalizedString("添加照片", comment: ""))
                         .frame(height: 220)
                 }
-                .buttonStyle(.plain)
-                .disabled(!isEditable)
             } else {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 12) {
-                        ForEach(draft.photoURLs, id: \.self) { photoURL in
-                            mealPhotoTile {
-                                PhotoContentView(photoURL: photoURL, contentMode: .fill)
-                            } removeAction: {
-                                draft.photoURLs.removeAll { $0 == photoURL }
+                GeometryReader { geometry in
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 12) {
+                            ForEach(draft.photoURLs, id: \.self) { photoURL in
+                                mealPhotoTile {
+                                    PhotoContentView(photoURL: photoURL, contentMode: .fill)
+                                } removeAction: {
+                                    draft.photoURLs.removeAll { $0 == photoURL }
+                                }
                             }
-                        }
 
-                        ForEach(selectedImages) { selectedImage in
-                            mealPhotoTile {
-                                Image(uiImage: selectedImage.image)
-                                    .resizable()
-                                    .scaledToFill()
-                            } removeAction: {
-                                selectedImages.removeAll { $0.id == selectedImage.id }
+                            ForEach(selectedImages) { selectedImage in
+                                mealPhotoTile {
+                                    Image(uiImage: selectedImage.image)
+                                        .resizable()
+                                        .scaledToFill()
+                                } removeAction: {
+                                    selectedImages.removeAll { $0.id == selectedImage.id }
+                                }
                             }
                         }
+                        .frame(minWidth: geometry.size.width, alignment: .center)
+                        .padding(.vertical, 2)
                     }
-                    .padding(.vertical, 2)
                 }
+                .frame(height: 192)
 
-                Button {
-                    presentPhotoSourceOptions()
-                } label: {
+                photoSourceTrigger {
                     Text(NSLocalizedString("添加照片", comment: ""))
                         .font(.system(size: 15, weight: .semibold, design: .rounded))
                         .foregroundStyle(AppTheme.accent)
@@ -240,9 +224,48 @@ struct MealEditorSheet: View {
                         .background(AppTheme.accentSoft)
                         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                 }
-                .buttonStyle(.plain)
-                .disabled(!isEditable)
             }
+        }
+    }
+
+    private func photoSourceTrigger<Label: View>(@ViewBuilder label: () -> Label) -> some View {
+        Button {
+            presentPhotoSourceOptions()
+        } label: {
+            label()
+        }
+        .buttonStyle(.plain)
+        .disabled(!isEditable)
+        .popover(
+            isPresented: $showingPhotoSourcePopover,
+            attachmentAnchor: .rect(.bounds),
+            arrowEdge: .bottom
+        ) {
+            VStack(spacing: 10) {
+                if UIImagePickerController.isSourceTypeAvailable(.camera) {
+                    Button(NSLocalizedString("拍照", comment: "")) {
+                        showingPhotoSourcePopover = false
+                        openPicker(.camera)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(AppTheme.surface)
+                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                }
+
+                Button(NSLocalizedString("选择相册照片", comment: "")) {
+                    showingPhotoSourcePopover = false
+                    showingPhotoLibraryPicker = true
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+                .background(AppTheme.surface)
+                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            }
+            .padding(14)
+            .frame(width: 250)
+            .background(AppTheme.background)
+            .presentationCompactAdaptation(.popover)
         }
     }
 
@@ -415,7 +438,9 @@ struct MealEditorSheet: View {
 
     private func presentPhotoSourceOptions() {
         guard isEditable else { return }
-        showingPhotoSourceDialog = true
+        DispatchQueue.main.async {
+            showingPhotoSourcePopover = true
+        }
     }
 
     private func openPicker(_ source: UIImagePickerController.SourceType) {

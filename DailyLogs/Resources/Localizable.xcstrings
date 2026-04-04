@@ -2914,6 +2914,22 @@
         }
       }
     },
+    "添加照片" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add photo"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "添加照片"
+          }
+        }
+      }
+    },
     "添加记录" : {
       "localizations" : {
         "en" : {
@@ -3234,6 +3250,7 @@
       }
     },
     "相册" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -3416,6 +3433,7 @@
       }
     },
     "移除照片" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -4225,7 +4243,6 @@
       }
     },
     "选择相册照片" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {

@@ -488,14 +488,8 @@ struct HomeView: View {
             }
 
             if photoCount == 0 {
-                Button {
-                    openMealEditor(meal, with: .addPhoto)
-                } label: {
-                    DashedMealPhotoPlaceholder()
-                        .frame(maxWidth: .infinity, minHeight: 170, maxHeight: 170)
-                }
-                .buttonStyle(.plain)
-                .disabled(!appViewModel.canEditSelectedDate)
+                DashedMealPhotoPlaceholder()
+                    .frame(maxWidth: .infinity, minHeight: 170, maxHeight: 170)
             } else {
                 HStack(spacing: 10) {
                     ForEach(meal.photoURLs, id: \.self) { photoURL in
@@ -509,7 +503,28 @@ struct HomeView: View {
                         .buttonStyle(.plain)
                     }
                 }
+            }
 
+            Spacer(minLength: 0)
+
+            if photoCount == 0 {
+                Button {
+                    guard effectiveStatus != .skipped else { return }
+                    Task { await appViewModel.skipMeal(meal) }
+                } label: {
+                    Text(NSLocalizedString("跳过", comment: ""))
+                        .font(.system(size: 15, weight: .semibold, design: .rounded))
+                        .foregroundStyle(effectiveStatus == .skipped ? .white : AppTheme.warning)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 11)
+                        .background(
+                            effectiveStatus == .skipped ? AppTheme.warning : AppTheme.warning.opacity(0.12)
+                        )
+                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .disabled(!appViewModel.canEditSelectedDate || effectiveStatus == .skipped)
+            } else {
                 Button {
                     openMealEditor(meal, with: .addPhoto)
                 } label: {
@@ -525,7 +540,7 @@ struct HomeView: View {
                 .disabled(!appViewModel.canEditSelectedDate)
             }
         }
-        .frame(width: mealCardWidth(photoCount: photoCount), alignment: .top)
+        .frame(width: mealCardWidth(photoCount: photoCount), height: mealCardHeight, alignment: .top)
         .padding(18)
         .background(AppTheme.surface)
         .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
@@ -591,7 +606,7 @@ struct HomeView: View {
                     .multilineTextAlignment(.center)
                 Spacer()
             }
-            .frame(width: 178, height: 258)
+            .frame(width: 178, height: mealCardHeight + 36)
             .background(AppTheme.surface)
             .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
             .overlay {
@@ -613,6 +628,10 @@ struct HomeView: View {
         let horizontalPadding: CGFloat = 36
         let photoRowWidth = (CGFloat(photoCount) * thumbnailWidth) + (CGFloat(max(photoCount - 1, 0)) * spacing)
         return max(minimumWidth, photoRowWidth + horizontalPadding)
+    }
+
+    private var mealCardHeight: CGFloat {
+        286
     }
 
     // MARK: - Showers
