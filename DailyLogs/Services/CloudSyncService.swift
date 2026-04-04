@@ -286,35 +286,41 @@ final class FirebaseCloudSyncService: CloudSyncService, Sendable {
         guard !storages.isEmpty else { return record }
         var updated = record
         for index in updated.meals.indices {
-            guard let photoURL = updated.meals[index].photoURL else { continue }
-            guard !photoURL.hasPrefix("http://"), !photoURL.hasPrefix("https://") else { continue }
-            guard !SecureCloudPhotoReference.isSecureReference(photoURL) else { continue }
-            guard FileManager.default.fileExists(atPath: photoURL) else {
-                updated.meals[index].photoURL = nil
-                continue
+            var uploadedPhotoURLs: [String] = []
+            for (photoIndex, photoURL) in updated.meals[index].photoURLs.enumerated() {
+                guard !photoURL.hasPrefix("http://"), !photoURL.hasPrefix("https://") else {
+                    uploadedPhotoURLs.append(photoURL)
+                    continue
+                }
+                guard !SecureCloudPhotoReference.isSecureReference(photoURL) else {
+                    uploadedPhotoURLs.append(photoURL)
+                    continue
+                }
+                guard FileManager.default.fileExists(atPath: photoURL) else {
+                    continue
+                }
+                do {
+                    let data = try Data(contentsOf: URL(fileURLWithPath: photoURL))
+                    let filename = "\(updated.meals[index].id.uuidString)-\(photoIndex).jpg"
+                    let path = "users/\(userID)/meal-photos/\(filename)"
+                    let meta = StorageMetadata()
+                    meta.contentType = "image/jpeg"
+                    let uploadedPhotoURL = try await uploadPhoto(
+                        data: data,
+                        storagePath: path,
+                        metadata: meta
+                    )
+                    uploadedPhotoURLs.append(uploadedPhotoURL)
+                } catch {
+                    #if DEBUG
+                    print(
+                        "CloudSync: photo upload failed for meal \(updated.meals[index].id) " +
+                        "at path users/\(userID)/meal-photos/\(updated.meals[index].id.uuidString)-\(photoIndex).jpg: \(error)"
+                    )
+                    #endif
+                }
             }
-            do {
-                let data = try Data(contentsOf: URL(fileURLWithPath: photoURL))
-                let filename = "\(updated.meals[index].id.uuidString).jpg"
-                let path = "users/\(userID)/meal-photos/\(filename)"
-                let meta = StorageMetadata()
-                meta.contentType = "image/jpeg"
-                updated.meals[index].photoURL = try await uploadPhoto(
-                    data: data,
-                    storagePath: path,
-                    metadata: meta
-                )
-            } catch {
-                // Upload failed — strip local path so it doesn't leak to Firestore.
-                // The record itself still pushes to Firestore (without the photo).
-                #if DEBUG
-                print(
-                    "CloudSync: photo upload failed for meal \(updated.meals[index].id) " +
-                    "at path users/\(userID)/meal-photos/\(updated.meals[index].id.uuidString).jpg: \(error)"
-                )
-                #endif
-                updated.meals[index].photoURL = nil
-            }
+            updated.meals[index].photoURLs = uploadedPhotoURLs
         }
         return updated
     }
@@ -353,30 +359,35 @@ final class FirebaseCloudSyncService: CloudSyncService, Sendable {
         guard !storages.isEmpty else { return record }
         var updated = record
         for index in updated.meals.indices {
-            guard let photoReference = updated.meals[index].photoURL else { continue }
-            guard !SecureCloudPhotoReference.isSecureReference(photoReference) else { continue }
-            guard let data = try await loadPhotoData(for: photoReference) else {
-                updated.meals[index].photoURL = nil
-                continue
-            }
-
-            do {
-                let filename = "\(updated.meals[index].id.uuidString).bin"
-                let path = "users/\(userID)/secure-meal-photos/\(filename)"
-                updated.meals[index].photoURL = try await uploadEncryptedPhoto(
-                    data: data,
-                    storagePath: path,
-                    key: key
-                )
-                if photoReference.hasPrefix("http://") || photoReference.hasPrefix("https://") {
-                    try? await deleteLegacyPhoto(at: photoReference)
+            var encryptedPhotoReferences: [String] = []
+            for (photoIndex, photoReference) in updated.meals[index].photoURLs.enumerated() {
+                guard !SecureCloudPhotoReference.isSecureReference(photoReference) else {
+                    encryptedPhotoReferences.append(photoReference)
+                    continue
                 }
-            } catch {
-                #if DEBUG
-                print("CloudSync: encrypted photo upload failed for meal \(updated.meals[index].id): \(error)")
-                #endif
-                updated.meals[index].photoURL = nil
+                guard let data = try await loadPhotoData(for: photoReference) else {
+                    continue
+                }
+
+                do {
+                    let filename = "\(updated.meals[index].id.uuidString)-\(photoIndex).bin"
+                    let path = "users/\(userID)/secure-meal-photos/\(filename)"
+                    let encryptedReference = try await uploadEncryptedPhoto(
+                        data: data,
+                        storagePath: path,
+                        key: key
+                    )
+                    encryptedPhotoReferences.append(encryptedReference)
+                    if photoReference.hasPrefix("http://") || photoReference.hasPrefix("https://") {
+                        try? await deleteLegacyPhoto(at: photoReference)
+                    }
+                } catch {
+                    #if DEBUG
+                    print("CloudSync: encrypted photo upload failed for meal \(updated.meals[index].id): \(error)")
+                    #endif
+                }
             }
+            updated.meals[index].photoURLs = encryptedPhotoReferences
         }
         return updated
     }
@@ -555,7 +566,7 @@ final class FirebaseCloudSyncService: CloudSyncService, Sendable {
         if record.sleepRecord.wakeTimeCurrentDay != nil { total += 2 }
         if record.sleepRecord.note?.isEmpty == false { total += 1 }
         total += record.sleepRecord.stageIntervals.count
-        total += record.meals.filter { $0.status == .logged || $0.time != nil || $0.photoURL != nil || $0.note?.isEmpty == false }.count * 2
+        total += record.meals.filter { $0.status == .logged || $0.time != nil || $0.hasPhoto || $0.note?.isEmpty == false }.count * 2
         total += record.showers.count * 2
         total += record.bowelMovements.count * 2
         total += record.sexualActivities.count * 2

@@ -309,7 +309,7 @@ struct MealEntry: Codable, Equatable, Identifiable {
     var customTitle: String?
     var status: MealStatus = .empty
     var time: Date?
-    var photoURL: String?
+    var photoURLs: [String]
     var timeZoneIdentifier: String?
     var note: String?
     var locationName: String?
@@ -330,7 +330,16 @@ struct MealEntry: Codable, Equatable, Identifiable {
     }
 
     var hasPhoto: Bool {
-        photoURL?.isEmpty == false
+        !photoURLs.isEmpty
+    }
+
+    var primaryPhotoURL: String? {
+        photoURLs.first
+    }
+
+    var photoURL: String? {
+        get { primaryPhotoURL }
+        set { photoURLs = newValue.map { [$0] } ?? [] }
     }
 
     var isLoggedWithoutTime: Bool {
@@ -348,7 +357,7 @@ struct MealEntry: Codable, Equatable, Identifiable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case id, mealKind, customTitle, status, time, photoURL, timeZoneIdentifier
+        case id, mealKind, customTitle, status, time, photoURL, photoURLs, timeZoneIdentifier
         case note, locationName, latitude, longitude
     }
 
@@ -358,6 +367,7 @@ struct MealEntry: Codable, Equatable, Identifiable {
         customTitle: String? = nil,
         status: MealStatus = .empty,
         time: Date? = nil,
+        photoURLs: [String] = [],
         photoURL: String? = nil,
         timeZoneIdentifier: String? = nil,
         note: String? = nil,
@@ -370,7 +380,7 @@ struct MealEntry: Codable, Equatable, Identifiable {
         self.customTitle = customTitle
         self.status = status
         self.time = time
-        self.photoURL = photoURL
+        self.photoURLs = photoURLs.isEmpty ? (photoURL.map { [$0] } ?? []) : photoURLs
         self.timeZoneIdentifier = timeZoneIdentifier
         self.note = note
         self.locationName = locationName
@@ -385,12 +395,33 @@ struct MealEntry: Codable, Equatable, Identifiable {
         customTitle = try container.decodeIfPresent(String.self, forKey: .customTitle)
         status = try container.decodeIfPresent(MealStatus.self, forKey: .status) ?? .empty
         time = try container.decodeIfPresent(Date.self, forKey: .time)
-        photoURL = try container.decodeIfPresent(String.self, forKey: .photoURL)
+        let decodedPhotoURLs = try container.decodeIfPresent([String].self, forKey: .photoURLs) ?? []
+        if decodedPhotoURLs.isEmpty, let legacyPhotoURL = try container.decodeIfPresent(String.self, forKey: .photoURL) {
+            photoURLs = [legacyPhotoURL]
+        } else {
+            photoURLs = decodedPhotoURLs
+        }
         timeZoneIdentifier = try container.decodeIfPresent(String.self, forKey: .timeZoneIdentifier)
         note = try container.decodeIfPresent(String.self, forKey: .note)
         locationName = try container.decodeIfPresent(String.self, forKey: .locationName)
         latitude = try container.decodeIfPresent(Double.self, forKey: .latitude)
         longitude = try container.decodeIfPresent(Double.self, forKey: .longitude)
+    }
+
+    func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(mealKind, forKey: .mealKind)
+        try container.encodeIfPresent(customTitle, forKey: .customTitle)
+        try container.encode(status, forKey: .status)
+        try container.encodeIfPresent(time, forKey: .time)
+        try container.encode(photoURLs, forKey: .photoURLs)
+        try container.encodeIfPresent(primaryPhotoURL, forKey: .photoURL)
+        try container.encodeIfPresent(timeZoneIdentifier, forKey: .timeZoneIdentifier)
+        try container.encodeIfPresent(note, forKey: .note)
+        try container.encodeIfPresent(locationName, forKey: .locationName)
+        try container.encodeIfPresent(latitude, forKey: .latitude)
+        try container.encodeIfPresent(longitude, forKey: .longitude)
     }
 }
 

@@ -1,5 +1,6 @@
 import MapKit
 import Photos
+import PhotosUI
 import SwiftUI
 import UIKit
 
@@ -18,21 +19,22 @@ struct MealEditorSheet: View {
     @EnvironmentObject private var appViewModel: AppViewModel
 
     @State private var draft: MealEntry
-    @State private var selectedImage: UIImage?
+    @State private var selectedImages: [SelectedMealImage] = []
     @State private var pickerSource: UIImagePickerController.SourceType?
     @State private var showingImagePicker = false
+    @State private var showingPhotoLibraryPicker = false
+    @State private var photoPickerItems: [PhotosPickerItem] = []
+    @State private var showingPhotoSourceDialog = false
     @State private var didApplyInitialMode = false
     @State private var logsExistenceOnly: Bool
-    @State private var showingTimePicker: Bool
     @State private var showingLocationPicker = false
     @State private var showingDeleteMealConfirmation = false
-    @State private var showingRemovePhotoConfirmation = false
 
     let baseDate: Date
     let preferredSource: MealCaptureMode
     let canDelete: Bool
     let isEditable: Bool
-    let onSave: (MealEntry, UIImage?) -> Void
+    let onSave: (MealEntry, [UIImage]) -> Void
     let onDelete: () -> Void
 
     init(
@@ -41,12 +43,11 @@ struct MealEditorSheet: View {
         preferredSource: MealCaptureMode,
         canDelete: Bool,
         isEditable: Bool,
-        onSave: @escaping (MealEntry, UIImage?) -> Void,
+        onSave: @escaping (MealEntry, [UIImage]) -> Void,
         onDelete: @escaping () -> Void
     ) {
         _draft = State(initialValue: entry)
         _logsExistenceOnly = State(initialValue: entry.status == .logged && entry.time == nil)
-        _showingTimePicker = State(initialValue: true)
         self.baseDate = baseDate
         self.preferredSource = preferredSource
         self.canDelete = canDelete
@@ -69,9 +70,7 @@ struct MealEditorSheet: View {
                     }
 
                     timeSection
-
                     photoSection
-
                     noteSection
                     locationSection
                 }
@@ -86,7 +85,7 @@ struct MealEditorSheet: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button(NSLocalizedString("保存", comment: "")) {
-                        onSave(normalizedDraft, selectedImage)
+                        onSave(normalizedDraft, selectedImages.map(\.image))
                         dismiss()
                     }
                     .disabled(!isEditable)
@@ -103,16 +102,41 @@ struct MealEditorSheet: View {
             .onAppear {
                 applyInitialModeIfNeeded()
             }
+            .onChange(of: photoPickerItems) { _, newItems in
+                Task { await loadSelectedPhotoItems(newItems) }
+            }
             .sheet(isPresented: $showingImagePicker) {
                 if let pickerSource {
                     ImagePicker(sourceType: pickerSource) { image, capturedAt in
-                        selectedImage = image
-                        if image != nil {
+                        if let image {
+                            selectedImages.append(SelectedMealImage(image: image))
                             draft.status = .logged
                             draft.time = normalizedPickedDate(capturedAt) ?? draft.time ?? defaultLoggedTime
+                            logsExistenceOnly = false
                         }
                     }
                 }
+            }
+            .photosPicker(
+                isPresented: $showingPhotoLibraryPicker,
+                selection: $photoPickerItems,
+                maxSelectionCount: nil,
+                matching: .images,
+                preferredItemEncoding: .automatic
+            )
+            .confirmationDialog(
+                NSLocalizedString("添加照片", comment: ""),
+                isPresented: $showingPhotoSourceDialog
+            ) {
+                if UIImagePickerController.isSourceTypeAvailable(.camera) {
+                    Button(NSLocalizedString("拍照", comment: "")) {
+                        openPicker(.camera)
+                    }
+                }
+                Button(NSLocalizedString("选择相册照片", comment: "")) {
+                    showingPhotoLibraryPicker = true
+                }
+                Button(NSLocalizedString("取消", comment: ""), role: .cancel) {}
             }
             .alert(NSLocalizedString("删除餐次？", comment: ""), isPresented: $showingDeleteMealConfirmation) {
                 Button(NSLocalizedString("取消", comment: ""), role: .cancel) {}
@@ -122,15 +146,6 @@ struct MealEditorSheet: View {
                 }
             } message: {
                 Text(NSLocalizedString("此操作会删除整个餐次，且无法撤销。", comment: ""))
-            }
-            .alert(NSLocalizedString("删除照片？", comment: ""), isPresented: $showingRemovePhotoConfirmation) {
-                Button(NSLocalizedString("取消", comment: ""), role: .cancel) {}
-                Button(NSLocalizedString("删除照片", comment: ""), role: .destructive) {
-                    selectedImage = nil
-                    draft.photoURL = nil
-                }
-            } message: {
-                Text(NSLocalizedString("此操作会移除这张照片，且无法撤销。", comment: ""))
             }
         }
     }
@@ -181,56 +196,77 @@ struct MealEditorSheet: View {
 
     private var photoSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            if let selectedImage {
-                Image(uiImage: selectedImage)
-                    .resizable()
-                    .scaledToFill()
-                    .frame(height: 220)
-                    .frame(maxWidth: .infinity)
-                    .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
-            } else if let photoURL = draft.photoURL {
-                PhotoContentView(photoURL: photoURL, contentMode: .fill)
-                    .frame(height: 220)
-                    .frame(maxWidth: .infinity)
-                    .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
-            }
+            if allPhotoCount == 0 {
+                Button {
+                    presentPhotoSourceOptions()
+                } label: {
+                    DashedMealPhotoPlaceholder(title: NSLocalizedString("添加照片", comment: ""))
+                        .frame(height: 220)
+                }
+                .buttonStyle(.plain)
+                .disabled(!isEditable)
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 12) {
+                        ForEach(draft.photoURLs, id: \.self) { photoURL in
+                            mealPhotoTile {
+                                PhotoContentView(photoURL: photoURL, contentMode: .fill)
+                            } removeAction: {
+                                draft.photoURLs.removeAll { $0 == photoURL }
+                            }
+                        }
 
-            HStack(spacing: 10) {
-                photoActionButton(title: NSLocalizedString("拍照", comment: ""), systemImage: "camera") {
-                    guard UIImagePickerController.isSourceTypeAvailable(.camera) else { return }
-                    pickerSource = .camera
-                    showingImagePicker = true
+                        ForEach(selectedImages) { selectedImage in
+                            mealPhotoTile {
+                                Image(uiImage: selectedImage.image)
+                                    .resizable()
+                                    .scaledToFill()
+                            } removeAction: {
+                                selectedImages.removeAll { $0.id == selectedImage.id }
+                            }
+                        }
+                    }
+                    .padding(.vertical, 2)
                 }
 
-                photoActionButton(title: NSLocalizedString("相册", comment: ""), systemImage: "photo.on.rectangle") {
-                    pickerSource = .photoLibrary
-                    showingImagePicker = true
+                Button {
+                    presentPhotoSourceOptions()
+                } label: {
+                    Text(NSLocalizedString("添加照片", comment: ""))
+                        .font(.system(size: 15, weight: .semibold, design: .rounded))
+                        .foregroundStyle(AppTheme.accent)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .background(AppTheme.accentSoft)
+                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                 }
-            }
-
-            if selectedImage != nil || draft.photoURL != nil {
-                Button(NSLocalizedString("移除照片", comment: ""), role: .destructive) {
-                    showingRemovePhotoConfirmation = true
-                }
-                .font(.system(size: 15, weight: .semibold, design: .rounded))
-                .foregroundStyle(.red)
+                .buttonStyle(.plain)
                 .disabled(!isEditable)
             }
         }
     }
 
-    private func photoActionButton(title: String, systemImage: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Label(title, systemImage: systemImage)
-                .font(.system(size: 16, weight: .semibold, design: .rounded))
-                .foregroundStyle(AppTheme.primaryText)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 15)
-                .background(AppTheme.surface)
-                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+    private func mealPhotoTile<Content: View>(
+        @ViewBuilder content: () -> Content,
+        removeAction: @escaping () -> Void
+    ) -> some View {
+        ZStack(alignment: .topTrailing) {
+            content()
+                .frame(width: 132, height: 176)
+                .clipped()
+                .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+
+            Button {
+                removeAction()
+            } label: {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.system(size: 22, weight: .bold))
+                    .foregroundStyle(.white, Color.black.opacity(0.45))
+                    .padding(8)
+            }
+            .buttonStyle(.plain)
+            .disabled(!isEditable)
         }
-        .buttonStyle(.plain)
-        .disabled(!isEditable)
     }
 
     private var noteSection: some View {
@@ -314,14 +350,14 @@ struct MealEditorSheet: View {
             entry.status = .logged
             entry.time = nil
             entry.timeZoneIdentifier = nil
-        } else if selectedImage != nil || entry.photoURL != nil || entry.time != nil || preferredSource == .editRecord {
+        } else if !selectedImages.isEmpty || !entry.photoURLs.isEmpty || entry.time != nil || preferredSource == .editRecord {
             entry.status = .logged
             entry.time = entry.time ?? defaultLoggedTime
             entry.timeZoneIdentifier = appViewModel.displayedTimeZone(for: entry.timeZoneIdentifier).identifier
         } else {
             entry.status = .empty
             entry.time = nil
-            entry.photoURL = nil
+            entry.photoURLs = []
             entry.timeZoneIdentifier = nil
             entry.note = nil
             entry.locationName = nil
@@ -329,6 +365,10 @@ struct MealEditorSheet: View {
             entry.longitude = nil
         }
         return entry
+    }
+
+    private var allPhotoCount: Int {
+        draft.photoURLs.count + selectedImages.count
     }
 
     private var defaultLoggedTime: Date {
@@ -361,12 +401,21 @@ struct MealEditorSheet: View {
         case .photoLibrary:
             draft.status = .logged
             logsExistenceOnly = false
-            openPicker(.photoLibrary)
-        case .addPhoto, .editPhoto, .editRecord:
+            showingPhotoLibraryPicker = true
+        case .addPhoto, .editPhoto:
+            draft.status = .logged
+            logsExistenceOnly = false
+            presentPhotoSourceOptions()
+        case .editRecord:
             if draft.status == .logged && draft.time == nil {
                 logsExistenceOnly = true
             }
         }
+    }
+
+    private func presentPhotoSourceOptions() {
+        guard isEditable else { return }
+        showingPhotoSourceDialog = true
     }
 
     private func openPicker(_ source: UIImagePickerController.SourceType) {
@@ -374,6 +423,28 @@ struct MealEditorSheet: View {
         guard source != .camera || UIImagePickerController.isSourceTypeAvailable(.camera) else { return }
         pickerSource = source
         showingImagePicker = true
+    }
+
+    @MainActor
+    private func loadSelectedPhotoItems(_ items: [PhotosPickerItem]) async {
+        guard !items.isEmpty else { return }
+        var appendedImages: [SelectedMealImage] = []
+        for item in items {
+            guard let data = try? await item.loadTransferable(type: Data.self),
+                  let image = UIImage(data: data) else {
+                continue
+            }
+            appendedImages.append(SelectedMealImage(image: image))
+        }
+
+        if !appendedImages.isEmpty {
+            selectedImages.append(contentsOf: appendedImages)
+            draft.status = .logged
+            draft.time = draft.time ?? defaultLoggedTime
+            logsExistenceOnly = false
+        }
+
+        photoPickerItems = []
     }
 
     private func normalizedPickedDate(_ pickedDate: Date?) -> Date? {
@@ -387,6 +458,11 @@ struct MealEditorSheet: View {
             in: appViewModel.displayedTimeZone(for: draft.timeZoneIdentifier)
         )
     }
+}
+
+private struct SelectedMealImage: Identifiable {
+    let id = UUID()
+    let image: UIImage
 }
 
 private struct ImagePicker: UIViewControllerRepresentable {

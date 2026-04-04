@@ -567,7 +567,7 @@ final class AppViewModel: ObservableObject {
         await syncPreferencesToCloudIfNeeded()
     }
 
-    func saveMeal(_ entry: MealEntry, image: UIImage?) async {
+    func saveMeal(_ entry: MealEntry, images: [UIImage]) async {
         guard canEditSelectedDate else { return }
         var updatedEntry = entry
         do {
@@ -576,14 +576,15 @@ final class AppViewModel: ObservableObject {
             if let existingEntry, existingEntry.id != updatedEntry.id {
                 updatedEntry.id = existingEntry.id
             }
-            if let image {
-                if let path = existingEntry?.photoURL {
-                    try deletePhotoIfLocal(at: path)
-                }
-                updatedEntry.photoURL = try photoStorageService.savePhoto(image)
-            } else if let oldPhotoURL = existingEntry?.photoURL, updatedEntry.photoURL == nil {
-                try deletePhotoIfLocal(at: oldPhotoURL)
+
+            let existingPhotoURLs = existingEntry?.photoURLs ?? []
+            let retainedPhotoURLs = updatedEntry.photoURLs
+            let removedPhotoURLs = Set(existingPhotoURLs).subtracting(retainedPhotoURLs)
+            for photoURL in removedPhotoURLs {
+                try deletePhotoIfLocal(at: photoURL)
             }
+            let savedNewPhotoURLs = try images.map { try photoStorageService.savePhoto($0) }
+            updatedEntry.photoURLs = retainedPhotoURLs + savedNewPhotoURLs
 
             if updatedEntry.status == .logged || updatedEntry.time != nil || updatedEntry.hasPhoto {
                 updatedEntry.status = .logged
@@ -611,9 +612,7 @@ final class AppViewModel: ObservableObject {
         guard canEditSelectedDate, canDeleteMealEntry(entry) else { return }
         do {
             let existingEntry = existingMealMatch(for: entry)?.entry ?? entry
-            if let photoURL = existingEntry.photoURL {
-                try deletePhotoIfLocal(at: photoURL)
-            }
+            try deleteMealPhotosIfLocal(existingEntry.photoURLs)
             removeMealEntry(entry)
             persistCurrentRecord()
             await syncCurrentRecordToCloudIfNeeded()
@@ -627,9 +626,7 @@ final class AppViewModel: ObservableObject {
         do {
             let existingMatch = existingMealMatch(for: entry)
             let existingEntry = existingMatch?.entry ?? entry
-            if let photoURL = existingEntry.photoURL {
-                try deletePhotoIfLocal(at: photoURL)
-            }
+            try deleteMealPhotosIfLocal(existingEntry.photoURLs)
             if canDeleteMealEntry(entry) {
                 removeMealEntry(entry)
                 persistCurrentRecord()
@@ -639,7 +636,7 @@ final class AppViewModel: ObservableObject {
             var updatedEntry = existingEntry
             updatedEntry.status = .empty
             updatedEntry.time = nil
-            updatedEntry.photoURL = nil
+            updatedEntry.photoURLs = []
             updatedEntry.timeZoneIdentifier = nil
             if let index = existingMatch?.index {
                 dailyRecord.meals[index] = updatedEntry
@@ -653,16 +650,19 @@ final class AppViewModel: ObservableObject {
         }
     }
 
-    func removeMealPhoto(_ entry: MealEntry) async {
+    func removeMealPhoto(_ entry: MealEntry, photoURL: String? = nil) async {
         guard canEditSelectedDate else { return }
         do {
             let existingMatch = existingMealMatch(for: entry)
             let existingEntry = existingMatch?.entry ?? entry
-            if let photoURL = existingEntry.photoURL {
-                try deletePhotoIfLocal(at: photoURL)
-            }
+            let photoURLsToDelete = photoURL.map { [$0] } ?? existingEntry.photoURLs
+            try deleteMealPhotosIfLocal(photoURLsToDelete)
             var updatedEntry = existingEntry
-            updatedEntry.photoURL = nil
+            if let photoURL {
+                updatedEntry.photoURLs.removeAll { $0 == photoURL }
+            } else {
+                updatedEntry.photoURLs = []
+            }
             updatedEntry.status = (existingEntry.status == .logged || updatedEntry.time != nil) ? .logged : .empty
             if let index = existingMatch?.index {
                 dailyRecord.meals[index] = updatedEntry
@@ -681,13 +681,11 @@ final class AppViewModel: ObservableObject {
         do {
             let existingMatch = existingMealMatch(for: entry)
             let existingEntry = existingMatch?.entry ?? entry
-            if let photoURL = existingEntry.photoURL {
-                try deletePhotoIfLocal(at: photoURL)
-            }
+            try deleteMealPhotosIfLocal(existingEntry.photoURLs)
             var updatedEntry = existingEntry
             updatedEntry.status = .skipped
             updatedEntry.time = nil
-            updatedEntry.photoURL = nil
+            updatedEntry.photoURLs = []
             updatedEntry.timeZoneIdentifier = nil
             if let index = existingMatch?.index {
                 dailyRecord.meals[index] = updatedEntry
@@ -1130,14 +1128,17 @@ final class AppViewModel: ObservableObject {
                         // Keep remote photo references when the preferred local
                         // copy doesn't currently have an accessible image.
                         for i in mergedRecord.meals.indices {
-                            if let localPhoto = mergedRecord.meals[i].photoURL,
-                               FileManager.default.fileExists(atPath: localPhoto) {
+                            let localPhotos = mergedRecord.meals[i].photoURLs
+                            let missingLocalPhotos = localPhotos.filter {
+                                !Self.isRemotePhotoURL($0) && !FileManager.default.fileExists(atPath: $0)
+                            }
+                            guard !missingLocalPhotos.isEmpty || localPhotos.isEmpty else {
                                 continue
                             }
 
                             if let remoteMeal = remoteRecord.meals.first(where: { $0.id == mergedRecord.meals[i].id }),
-                               let remotePhoto = remoteMeal.photoURL {
-                                mergedRecord.meals[i].photoURL = remotePhoto
+                               !remoteMeal.photoURLs.isEmpty {
+                                mergedRecord.meals[i].photoURLs = remoteMeal.photoURLs
                             }
                         }
                     }
@@ -1286,7 +1287,7 @@ final class AppViewModel: ObservableObject {
             .filter { $0.date >= lowerBound }
             .flatMap { record in
                 record.meals
-                    .compactMap(\.photoURL)
+                    .flatMap(\.photoURLs)
                     .filter(Self.isRemotePhotoURL)
             }
 
@@ -1359,7 +1360,7 @@ final class AppViewModel: ObservableObject {
             if meal.time != nil {
                 score += 1
             }
-            if meal.photoURL?.isEmpty == false {
+            if meal.hasPhoto {
                 score += 1
             }
         }
@@ -1479,7 +1480,7 @@ final class AppViewModel: ObservableObject {
             break
         }
         if meal.time != nil { score += 2 }
-        if meal.photoURL?.isEmpty == false { score += 1 }
+        if meal.hasPhoto { score += 1 }
         if trimmedNote(meal.note) != nil { score += 1 }
         if meal.locationName?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false { score += 1 }
         if meal.latitude != nil || meal.longitude != nil { score += 1 }
@@ -1507,6 +1508,12 @@ final class AppViewModel: ObservableObject {
     private func deletePhotoIfLocal(at path: String) throws {
         guard !Self.isRemotePhotoURL(path) else { return }
         try photoStorageService.deletePhoto(at: path)
+    }
+
+    private func deleteMealPhotosIfLocal(_ photoURLs: [String]) throws {
+        for photoURL in photoURLs {
+            try deletePhotoIfLocal(at: photoURL)
+        }
     }
 
     func displayedTimeZone(for recordedTimeZoneIdentifier: String?) -> TimeZone {

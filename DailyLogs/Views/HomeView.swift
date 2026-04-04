@@ -98,8 +98,8 @@ struct HomeView: View {
                     preferredSource: context.preferredSource,
                     canDelete: appViewModel.canDeleteMealEntry(context.entry),
                     isEditable: appViewModel.canEditSelectedDate,
-                    onSave: { updated, image in
-                        Task { await appViewModel.saveMeal(updated, image: image) }
+                    onSave: { updated, images in
+                        Task { await appViewModel.saveMeal(updated, images: images) }
                     },
                     onDelete: {
                         Task { await appViewModel.deleteMeal(context.entry) }
@@ -438,130 +438,181 @@ struct HomeView: View {
                 Spacer()
             }
 
-            VStack(spacing: 0) {
-                ForEach(Array(appViewModel.dailyRecord.meals.enumerated()), id: \.element.id) { index, meal in
-                    if index > 0 {
-                        Divider().padding(.leading, 4)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(alignment: .top, spacing: 14) {
+                    ForEach(appViewModel.dailyRecord.meals) { meal in
+                        mealCard(meal)
                     }
-                    mealRow(meal)
+                    addMealCard
                 }
-
-                Divider().padding(.leading, 4)
-
-                Button {
-                    editingMealContext = MealEditorContext(
-                        entry: MealEntry(
-                            mealKind: .custom,
-                            customTitle: NSLocalizedString("加餐", comment: ""),
-                            status: .empty
-                        ),
-                        preferredSource: .editRecord
-                    )
-                } label: {
-                    HStack(spacing: 8) {
-                        Image(systemName: "plus")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundStyle(AppTheme.accent)
-                        Text(NSLocalizedString("添加餐次", comment: ""))
-                            .font(.system(size: 16, weight: .semibold, design: .rounded))
-                            .foregroundStyle(AppTheme.accent)
-                        Spacer()
-                    }
-                    .padding(.vertical, 12)
-                }
-                .buttonStyle(.plain)
-                .disabled(!appViewModel.canEditSelectedDate)
-                .opacity(appViewModel.canEditSelectedDate ? 1 : 0.45)
+                .padding(.vertical, 4)
             }
         }
         .sectionStyle()
     }
 
-    private func mealRow(_ meal: MealEntry) -> some View {
+    private func mealCard(_ meal: MealEntry) -> some View {
         let effectiveStatus = meal.effectiveStatus(on: appViewModel.selectedDate)
         let accentColor = mealAccentColor(meal)
+        let canDeleteMeal = appViewModel.canDeleteMealEntry(meal)
+        let photoCount = meal.photoURLs.count
 
-        return HStack(spacing: 12) {
-            Menu {
-                let isLogged = meal.effectiveStatus(on: appViewModel.selectedDate) == .logged
-                let canDeleteMeal = appViewModel.canDeleteMealEntry(meal)
+        return VStack(alignment: .center, spacing: 14) {
+            VStack(spacing: 4) {
+                Text(meal.displayTitle)
+                    .font(.system(size: 22, weight: .bold, design: .rounded))
+                    .foregroundStyle(AppTheme.primaryText)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(2)
 
-                if isLogged {
-                    Button(NSLocalizedString("修改记录", comment: "")) {
-                        openMealEditor(meal, with: .editRecord)
-                    }
-                    if meal.hasPhoto {
-                        Button(NSLocalizedString("删除照片", comment: ""), role: .destructive) {
-                            pendingDestructiveAction = .removeMealPhoto(meal)
-                        }
-                    }
-                    if canDeleteMeal {
-                        Button(NSLocalizedString("删除餐次", comment: ""), role: .destructive) {
-                            pendingDestructiveAction = .deleteMeal(meal)
-                        }
-                    } else {
-                        Button(NSLocalizedString("删除记录", comment: ""), role: .destructive) {
-                            pendingDestructiveAction = .clearMealRecord(meal)
-                        }
-                    }
-                } else {
-                    Button(NSLocalizedString("添加记录", comment: "")) {
-                        openMealEditor(meal, with: .editRecord)
-                    }
-                    if canDeleteMeal {
-                        Button(NSLocalizedString("删除餐次", comment: ""), role: .destructive) {
-                            pendingDestructiveAction = .deleteMeal(meal)
-                        }
-                    }
-                    Button(NSLocalizedString("跳过", comment: ""), role: .destructive) {
-                        Task { await appViewModel.skipMeal(meal) }
-                    }
-                }
-            } label: {
-                HStack(spacing: 0) {
-                    Text(meal.displayTitle)
-                        .font(.system(size: 17, weight: .bold, design: .rounded))
-                        .foregroundStyle(AppTheme.primaryText)
-
-                    Spacer()
-
-                    switch effectiveStatus {
-                    case .logged:
-                        Text(meal.time.map {
-                            appViewModel.displayedClockTime(
-                                for: $0,
-                                recordedTimeZoneIdentifier: meal.timeZoneIdentifier
-                            )
-                        } ?? NSLocalizedString("已记录", comment: ""))
-                            .font(.system(size: 15, weight: .semibold, design: .rounded))
-                            .foregroundStyle(accentColor)
-                            .monospacedDigit()
-                    case .skipped:
-                        Text(NSLocalizedString("跳过", comment: ""))
-                            .font(.system(size: 15, weight: .semibold, design: .rounded))
-                            .foregroundStyle(AppTheme.warning)
-                    case .empty:
-                        Text(NSLocalizedString("未记录", comment: ""))
-                            .font(.system(size: 15, weight: .medium, design: .rounded))
-                            .foregroundStyle(AppTheme.secondaryText)
-                    }
+                switch effectiveStatus {
+                case .logged:
+                    Text(meal.time.map {
+                        appViewModel.displayedClockTime(
+                            for: $0,
+                            recordedTimeZoneIdentifier: meal.timeZoneIdentifier
+                        )
+                    } ?? NSLocalizedString("已记录", comment: ""))
+                        .font(.system(size: 17, weight: .semibold, design: .rounded))
+                        .foregroundStyle(accentColor)
+                        .monospacedDigit()
+                case .skipped:
+                    Text(NSLocalizedString("跳过", comment: ""))
+                        .font(.system(size: 16, weight: .semibold, design: .rounded))
+                        .foregroundStyle(AppTheme.warning)
+                case .empty:
+                    Text(NSLocalizedString("未记录", comment: ""))
+                        .font(.system(size: 16, weight: .medium, design: .rounded))
+                        .foregroundStyle(AppTheme.secondaryText)
                 }
             }
-            .buttonStyle(.plain)
-            .disabled(!appViewModel.canEditSelectedDate)
 
-            if let photoURL = meal.photoURL {
+            if photoCount == 0 {
                 Button {
-                    previewingPhotoURL = photoURL
+                    openMealEditor(meal, with: .addPhoto)
                 } label: {
-                    PhotoContentView(photoURL: photoURL, contentMode: .fill)
-                        .frame(width: 36, height: 36)
-                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    DashedMealPhotoPlaceholder()
+                        .frame(maxWidth: .infinity, minHeight: 170, maxHeight: 170)
                 }
                 .buttonStyle(.plain)
+                .disabled(!appViewModel.canEditSelectedDate)
+            } else {
+                HStack(spacing: 10) {
+                    ForEach(meal.photoURLs, id: \.self) { photoURL in
+                        Button {
+                            previewingPhotoURL = photoURL
+                        } label: {
+                            PhotoContentView(photoURL: photoURL, contentMode: .fill)
+                                .frame(width: 104, height: 142)
+                                .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+
+                Button {
+                    openMealEditor(meal, with: .addPhoto)
+                } label: {
+                    Text(NSLocalizedString("添加照片", comment: ""))
+                        .font(.system(size: 15, weight: .semibold, design: .rounded))
+                        .foregroundStyle(AppTheme.accent)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 11)
+                        .background(AppTheme.accentSoft)
+                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .disabled(!appViewModel.canEditSelectedDate)
             }
         }
-        .padding(.vertical, 12)
+        .frame(width: mealCardWidth(photoCount: photoCount), alignment: .top)
+        .padding(18)
+        .background(AppTheme.surface)
+        .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .strokeBorder(AppTheme.border.opacity(0.8), lineWidth: 1)
+        }
+        .contentShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+        .onTapGesture {
+            guard appViewModel.canEditSelectedDate else { return }
+            openMealEditor(meal, with: .editRecord)
+        }
+        .contextMenu {
+            if effectiveStatus == .logged {
+                Button(NSLocalizedString("修改记录", comment: "")) {
+                    openMealEditor(meal, with: .editRecord)
+                }
+                if canDeleteMeal {
+                    Button(NSLocalizedString("删除餐次", comment: ""), role: .destructive) {
+                        pendingDestructiveAction = .deleteMeal(meal)
+                    }
+                } else {
+                    Button(NSLocalizedString("删除记录", comment: ""), role: .destructive) {
+                        pendingDestructiveAction = .clearMealRecord(meal)
+                    }
+                }
+            } else {
+                Button(NSLocalizedString("添加记录", comment: "")) {
+                    openMealEditor(meal, with: .editRecord)
+                }
+                if canDeleteMeal {
+                    Button(NSLocalizedString("删除餐次", comment: ""), role: .destructive) {
+                        pendingDestructiveAction = .deleteMeal(meal)
+                    }
+                }
+                Button(NSLocalizedString("跳过", comment: ""), role: .destructive) {
+                    Task { await appViewModel.skipMeal(meal) }
+                }
+            }
+        }
+        .opacity(appViewModel.canEditSelectedDate ? 1 : 0.65)
+    }
+
+    private var addMealCard: some View {
+        Button {
+            editingMealContext = MealEditorContext(
+                entry: MealEntry(
+                    mealKind: .custom,
+                    customTitle: NSLocalizedString("加餐", comment: ""),
+                    status: .empty
+                ),
+                preferredSource: .editRecord
+            )
+        } label: {
+            VStack(spacing: 16) {
+                Spacer()
+                Image(systemName: "plus")
+                    .font(.system(size: 28, weight: .semibold))
+                    .foregroundStyle(AppTheme.accent)
+                Text(NSLocalizedString("添加餐次", comment: ""))
+                    .font(.system(size: 18, weight: .semibold, design: .rounded))
+                    .foregroundStyle(AppTheme.primaryText)
+                    .multilineTextAlignment(.center)
+                Spacer()
+            }
+            .frame(width: 178, height: 258)
+            .background(AppTheme.surface)
+            .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 28, style: .continuous)
+                    .stroke(style: StrokeStyle(lineWidth: 1.6, dash: [8, 8]))
+                    .foregroundStyle(AppTheme.accent.opacity(0.6))
+            }
+        }
+        .buttonStyle(.plain)
+        .disabled(!appViewModel.canEditSelectedDate)
+        .opacity(appViewModel.canEditSelectedDate ? 1 : 0.45)
+    }
+
+    private func mealCardWidth(photoCount: Int) -> CGFloat {
+        let minimumWidth: CGFloat = 188
+        guard photoCount > 0 else { return minimumWidth }
+        let thumbnailWidth: CGFloat = 104
+        let spacing: CGFloat = 10
+        let horizontalPadding: CGFloat = 36
+        let photoRowWidth = (CGFloat(photoCount) * thumbnailWidth) + (CGFloat(max(photoCount - 1, 0)) * spacing)
+        return max(minimumWidth, photoRowWidth + horizontalPadding)
     }
 
     // MARK: - Showers
@@ -1048,5 +1099,31 @@ struct PhotoPreviewOverlay: View {
             .padding(.top, 54)
             .padding(.leading, 18)
         }
+    }
+}
+
+struct DashedMealPhotoPlaceholder: View {
+    var title: String? = nil
+
+    var body: some View {
+        VStack(spacing: 10) {
+            Image(systemName: "plus")
+                .font(.system(size: 28, weight: .semibold))
+                .foregroundStyle(AppTheme.secondaryText)
+
+            if let title {
+                Text(title)
+                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                    .foregroundStyle(AppTheme.secondaryText)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(AppTheme.surface)
+        .overlay {
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .stroke(style: StrokeStyle(lineWidth: 1.6, dash: [8, 8]))
+                .foregroundStyle(AppTheme.border.opacity(0.9))
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
     }
 }

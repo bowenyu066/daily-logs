@@ -949,7 +949,7 @@ struct DailyLogsTests {
             time: today.settingTime(hour: 8, minute: 20)
         )
 
-        await viewModel.saveMeal(staleBreakfastFromEditor, image: nil)
+        await viewModel.saveMeal(staleBreakfastFromEditor, images: [])
 
         let breakfasts = viewModel.dailyRecord.meals.filter { $0.mealKind == .breakfast }
         #expect(breakfasts.count == 1)
@@ -1166,6 +1166,36 @@ struct DailyLogsTests {
         #expect(SecureCloudPhotoReference.parse(reference)?.bucket == "dailylogs.appspot.com")
         #expect(SecureCloudPhotoReference.parse(reference)?.path == "users/test-user/secure-meal-photos/photo.bin")
         #expect(SecureCloudPhotoReference.parse("https://example.com/image.jpg") == nil)
+    }
+
+    @Test
+    func mealEntryDecodesLegacySinglePhotoField() throws {
+        let json = """
+        {
+          "mealKind": "breakfast",
+          "status": "logged",
+          "photoURL": "/tmp/legacy-breakfast.jpg"
+        }
+        """.data(using: .utf8)!
+
+        let decoded = try JSONDecoder().decode(MealEntry.self, from: json)
+
+        #expect(decoded.photoURLs == ["/tmp/legacy-breakfast.jpg"])
+        #expect(decoded.photoURL == "/tmp/legacy-breakfast.jpg")
+    }
+
+    @Test
+    func mealEntryRoundTripPreservesMultiplePhotoURLs() throws {
+        let original = MealEntry(
+            mealKind: .lunch,
+            status: .logged,
+            photoURLs: ["/tmp/lunch-1.jpg", "/tmp/lunch-2.jpg"]
+        )
+
+        let data = try JSONEncoder().encode(original)
+        let decoded = try JSONDecoder().decode(MealEntry.self, from: data)
+
+        #expect(decoded.photoURLs == original.photoURLs)
     }
 }
 
