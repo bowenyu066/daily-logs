@@ -315,6 +315,7 @@ struct MealEntry: Codable, Equatable, Identifiable {
     var locationName: String?
     var latitude: Double?
     var longitude: Double?
+    var isLocationManuallyEdited: Bool
 
     var displayTitle: String {
         customTitle?.isEmpty == false ? customTitle! : mealKind.title
@@ -358,7 +359,7 @@ struct MealEntry: Codable, Equatable, Identifiable {
 
     enum CodingKeys: String, CodingKey {
         case id, mealKind, customTitle, status, time, photoURL, photoURLs, timeZoneIdentifier
-        case note, locationName, latitude, longitude
+        case note, locationName, latitude, longitude, isLocationManuallyEdited
     }
 
     init(
@@ -373,7 +374,8 @@ struct MealEntry: Codable, Equatable, Identifiable {
         note: String? = nil,
         locationName: String? = nil,
         latitude: Double? = nil,
-        longitude: Double? = nil
+        longitude: Double? = nil,
+        isLocationManuallyEdited: Bool = false
     ) {
         self.id = id
         self.mealKind = mealKind
@@ -386,6 +388,7 @@ struct MealEntry: Codable, Equatable, Identifiable {
         self.locationName = locationName
         self.latitude = latitude
         self.longitude = longitude
+        self.isLocationManuallyEdited = isLocationManuallyEdited
     }
 
     init(from decoder: any Decoder) throws {
@@ -406,6 +409,8 @@ struct MealEntry: Codable, Equatable, Identifiable {
         locationName = try container.decodeIfPresent(String.self, forKey: .locationName)
         latitude = try container.decodeIfPresent(Double.self, forKey: .latitude)
         longitude = try container.decodeIfPresent(Double.self, forKey: .longitude)
+        isLocationManuallyEdited = try container.decodeIfPresent(Bool.self, forKey: .isLocationManuallyEdited)
+            ?? (locationName != nil || latitude != nil || longitude != nil)
     }
 
     func encode(to encoder: any Encoder) throws {
@@ -422,6 +427,7 @@ struct MealEntry: Codable, Equatable, Identifiable {
         try container.encodeIfPresent(locationName, forKey: .locationName)
         try container.encodeIfPresent(latitude, forKey: .latitude)
         try container.encodeIfPresent(longitude, forKey: .longitude)
+        try container.encode(isLocationManuallyEdited, forKey: .isLocationManuallyEdited)
     }
 }
 

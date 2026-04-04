@@ -638,6 +638,10 @@ final class AppViewModel: ObservableObject {
             updatedEntry.time = nil
             updatedEntry.photoURLs = []
             updatedEntry.timeZoneIdentifier = nil
+            updatedEntry.locationName = nil
+            updatedEntry.latitude = nil
+            updatedEntry.longitude = nil
+            updatedEntry.isLocationManuallyEdited = false
             if let index = existingMatch?.index {
                 dailyRecord.meals[index] = updatedEntry
             } else {
@@ -687,6 +691,10 @@ final class AppViewModel: ObservableObject {
             updatedEntry.time = nil
             updatedEntry.photoURLs = []
             updatedEntry.timeZoneIdentifier = nil
+            updatedEntry.locationName = nil
+            updatedEntry.latitude = nil
+            updatedEntry.longitude = nil
+            updatedEntry.isLocationManuallyEdited = false
             if let index = existingMatch?.index {
                 dailyRecord.meals[index] = updatedEntry
             } else {

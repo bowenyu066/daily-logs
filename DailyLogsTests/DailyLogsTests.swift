@@ -1197,6 +1197,44 @@ struct DailyLogsTests {
 
         #expect(decoded.photoURLs == original.photoURLs)
     }
+
+    @Test
+    func mealEntryRoundTripPreservesAutomaticPhotoLocationState() throws {
+        let original = MealEntry(
+            mealKind: .dinner,
+            status: .logged,
+            locationName: "Tokyo Station",
+            latitude: 35.6812,
+            longitude: 139.7671,
+            isLocationManuallyEdited: false
+        )
+
+        let data = try JSONEncoder().encode(original)
+        let decoded = try JSONDecoder().decode(MealEntry.self, from: data)
+
+        #expect(decoded.locationName == original.locationName)
+        #expect(decoded.latitude == original.latitude)
+        #expect(decoded.longitude == original.longitude)
+        #expect(decoded.isLocationManuallyEdited == false)
+    }
+
+    @Test
+    func mealEntryTreatsLegacySavedLocationAsManualEdit() throws {
+        let json = """
+        {
+          "mealKind": "breakfast",
+          "status": "logged",
+          "locationName": "Legacy Cafe",
+          "latitude": 40.7128,
+          "longitude": -74.0060
+        }
+        """.data(using: .utf8)!
+
+        let decoded = try JSONDecoder().decode(MealEntry.self, from: json)
+
+        #expect(decoded.locationName == "Legacy Cafe")
+        #expect(decoded.isLocationManuallyEdited == true)
+    }
 }
 
 @MainActor

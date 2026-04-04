@@ -3,6 +3,7 @@ import Photos
 import PhotosUI
 import SwiftUI
 import UIKit
+import ImageIO
 
 enum MealCaptureMode {
     case camera
@@ -107,12 +108,19 @@ struct MealEditorSheet: View {
             }
             .sheet(isPresented: $showingImagePicker) {
                 if let pickerSource {
-                    ImagePicker(sourceType: pickerSource) { image, capturedAt in
-                        if let image {
-                            selectedImages.append(SelectedMealImage(image: image))
+                    ImagePicker(sourceType: pickerSource) { selectedImage in
+                        if let selectedImage {
+                            let hadPhotosBeforeAppending = allPhotoCount > 0
+                            selectedImages.append(selectedImage)
                             draft.status = .logged
-                            draft.time = normalizedPickedDate(capturedAt) ?? draft.time ?? defaultLoggedTime
+                            draft.time = normalizedPickedDate(selectedImage.capturedAt) ?? draft.time ?? defaultLoggedTime
                             logsExistenceOnly = false
+                            Task {
+                                await applyAutomaticLocationIfNeeded(
+                                    from: selectedImage.location,
+                                    shouldAutofillFromFirstPhoto: !hadPhotosBeforeAppending
+                                )
+                            }
                         }
                     }
                 }
@@ -319,6 +327,7 @@ struct MealEditorSheet: View {
                             draft.locationName = nil
                             draft.latitude = nil
                             draft.longitude = nil
+                            draft.isLocationManuallyEdited = true
                         } label: {
                             Image(systemName: "xmark.circle.fill")
                                 .foregroundStyle(AppTheme.secondaryText)
@@ -355,6 +364,7 @@ struct MealEditorSheet: View {
                 draft.locationName = name
                 draft.latitude = lat
                 draft.longitude = lon
+                draft.isLocationManuallyEdited = true
             }
         }
     }
@@ -386,6 +396,7 @@ struct MealEditorSheet: View {
             entry.locationName = nil
             entry.latitude = nil
             entry.longitude = nil
+            entry.isLocationManuallyEdited = false
         }
         return entry
     }
@@ -453,20 +464,32 @@ struct MealEditorSheet: View {
     @MainActor
     private func loadSelectedPhotoItems(_ items: [PhotosPickerItem]) async {
         guard !items.isEmpty else { return }
+        let hadPhotosBeforeAppending = allPhotoCount > 0
         var appendedImages: [SelectedMealImage] = []
         for item in items {
             guard let data = try? await item.loadTransferable(type: Data.self),
                   let image = UIImage(data: data) else {
                 continue
             }
-            appendedImages.append(SelectedMealImage(image: image))
+            let metadata = await metadata(for: item)
+            appendedImages.append(
+                SelectedMealImage(
+                    image: image,
+                    capturedAt: metadata.capturedAt,
+                    location: metadata.location
+                )
+            )
         }
 
         if !appendedImages.isEmpty {
             selectedImages.append(contentsOf: appendedImages)
             draft.status = .logged
-            draft.time = draft.time ?? defaultLoggedTime
+            draft.time = draft.time ?? normalizedPickedDate(appendedImages.first?.capturedAt) ?? defaultLoggedTime
             logsExistenceOnly = false
+            await applyAutomaticLocationIfNeeded(
+                from: appendedImages.first?.location,
+                shouldAutofillFromFirstPhoto: !hadPhotosBeforeAppending
+            )
         }
 
         photoPickerItems = []
@@ -483,16 +506,93 @@ struct MealEditorSheet: View {
             in: appViewModel.displayedTimeZone(for: draft.timeZoneIdentifier)
         )
     }
+
+    private func metadata(for item: PhotosPickerItem) async -> SelectedMealImage.Metadata {
+        guard let itemIdentifier = item.itemIdentifier else {
+            return .empty
+        }
+        let fetchResult = PHAsset.fetchAssets(withLocalIdentifiers: [itemIdentifier], options: nil)
+        guard let asset = fetchResult.firstObject else {
+            return .empty
+        }
+        return SelectedMealImage.Metadata(
+            capturedAt: asset.creationDate,
+            location: asset.location
+        )
+    }
+
+    @MainActor
+    private func applyAutomaticLocationIfNeeded(
+        from location: CLLocation?,
+        shouldAutofillFromFirstPhoto: Bool
+    ) async {
+        guard shouldAutofillFromFirstPhoto,
+              let location,
+              !draft.isLocationManuallyEdited,
+              draft.locationName == nil,
+              draft.latitude == nil,
+              draft.longitude == nil else {
+            return
+        }
+
+        let locationName = await reverseGeocodedName(for: location)
+        guard !draft.isLocationManuallyEdited,
+              draft.locationName == nil,
+              draft.latitude == nil,
+              draft.longitude == nil else {
+            return
+        }
+
+        draft.locationName = locationName
+        draft.latitude = location.coordinate.latitude
+        draft.longitude = location.coordinate.longitude
+        draft.isLocationManuallyEdited = false
+    }
+
+    private func reverseGeocodedName(for location: CLLocation) async -> String {
+        let placemarks = try? await CLGeocoder().reverseGeocodeLocation(location)
+        let placemark = placemarks?.first
+        if let name = placemark?.name, !name.isEmpty {
+            return name
+        }
+        if let locality = placemark?.locality, !locality.isEmpty {
+            return locality
+        }
+        return String(
+            format: "%.4f, %.4f",
+            location.coordinate.latitude,
+            location.coordinate.longitude
+        )
+    }
 }
 
 private struct SelectedMealImage: Identifiable {
     let id = UUID()
     let image: UIImage
+    let capturedAt: Date?
+    let location: CLLocation?
+
+    init(
+        image: UIImage,
+        capturedAt: Date? = nil,
+        location: CLLocation? = nil
+    ) {
+        self.image = image
+        self.capturedAt = capturedAt
+        self.location = location
+    }
+
+    struct Metadata {
+        let capturedAt: Date?
+        let location: CLLocation?
+
+        static let empty = Metadata(capturedAt: nil, location: nil)
+    }
 }
 
 private struct ImagePicker: UIViewControllerRepresentable {
     let sourceType: UIImagePickerController.SourceType
-    let onImagePicked: (UIImage?, Date?) -> Void
+    let onImagePicked: (SelectedMealImage?) -> Void
 
     func makeUIViewController(context: Context) -> UIImagePickerController {
         let picker = UIImagePickerController()
@@ -508,35 +608,72 @@ private struct ImagePicker: UIViewControllerRepresentable {
     }
 
     final class Coordinator: NSObject, UINavigationControllerDelegate, UIImagePickerControllerDelegate {
-        let onImagePicked: (UIImage?, Date?) -> Void
+        let onImagePicked: (SelectedMealImage?) -> Void
 
-        init(onImagePicked: @escaping (UIImage?, Date?) -> Void) {
+        init(onImagePicked: @escaping (SelectedMealImage?) -> Void) {
             self.onImagePicked = onImagePicked
         }
 
         func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
-            onImagePicked(nil, nil)
+            onImagePicked(nil)
             picker.dismiss(animated: true)
         }
 
         func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey : Any]) {
             let image = info[.originalImage] as? UIImage
-            let capturedAt = capturedDate(from: info, sourceType: picker.sourceType)
-            onImagePicked(image, capturedAt)
+            let metadata = metadata(from: info, sourceType: picker.sourceType)
+            onImagePicked(image.map {
+                SelectedMealImage(
+                    image: $0,
+                    capturedAt: metadata.capturedAt,
+                    location: metadata.location
+                )
+            })
             picker.dismiss(animated: true)
         }
 
-        private func capturedDate(
+        private func metadata(
             from info: [UIImagePickerController.InfoKey : Any],
             sourceType: UIImagePickerController.SourceType
-        ) -> Date? {
-            if let asset = info[.phAsset] as? PHAsset, let creationDate = asset.creationDate {
-                return creationDate
+        ) -> SelectedMealImage.Metadata {
+            if let asset = info[.phAsset] as? PHAsset {
+                return SelectedMealImage.Metadata(
+                    capturedAt: asset.creationDate,
+                    location: asset.location
+                )
             }
+
+            if let mediaMetadata = info[.mediaMetadata] as? [AnyHashable: Any],
+               let location = imageMetadataLocation(from: mediaMetadata) {
+                return SelectedMealImage.Metadata(
+                    capturedAt: Date(),
+                    location: location
+                )
+            }
+
             if sourceType == .camera {
-                return Date()
+                return SelectedMealImage.Metadata(
+                    capturedAt: Date(),
+                    location: nil
+                )
             }
-            return nil
+
+            return .empty
+        }
+
+        private func imageMetadataLocation(from metadata: [AnyHashable: Any]) -> CLLocation? {
+            guard let gps = metadata[kCGImagePropertyGPSDictionary as String] as? [String: Any],
+                  let latitude = gps[kCGImagePropertyGPSLatitude as String] as? CLLocationDegrees,
+                  let longitude = gps[kCGImagePropertyGPSLongitude as String] as? CLLocationDegrees else {
+                return nil
+            }
+
+            let latitudeRef = (gps[kCGImagePropertyGPSLatitudeRef as String] as? String)?.uppercased()
+            let longitudeRef = (gps[kCGImagePropertyGPSLongitudeRef as String] as? String)?.uppercased()
+
+            let signedLatitude = latitudeRef == "S" ? -latitude : latitude
+            let signedLongitude = longitudeRef == "W" ? -longitude : longitude
+            return CLLocation(latitude: signedLatitude, longitude: signedLongitude)
         }
     }
 }
