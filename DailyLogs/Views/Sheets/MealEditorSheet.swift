@@ -130,7 +130,7 @@ struct MealEditorSheet: View {
                 selection: $photoPickerItems,
                 maxSelectionCount: nil,
                 matching: .images,
-                preferredItemEncoding: .automatic
+                preferredItemEncoding: .current
             )
             .alert(NSLocalizedString("删除餐次？", comment: ""), isPresented: $showingDeleteMealConfirmation) {
                 Button(NSLocalizedString("取消", comment: ""), role: .cancel) {}
@@ -471,12 +471,14 @@ struct MealEditorSheet: View {
                   let image = UIImage(data: data) else {
                 continue
             }
-            let metadata = await metadata(for: item)
+            let parsedMetadata = metadata(from: data)
+            let assetMetadata = await metadata(for: item)
+            let mergedMetadata = parsedMetadata.merging(assetMetadata)
             appendedImages.append(
                 SelectedMealImage(
                     image: image,
-                    capturedAt: metadata.capturedAt,
-                    location: metadata.location
+                    capturedAt: mergedMetadata.capturedAt,
+                    location: mergedMetadata.location
                 )
             )
         }
@@ -521,6 +523,18 @@ struct MealEditorSheet: View {
         )
     }
 
+    private func metadata(from data: Data) -> SelectedMealImage.Metadata {
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil),
+              let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any] else {
+            return .empty
+        }
+
+        return SelectedMealImage.Metadata(
+            capturedAt: capturedDate(from: properties),
+            location: imageLocation(from: properties)
+        )
+    }
+
     @MainActor
     private func applyAutomaticLocationIfNeeded(
         from location: CLLocation?,
@@ -535,18 +549,20 @@ struct MealEditorSheet: View {
             return
         }
 
+        let coordinateName = formattedCoordinateString(for: location.coordinate)
+        draft.locationName = coordinateName
+        draft.latitude = location.coordinate.latitude
+        draft.longitude = location.coordinate.longitude
+        draft.isLocationManuallyEdited = false
+
         let locationName = await reverseGeocodedName(for: location)
         guard !draft.isLocationManuallyEdited,
-              draft.locationName == nil,
-              draft.latitude == nil,
-              draft.longitude == nil else {
+              draft.latitude == location.coordinate.latitude,
+              draft.longitude == location.coordinate.longitude else {
             return
         }
 
         draft.locationName = locationName
-        draft.latitude = location.coordinate.latitude
-        draft.longitude = location.coordinate.longitude
-        draft.isLocationManuallyEdited = false
     }
 
     private func reverseGeocodedName(for location: CLLocation) async -> String {
@@ -558,11 +574,58 @@ struct MealEditorSheet: View {
         if let locality = placemark?.locality, !locality.isEmpty {
             return locality
         }
-        return String(
-            format: "%.4f, %.4f",
-            location.coordinate.latitude,
-            location.coordinate.longitude
-        )
+        return formattedCoordinateString(for: location.coordinate)
+    }
+
+    private func formattedCoordinateString(for coordinate: CLLocationCoordinate2D) -> String {
+        String(format: "%.4f, %.4f", coordinate.latitude, coordinate.longitude)
+    }
+
+    private func imageLocation(from properties: [CFString: Any]) -> CLLocation? {
+        guard let gps = properties[kCGImagePropertyGPSDictionary] as? [CFString: Any],
+              let latitude = gps[kCGImagePropertyGPSLatitude] as? CLLocationDegrees,
+              let longitude = gps[kCGImagePropertyGPSLongitude] as? CLLocationDegrees else {
+            return nil
+        }
+
+        let latitudeRef = (gps[kCGImagePropertyGPSLatitudeRef] as? String)?.uppercased()
+        let longitudeRef = (gps[kCGImagePropertyGPSLongitudeRef] as? String)?.uppercased()
+        let signedLatitude = latitudeRef == "S" ? -latitude : latitude
+        let signedLongitude = longitudeRef == "W" ? -longitude : longitude
+        return CLLocation(latitude: signedLatitude, longitude: signedLongitude)
+    }
+
+    private func capturedDate(from properties: [CFString: Any]) -> Date? {
+        if let exif = properties[kCGImagePropertyExifDictionary] as? [CFString: Any],
+           let dateString = exif[kCGImagePropertyExifDateTimeOriginal] as? String {
+            let offset = exif[kCGImagePropertyExifOffsetTimeOriginal] as? String
+            if let parsed = parsedExifDate(dateString, offset: offset) {
+                return parsed
+            }
+        }
+
+        if let tiff = properties[kCGImagePropertyTIFFDictionary] as? [CFString: Any],
+           let dateString = tiff[kCGImagePropertyTIFFDateTime] as? String {
+            return parsedExifDate(dateString, offset: nil)
+        }
+
+        return nil
+    }
+
+    private func parsedExifDate(_ dateString: String, offset: String?) -> Date? {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+
+        if let offset, !offset.isEmpty {
+            formatter.dateFormat = "yyyy:MM:dd HH:mm:ssXXXXX"
+            if let parsed = formatter.date(from: dateString + offset) {
+                return parsed
+            }
+        }
+
+        formatter.timeZone = .current
+        formatter.dateFormat = "yyyy:MM:dd HH:mm:ss"
+        return formatter.date(from: dateString)
     }
 }
 
@@ -587,6 +650,13 @@ private struct SelectedMealImage: Identifiable {
         let location: CLLocation?
 
         static let empty = Metadata(capturedAt: nil, location: nil)
+
+        func merging(_ fallback: Metadata) -> Metadata {
+            Metadata(
+                capturedAt: capturedAt ?? fallback.capturedAt,
+                location: location ?? fallback.location
+            )
+        }
     }
 }
 
