@@ -577,6 +577,7 @@ final class LocalDailyRecordRepository: DailyRecordRepository {
             if meal.photoURL?.isEmpty == false { score += 1 }
         }
 
+        if record.aiInsightNarrative?.hasAIScoring == true { score += 2 }
         if record.sunTimes != nil { score += 1 }
         return score
     }

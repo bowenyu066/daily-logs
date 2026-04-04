@@ -219,13 +219,15 @@ struct DailyLogsTests {
             record: record,
             preferences: preferences,
             language: .en,
-            locale: Locale(identifier: "en_US")
+            locale: Locale(identifier: "en_US"),
+            history: [record]
         )
         let payloadJSON = String(decoding: try JSONEncoder().encode(payload), as: UTF8.self)
 
         #expect(payload.meals.map(\.status) == ["logged_with_time", "logged_without_time", "skipped", "unrecorded"])
         #expect(payload.showerEnabled == false)
         #expect(payload.bowelMovementEnabled == false)
+        #expect(payload.comparisonContext.trailing7Days.recordedDays == 0)
         #expect(payloadJSON.contains("\"overallScore\"") == false)
         #expect(payloadJSON.contains("\"scoreBreakdown\"") == false)
         #expect(payloadJSON.contains("\"localSummary\"") == false)
@@ -335,6 +337,11 @@ struct DailyLogsTests {
                 bullets: ["旧 bullet 1", "旧 bullet 2"]
             ),
             DailyInsightNarrative(
+                headline: "旧版文案 2",
+                summary: "还是没有分数",
+                bullets: ["旧 bullet 3", "旧 bullet 4"]
+            ),
+            DailyInsightNarrative(
                 headline: "新版 AI 打分",
                 summary: "现在带分数了",
                 bullets: ["新 bullet 1", "新 bullet 2"],
@@ -369,10 +376,153 @@ struct DailyLogsTests {
 
         await viewModel.refreshDailyInsightNarrative()
 
-        #expect(aiService.callCount == 2)
+        #expect(aiService.callCount == 3)
         #expect(viewModel.dailyInsightNarrative?.headline == "新版 AI 打分")
         #expect(viewModel.isDisplayingAIScoredInsight == true)
         #expect(viewModel.displayedDailyInsightReport?.overallScore == 84)
+    }
+
+    @Test @MainActor
+    func refreshDailyInsightNarrativeUsesPersistedNarrativeWithoutCallingAI() async {
+        let today = Date().startOfDay
+        let yesterday = today.adding(days: -1)
+        let preferences = UserPreferences(
+            healthKitSyncEnabled: false,
+            visibleHomeSections: [.sleep, .meals, .showers]
+        )
+        let user = UserAccount(
+            userID: "persisted-ai-user",
+            displayName: "Tester",
+            email: nil,
+            authMode: .guest,
+            createdAt: today.adding(days: -30)
+        )
+        let persistedNarrative = DailyInsightNarrative(
+            headline: "已缓存的 AI",
+            summary: "直接命中缓存",
+            bullets: ["缓存 bullet 1", "缓存 bullet 2"],
+            overallScore: 90,
+            components: [
+                "sleep": .init(score: 92, maxScore: 100, detail: "AI 睡眠", included: true),
+                "meals": .init(score: 88, maxScore: 100, detail: "AI 餐食", included: true),
+                "shower": .init(score: 80, maxScore: 100, detail: "AI 洗澡", included: true),
+                "bowelMovement": .init(score: 0, maxScore: 100, detail: "AI 排便未纳入", included: false)
+            ]
+        )
+        let record = DailyRecord(
+            date: yesterday,
+            sleepRecord: SleepRecord(
+                bedtimePreviousNight: yesterday.adding(days: -1).settingTime(hour: 23, minute: 20),
+                wakeTimeCurrentDay: yesterday.settingTime(hour: 7, minute: 15),
+                source: .manual
+            ),
+            meals: [
+                MealEntry(mealKind: .breakfast, status: .logged, time: yesterday.settingTime(hour: 8, minute: 0))
+            ],
+            showers: [],
+            bowelMovements: [],
+            sexualActivities: [],
+            sunTimes: nil,
+            aiInsightNarrative: persistedNarrative
+        )
+        let aiService = MockAIInsightNarrativeService(responses: [
+            DailyInsightNarrative(
+                headline: "不该被调用",
+                summary: "不该生成",
+                bullets: ["x", "y"],
+                overallScore: 10,
+                components: [
+                    "sleep": .init(score: 10, maxScore: 100, detail: "x", included: true),
+                    "meals": .init(score: 10, maxScore: 100, detail: "x", included: true),
+                    "shower": .init(score: 10, maxScore: 100, detail: "x", included: true),
+                    "bowelMovement": .init(score: 0, maxScore: 100, detail: "x", included: false)
+                ]
+            )
+        ])
+        let viewModel = AppViewModel(
+            authService: MockAuthService(user: user),
+            repository: InMemoryDailyRecordRepository(records: [yesterday.storageKey(): record]),
+            preferencesStore: MockPreferencesStore(preferences: preferences),
+            photoStorageService: MockPhotoStorageService(),
+            sunTimesService: MockSunTimesService(),
+            healthSyncAdapter: MockHealthSyncAdapter(sleepRecord: nil),
+            cloudSyncService: NoopCloudSyncService(),
+            aiInsightNarrativeService: aiService,
+            openAIKeyStore: MockOpenAIKeyStore(key: "test-key"),
+            locationService: LocationService(),
+            selectedDate: yesterday,
+            dailyRecord: DailyRecord.empty(for: yesterday, preferences: preferences),
+            preferences: preferences
+        )
+
+        await viewModel.bootstrap()
+        await viewModel.refreshDailyInsightNarrative()
+
+        #expect(aiService.callCount == 0)
+        #expect(viewModel.activeDailyInsightNarrative?.headline == "已缓存的 AI")
+        #expect(viewModel.displayedDailyInsightReport?.overallScore == 90)
+    }
+
+    @Test @MainActor
+    func bootstrapClearsLegacyOpenAIKeyAndUsesInjectedAIServiceState() async {
+        let today = Date().startOfDay
+        let preferences = UserPreferences(healthKitSyncEnabled: false)
+        let user = UserAccount(
+            userID: "legacy-key-user",
+            displayName: "Tester",
+            email: nil,
+            authMode: .guest,
+            createdAt: today
+        )
+        let keyStore = MockOpenAIKeyStore(key: "legacy-key")
+        let aiService = MockAIInsightNarrativeService(responses: [
+            DailyInsightNarrative(
+                headline: "AI 可用",
+                summary: "测试注入的服务仍然可用",
+                bullets: ["a", "b"],
+                overallScore: 80,
+                components: [
+                    "sleep": .init(score: 80, maxScore: 100, detail: "x", included: true),
+                    "meals": .init(score: 80, maxScore: 100, detail: "x", included: true),
+                    "shower": .init(score: 80, maxScore: 100, detail: "x", included: true),
+                    "bowelMovement": .init(score: 0, maxScore: 100, detail: "x", included: false)
+                ]
+            )
+        ])
+        let viewModel = AppViewModel(
+            authService: MockAuthService(user: user),
+            repository: InMemoryDailyRecordRepository(),
+            preferencesStore: MockPreferencesStore(preferences: preferences),
+            photoStorageService: MockPhotoStorageService(),
+            sunTimesService: MockSunTimesService(),
+            healthSyncAdapter: MockHealthSyncAdapter(sleepRecord: nil),
+            cloudSyncService: NoopCloudSyncService(),
+            aiInsightNarrativeService: aiService,
+            openAIKeyStore: keyStore,
+            locationService: LocationService(),
+            selectedDate: today,
+            dailyRecord: DailyRecord.empty(for: today, preferences: preferences),
+            preferences: preferences
+        )
+
+        await viewModel.bootstrap()
+
+        #expect(keyStore.key == nil)
+        #expect(keyStore.deleteCallCount == 1)
+        #expect(viewModel.canGenerateAIInsights == true)
+        #expect(viewModel.isUsingCloudAIProxy == false)
+    }
+
+    @Test
+    func anchoringCurrentClockTimeCopiesCurrentHourAndMinute() {
+        let baseDate = Date().startOfDay.adding(days: -3)
+        let anchored = baseDate.anchoringCurrentClockTime()
+        let nowComponents = Calendar.current.dateComponents([.hour, .minute], from: .now)
+        let anchoredComponents = Calendar.current.dateComponents([.hour, .minute], from: anchored)
+
+        #expect(anchoredComponents.hour == nowComponents.hour)
+        #expect(anchoredComponents.minute == nowComponents.minute)
+        #expect(anchored.startOfDay == baseDate.startOfDay)
     }
 
     @Test
@@ -1068,8 +1218,13 @@ private final class InMemoryDailyRecordRepository: DailyRecordRepository {
     }
 }
 
-private struct MockOpenAIKeyStore: OpenAIKeyStoring {
+private final class MockOpenAIKeyStore: OpenAIKeyStoring, @unchecked Sendable {
     var key: String? = nil
+    private(set) var deleteCallCount = 0
+
+    init(key: String? = nil) {
+        self.key = key
+    }
 
     var hasAPIKey: Bool {
         key?.isEmpty == false
@@ -1081,7 +1236,10 @@ private struct MockOpenAIKeyStore: OpenAIKeyStoring {
 
     func saveAPIKey(_ key: String) throws {}
 
-    func deleteAPIKey() {}
+    func deleteAPIKey() {
+        deleteCallCount += 1
+        key = nil
+    }
 }
 
 private final class MockAIInsightNarrativeService: AIInsightNarrativeGenerating, @unchecked Sendable {

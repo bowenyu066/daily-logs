@@ -333,16 +333,7 @@ struct MealEditorSheet: View {
 
     private var defaultLoggedTime: Date {
         let timeZone = appViewModel.displayedTimeZone(for: draft.timeZoneIdentifier)
-        switch draft.mealKind {
-        case .breakfast:
-            return baseDate.settingTime(hour: 8, minute: 0, in: timeZone)
-        case .lunch:
-            return baseDate.settingTime(hour: 12, minute: 30, in: timeZone)
-        case .dinner:
-            return baseDate.settingTime(hour: 18, minute: 30, in: timeZone)
-        case .custom:
-            return baseDate.settingTime(hour: 15, minute: 0, in: timeZone)
-        }
+        return baseDate.anchoringCurrentClockTime(in: timeZone)
     }
 
     private var timeAccent: Color {

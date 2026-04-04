@@ -146,13 +146,55 @@
 
     },
     "AI 洞察" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI Insights"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI 洞察"
+          }
+        }
+      }
     },
     "AI 解读生成失败：" : {
 
     },
     "AI 评分已启用" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI scoring enabled"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI 评分已启用"
+          }
+        }
+      }
+    },
+    "AI 请求会经你的云端代理转发。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI requests are routed through your cloud proxy."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI 请求会经你的云端代理转发。"
+          }
+        }
+      }
     },
     "AI 返回了文案，但没有返回分数。" : {
 
@@ -297,15 +339,6 @@
         }
       }
     },
-    "Key 只保存在这台设备，不会同步到云端。" : {
-
-    },
-    "OpenAI API Key" : {
-
-    },
-    "OpenAI API Key 已配置" : {
-
-    },
     "REM 时长" : {
       "localizations" : {
         "en" : {
@@ -427,6 +460,60 @@
           }
         }
       }
+    },
+    "云端 AI 代理地址还没有配置。" : {
+
+    },
+    "云端 AI 已启用" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cloud AI enabled"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "云端 AI 已启用"
+          }
+        }
+      }
+    },
+    "云端 AI 已连接" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cloud AI connected"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "云端 AI 已连接"
+          }
+        }
+      }
+    },
+    "云端 AI 未就绪" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cloud AI unavailable"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "云端 AI 未就绪"
+          }
+        }
+      }
+    },
+    "云端 AI 需要登录后的 Firebase 身份令牌。" : {
+
     },
     "云端偏好同步失败：" : {
       "localizations" : {
@@ -653,12 +740,6 @@
         }
       }
     },
-    "保存 Key" : {
-
-    },
-    "保存 OpenAI Key 失败：" : {
-
-    },
     "保存偏好失败：" : {
       "localizations" : {
         "en" : {
@@ -866,6 +947,9 @@
         }
       }
     },
+    "最近只有 %d 天可用记录，趋势判断会更保守。" : {
+
+    },
     "初始化失败：" : {
       "localizations" : {
         "en" : {
@@ -875,9 +959,6 @@
           }
         }
       }
-    },
-    "删除本地 Key" : {
-
     },
     "删除照片" : {
       "localizations" : {
@@ -1050,6 +1131,9 @@
         }
       }
     },
+    "历史样本还不够，暂时只参考当天表现。" : {
+
+    },
     "取消" : {
       "localizations" : {
         "en" : {
@@ -1083,7 +1167,20 @@
       }
     },
     "可生成 AI 评分" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI scoring available"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "可生成 AI 评分"
+          }
+        }
+      }
     },
     "同步" : {
       "localizations" : {
@@ -1308,9 +1405,6 @@
           }
         }
       }
-    },
-    "如果你暂时不填，AI 页仍然会显示本地评分，只是不会生成额外的 AI 文案。" : {
-
     },
     "完成" : {
       "localizations" : {
@@ -1640,14 +1734,21 @@
         }
       }
     },
-    "当前使用本地兜底评分" : {
-
-    },
-    "当前先显示本地总结。添加 API Key 后，这里会升级成 AI 打分和文案。" : {
-
-    },
-    "当前已经有本地保存的 key。你可以直接粘贴新的 key 覆盖，或者删除它。" : {
-
+    "当前只分析昨天的睡眠、餐食、洗澡和排便。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Only yesterday's sleep, meals, showers, and bowel movements are analyzed."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "当前只分析昨天的睡眠、餐食、洗澡和排便。"
+          }
+        }
+      }
     },
     "当前时区" : {
       "localizations" : {
@@ -1660,10 +1761,20 @@
       }
     },
     "当前显示本地评分" : {
-
-    },
-    "当前版本只分析最近一个完整日的睡眠、餐食、洗澡和排便。未开启的模块不会被纳入评分。" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Showing local scoring"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "当前显示本地评分"
+          }
+        }
+      }
     },
     "当前设备未启用云同步。" : {
       "localizations" : {
@@ -1728,9 +1839,6 @@
           }
         }
       }
-    },
-    "想启用 AI 文案的话，到“设置 > AI 洞察”里贴入你的 OpenAI API Key 就可以。" : {
-
     },
     "我" : {
       "localizations" : {
@@ -2001,7 +2109,20 @@
 
     },
     "昨天的观察" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yesterday's notes"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "昨天的观察"
+          }
+        }
+      }
     },
     "昨天的餐食记录比较完整，这一项整体是加分的。" : {
 
@@ -2013,7 +2134,20 @@
 
     },
     "昨日分数" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yesterday's score"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "昨日分数"
+          }
+        }
+      }
     },
     "是否从 Apple Health 同步数据？" : {
       "localizations" : {
@@ -2116,7 +2250,20 @@
       }
     },
     "未纳入" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not included"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未纳入"
+          }
+        }
+      }
     },
     "未纳入昨天的分析范围" : {
 
@@ -2136,9 +2283,6 @@
           }
         }
       }
-    },
-    "未配置 OpenAI API Key 时会回退到本地兜底评分；配置后会优先显示 AI 给出的分数和解读。" : {
-
     },
     "检测到旧版云数据，需要升级到加密存储。" : {
       "localizations" : {
@@ -2253,7 +2397,20 @@
       }
     },
     "正在生成 AI 评分…" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Generating AI score…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在生成 AI 评分…"
+          }
+        }
+      }
     },
     "正在迁移 %d/%d…" : {
       "localizations" : {
@@ -2604,11 +2761,88 @@
         }
       }
     },
+    "游客模式使用本地评分" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Guest mode uses local scoring"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "游客模式使用本地评分"
+          }
+        }
+      }
+    },
+    "游客模式显示本地评分。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Guest mode shows local scoring."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "游客模式显示本地评分。"
+          }
+        }
+      }
+    },
     "现在的数据还不足以形成稳定分析。" : {
 
     },
     "现在还是本地兜底分数；生成后会切换成 AI 评分。" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Local scoring is shown for now. Generate to switch to AI scoring."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "现在还是本地兜底分数；生成后会切换成 AI 评分。"
+          }
+        }
+      }
+    },
+    "登录后自动使用云端 AI。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sign in to use cloud AI automatically."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "登录后自动使用云端 AI。"
+          }
+        }
+      }
+    },
+    "登录后自动启用云端 AI。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sign in to enable cloud AI automatically."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "登录后自动启用云端 AI。"
+          }
+        }
+      }
     },
     "登录失败：" : {
       "localizations" : {
@@ -2914,10 +3148,20 @@
       }
     },
     "等你至少记录一天后，这里就会出现昨日评分和 AI 洞察。" : {
-
-    },
-    "粘贴 sk-... 或其他 OpenAI API Key" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "After at least one day of logs, yesterday's score and AI insights will appear here."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "等你至少记录一天后，这里就会出现昨日评分和 AI 洞察。"
+          }
+        }
+      }
     },
     "结束" : {
       "localizations" : {
@@ -3160,7 +3404,20 @@
       }
     },
     "说明" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notes"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "说明"
+          }
+        }
+      }
     },
     "请检查同一 Apple ID 和 iCloud 钥匙串。" : {
       "localizations" : {
@@ -3342,7 +3599,20 @@
 
     },
     "还没有可分析的数据" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No data to analyze yet"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "还没有可分析的数据"
+          }
+        }
+      }
     },
     "还没有性生活记录数据。" : {
       "localizations" : {
@@ -3434,9 +3704,6 @@
         }
       }
     },
-    "这个 key 只会保存在当前设备的 Keychain 中，不会同步到云端。" : {
-
-    },
     "这台设备已受端到端加密保护" : {
       "localizations" : {
         "en" : {
@@ -3486,10 +3753,36 @@
       }
     },
     "这张卡片的分数和文案都由 AI 给出。" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The score and text on this card come from AI."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这张卡片的分数和文案都由 AI 给出。"
+          }
+        }
+      }
     },
     "这是一项趣味型分析功能，不构成医疗或健康建议。" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This is a light analysis feature, not medical or health advice."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这是一项趣味型分析功能，不构成医疗或健康建议。"
+          }
+        }
+      }
     },
     "这是趣味性 AI 分析，不是医疗或健康建议。" : {
 
@@ -3579,9 +3872,6 @@
         }
       }
     },
-    "配置后，这一页的总分和分项分也会一起改成 AI 来打。" : {
-
-    },
     "重新检查同步密钥" : {
       "localizations" : {
         "en" : {
@@ -3599,7 +3889,20 @@
       }
     },
     "重新生成 AI 评分" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Regenerate AI score"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重新生成 AI 评分"
+          }
+        }
+      }
     },
     "重试升级" : {
       "localizations" : {
@@ -3652,9 +3955,6 @@
           }
         }
       }
-    },
-    "默认有本地兜底；配置 OpenAI 后，昨日评分和解读都会交给 AI。" : {
-
     },
     "默认餐次" : {
       "localizations" : {

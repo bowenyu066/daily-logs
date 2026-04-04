@@ -37,7 +37,8 @@ final class AppViewModel: ObservableObject {
     @Published private(set) var dailyInsightNarrative: DailyInsightNarrative?
     @Published private(set) var dailyInsightNarrativeDate: Date?
     @Published private(set) var isGeneratingDailyInsightNarrative = false
-    @Published private(set) var hasOpenAIAPIKey = false
+    @Published private(set) var canGenerateAIInsights = false
+    @Published private(set) var isUsingCloudAIProxy = false
     @Published private(set) var aiInsightErrorMessage: String?
 
     let locationService: LocationService
@@ -57,6 +58,7 @@ final class AppViewModel: ObservableObject {
         let store = LocalJSONStore()
         let preferences = UserPreferences()
         let openAIKeyStore = OpenAIKeychainStore()
+        let cloudAIService = CloudAIInsightService()
         return AppViewModel(
             authService: LocalAuthService(store: store),
             repository: LocalDailyRecordRepository(store: store),
@@ -65,7 +67,7 @@ final class AppViewModel: ObservableObject {
             sunTimesService: AstronomySunTimesService(),
             healthSyncAdapter: HealthKitService(),
             cloudSyncService: FirebaseCloudSyncService(),
-            aiInsightNarrativeService: OpenAIResponsesInsightService(keyStore: openAIKeyStore),
+            aiInsightNarrativeService: cloudAIService,
             openAIKeyStore: openAIKeyStore,
             locationService: LocationService(),
             selectedDate: .now.startOfDay,
@@ -158,9 +160,18 @@ final class AppViewModel: ObservableObject {
         return availableStartDate <= today ? today : nil
     }
 
+    var activeDailyInsightNarrative: DailyInsightNarrative? {
+        guard let targetDate = dailyInsightTargetDate else { return nil }
+        if dailyInsightNarrativeDate?.startOfDay == targetDate.startOfDay,
+           let dailyInsightNarrative {
+            return dailyInsightNarrative
+        }
+        return record(for: targetDate)?.aiInsightNarrative
+    }
+
     var dailyInsightReport: DailyInsightReport? {
         guard let targetDate = dailyInsightTargetDate else { return nil }
-        let record = allRecords.first(where: { $0.date.startOfDay == targetDate.startOfDay })
+        let record = record(for: targetDate)
             ?? DailyRecord.empty(for: targetDate, preferences: preferences)
         let locale = preferences.appLanguage.locale ?? Locale.autoupdatingCurrent
         return DailyInsightAnalyzer.buildReport(
@@ -172,26 +183,21 @@ final class AppViewModel: ObservableObject {
 
     var displayedDailyInsightReport: DailyInsightReport? {
         guard let baseReport = dailyInsightReport,
-              let targetDate = dailyInsightTargetDate,
-              dailyInsightNarrativeDate?.startOfDay == targetDate.startOfDay else {
+              activeDailyInsightNarrative?.hasAIScoring == true else {
             return dailyInsightReport
         }
-        return baseReport.applyingAIOverrides(dailyInsightNarrative)
+        return baseReport.applyingAIOverrides(activeDailyInsightNarrative)
     }
 
     var isDisplayingAIScoredInsight: Bool {
-        guard let targetDate = dailyInsightTargetDate,
-              dailyInsightNarrativeDate?.startOfDay == targetDate.startOfDay else {
-            return false
-        }
-        return dailyInsightNarrative?.hasAIScoring == true
+        activeDailyInsightNarrative?.hasAIScoring == true
     }
 
     func bootstrap() async {
         guard !isBootstrapped else { return }
         isBootstrapped = true
-        refreshOpenAIConfigurationState()
         user = authService.restoreSession()
+        refreshOpenAIConfigurationState()
         do {
             preferences = hydratedPreferences(from: try preferencesStore.loadPreferences(userID: user?.userID))
             persistPreferences()
@@ -208,69 +214,81 @@ final class AppViewModel: ObservableObject {
                 updateSunTimesIfPossible()
                 refreshLocationIfAuthorized()
             }
+            await ensureAutomaticYesterdayInsightIfNeeded()
         } catch {
             errorMessage = NSLocalizedString("初始化失败：", comment: "") + error.localizedDescription
         }
     }
 
     func refreshOpenAIConfigurationState() {
-        hasOpenAIAPIKey = openAIKeyStore.hasAPIKey
-    }
-
-    func saveOpenAIAPIKey(_ key: String) {
-        let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else {
-            deleteOpenAIAPIKey()
-            return
+        if openAIKeyStore.hasAPIKey {
+            openAIKeyStore.deleteAPIKey()
         }
-        do {
-            try openAIKeyStore.saveAPIKey(trimmed)
-            hasOpenAIAPIKey = true
-            aiInsightErrorMessage = nil
-            invalidateDailyInsightNarrative()
-        } catch {
-            errorMessage = NSLocalizedString("保存 OpenAI Key 失败：", comment: "") + error.localizedDescription
+
+        if aiInsightNarrativeService is CloudAIInsightService {
+            isUsingCloudAIProxy = canUseCloudAIProxy
+            canGenerateAIInsights = canUseCloudAIProxy
+        } else {
+            isUsingCloudAIProxy = false
+            canGenerateAIInsights = aiInsightNarrativeService.isConfigured
         }
     }
 
-    func deleteOpenAIAPIKey() {
-        openAIKeyStore.deleteAPIKey()
-        hasOpenAIAPIKey = false
-        aiInsightErrorMessage = nil
-        invalidateDailyInsightNarrative()
+    func handleAppBecomingActive() async {
+        refreshOpenAIConfigurationState()
+        await ensureAutomaticYesterdayInsightIfNeeded()
     }
 
     func refreshDailyInsightNarrative(force: Bool = false) async {
         guard dailyInsightReport != nil,
               let targetDate = dailyInsightTargetDate else { return }
-        guard hasOpenAIAPIKey else {
+        await generateDailyInsightNarrative(for: targetDate, force: force, isAutomatic: false)
+    }
+
+    private func generateDailyInsightNarrative(
+        for targetDate: Date,
+        force: Bool,
+        isAutomatic: Bool
+    ) async {
+        guard report(for: targetDate) != nil else { return }
+        guard canGenerateAIInsights else {
             aiInsightErrorMessage = nil
             return
         }
+        if isGeneratingDailyInsightNarrative {
+            return
+        }
         if !force,
-           dailyInsightNarrativeDate?.startOfDay == targetDate.startOfDay,
-           dailyInsightNarrative?.hasAIScoring == true {
+           activeNarrative(for: targetDate)?.hasAIScoring == true {
+            dailyInsightNarrative = activeNarrative(for: targetDate)
+            dailyInsightNarrativeDate = targetDate.startOfDay
             return
         }
 
-        let record = allRecords.first(where: { $0.date.startOfDay == targetDate.startOfDay })
+        let record = record(for: targetDate)
             ?? DailyRecord.empty(for: targetDate, preferences: preferences)
         let locale = preferences.appLanguage.locale ?? Locale.autoupdatingCurrent
         let payload = DailyInsightAnalyzer.makePayload(
             record: mergedRecord(record, with: preferences),
             preferences: preferences,
             language: preferences.appLanguage,
-            locale: locale
+            locale: locale,
+            history: allRecords.map { mergedRecord($0, with: preferences) }
         )
 
         isGeneratingDailyInsightNarrative = true
-        aiInsightErrorMessage = nil
+        if !isAutomatic {
+            aiInsightErrorMessage = nil
+        }
         do {
             let narrative = try await aiInsightNarrativeService.generateNarrative(from: payload)
+            try persistDailyInsightNarrative(narrative, for: targetDate)
             dailyInsightNarrative = narrative
             dailyInsightNarrativeDate = targetDate.startOfDay
         } catch {
-            aiInsightErrorMessage = NSLocalizedString("AI 解读生成失败：", comment: "") + error.localizedDescription
+            if !isAutomatic {
+                aiInsightErrorMessage = NSLocalizedString("AI 解读生成失败：", comment: "") + error.localizedDescription
+            }
         }
         isGeneratingDailyInsightNarrative = false
     }
@@ -278,6 +296,7 @@ final class AppViewModel: ObservableObject {
     func handleAppleSignIn(_ result: Result<ASAuthorization, Error>) async {
         do {
             user = try await authService.handleAppleSignIn(result: result)
+            refreshOpenAIConfigurationState()
             preferences = hydratedPreferences(from: try preferencesStore.loadPreferences(userID: user?.userID))
             persistPreferences()
             applyCurrentLanguage()
@@ -291,6 +310,7 @@ final class AppViewModel: ObservableObject {
                 await ensureAutomaticCloudEncryptionIfNeeded()
             }
             try loadSelectedRecord()
+            await ensureAutomaticYesterdayInsightIfNeeded()
         } catch {
             errorMessage = loginErrorMessage(from: error)
         }
@@ -303,6 +323,7 @@ final class AppViewModel: ObservableObject {
     func continueAsGuest() async {
         do {
             user = try authService.continueAsGuest()
+            refreshOpenAIConfigurationState()
             preferences = hydratedPreferences(from: try preferencesStore.loadPreferences(userID: user?.userID))
             persistPreferences()
             applyCurrentLanguage()
@@ -372,6 +393,7 @@ final class AppViewModel: ObservableObject {
         do {
             try authService.signOut()
             user = nil
+            refreshOpenAIConfigurationState()
             allRecords = []
             selectedDate = .now.startOfDay
             dailyRecord = DailyRecord.empty(for: selectedDate, preferences: preferences)
@@ -914,6 +936,7 @@ final class AppViewModel: ObservableObject {
             dailyRecord.date = selectedDate.startOfDay
             dailyRecord.sleepRecord.targetBedtime = preferences.bedtimeSchedule.target(for: selectedDate)
             dailyRecord = mergedRecord(dailyRecord, with: preferences)
+            dailyRecord.aiInsightNarrative = nil
             dailyRecord.modifiedAt = .now
             try repository.saveRecord(dailyRecord, userID: user.userID)
             try loadAllRecords(for: user.userID)
@@ -937,6 +960,72 @@ final class AppViewModel: ObservableObject {
         dailyInsightNarrative = nil
         dailyInsightNarrativeDate = nil
         aiInsightErrorMessage = nil
+    }
+
+    private func activeNarrative(for date: Date) -> DailyInsightNarrative? {
+        if dailyInsightNarrativeDate?.startOfDay == date.startOfDay,
+           let dailyInsightNarrative {
+            return dailyInsightNarrative
+        }
+        return record(for: date)?.aiInsightNarrative
+    }
+
+    private func record(for date: Date) -> DailyRecord? {
+        if dailyRecord.date.startOfDay == date.startOfDay {
+            return dailyRecord
+        }
+        return allRecords.first(where: { $0.date.startOfDay == date.startOfDay })
+    }
+
+    private func report(for date: Date) -> DailyInsightReport? {
+        let locale = preferences.appLanguage.locale ?? Locale.autoupdatingCurrent
+        let resolvedRecord = record(for: date) ?? DailyRecord.empty(for: date, preferences: preferences)
+        return DailyInsightAnalyzer.buildReport(
+            for: mergedRecord(resolvedRecord, with: preferences),
+            preferences: preferences,
+            locale: locale
+        )
+    }
+
+    private func persistDailyInsightNarrative(_ narrative: DailyInsightNarrative, for date: Date) throws {
+        guard let user else { return }
+
+        var storedRecord = try repository.loadRecord(
+            for: date,
+            preferences: preferences,
+            userID: user.userID
+        )
+        storedRecord = storedRecord.backfillingRecordedTimeZones(TimeZone.autoupdatingCurrent.identifier)
+        storedRecord = mergedRecord(storedRecord, with: preferences)
+        storedRecord.aiInsightNarrative = narrative
+        storedRecord.modifiedAt = .now
+
+        try repository.saveRecord(storedRecord, userID: user.userID)
+        try loadAllRecords(for: user.userID)
+
+        if selectedDate.startOfDay == date.startOfDay {
+            try loadSelectedRecord()
+        }
+    }
+
+    private var automaticInsightTargetDate: Date? {
+        let yesterday = Date().startOfDay.adding(days: -1)
+        guard availableStartDate <= yesterday else { return nil }
+        return yesterday
+    }
+
+    private func ensureAutomaticYesterdayInsightIfNeeded() async {
+        guard let targetDate = automaticInsightTargetDate else { return }
+        guard activeNarrative(for: targetDate)?.hasAIScoring != true else { return }
+        await generateDailyInsightNarrative(for: targetDate, force: false, isAutomatic: true)
+    }
+
+    private var canUseCloudAIProxy: Bool {
+        guard let user, !user.isGuest else { return false }
+        guard AIProxyConfiguration().isConfigured else { return false }
+        FirebaseBootstrap.configureIfPossible()
+        guard FirebaseBootstrap.isConfigured else { return false }
+        return Auth.auth().currentUser != nil
     }
 
     private func mergeMealsWithPreferences() {
@@ -1273,6 +1362,10 @@ final class AppViewModel: ObservableObject {
             if meal.photoURL?.isEmpty == false {
                 score += 1
             }
+        }
+
+        if record.aiInsightNarrative?.hasAIScoring == true {
+            score += 2
         }
 
         if record.sunTimes != nil {

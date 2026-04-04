@@ -56,6 +56,17 @@ extension Date {
         return calendar.date(from: components) ?? self
     }
 
+    func anchoringCurrentClockTime(in timeZone: TimeZone = .autoupdatingCurrent) -> Date {
+        var calendar = Calendar.current
+        calendar.timeZone = timeZone
+        let currentComponents = calendar.dateComponents([.hour, .minute], from: .now)
+        return settingTime(
+            hour: currentComponents.hour ?? 12,
+            minute: currentComponents.minute ?? 0,
+            in: timeZone
+        )
+    }
+
     var isoWeekday: Int {
         let weekday = Calendar.current.component(.weekday, from: self)
         return weekday == 1 ? 7 : weekday - 1

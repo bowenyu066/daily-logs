@@ -23,8 +23,9 @@ It is intentionally small. The goal is to make daily logging feel light enough t
 
 1. Open `DailyLogs.xcodeproj` in Xcode.
 2. Add a valid `GoogleService-Info.plist` for your Firebase project.
-3. Enable the required capabilities, including Sign in with Apple and HealthKit.
-4. Build and run on an iPhone or simulator.
+3. If you want zero-config AI scoring, deploy the Firebase function in `firebase/functions/` and set `AIProxyURL` in [DailyLogs/Resources/Info.plist](/Users/flyfishyu/Documents/2026/Dev Exps/Daily_logs/DailyLogs/Resources/Info.plist) to the deployed HTTPS URL.
+4. Enable the required capabilities, including Sign in with Apple and HealthKit.
+5. Build and run on an iPhone or simulator.
 
 ## Website
 

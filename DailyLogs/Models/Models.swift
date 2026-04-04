@@ -527,10 +527,11 @@ struct DailyRecord: Codable, Equatable {
     var bowelMovements: [BowelMovementEntry]
     var sexualActivities: [SexualActivityEntry]
     var sunTimes: SunTimes?
+    var aiInsightNarrative: DailyInsightNarrative?
     var modifiedAt: Date?
 
     enum CodingKeys: String, CodingKey {
-        case date, sleepRecord, meals, showers, bowelMovements, sexualActivities, sunTimes, modifiedAt
+        case date, sleepRecord, meals, showers, bowelMovements, sexualActivities, sunTimes, aiInsightNarrative, modifiedAt
     }
 
     init(
@@ -541,6 +542,7 @@ struct DailyRecord: Codable, Equatable {
         bowelMovements: [BowelMovementEntry] = [],
         sexualActivities: [SexualActivityEntry] = [],
         sunTimes: SunTimes? = nil,
+        aiInsightNarrative: DailyInsightNarrative? = nil,
         modifiedAt: Date? = nil
     ) {
         self.date = date
@@ -550,6 +552,7 @@ struct DailyRecord: Codable, Equatable {
         self.bowelMovements = bowelMovements
         self.sexualActivities = sexualActivities
         self.sunTimes = sunTimes
+        self.aiInsightNarrative = aiInsightNarrative
         self.modifiedAt = modifiedAt
     }
 
@@ -562,6 +565,7 @@ struct DailyRecord: Codable, Equatable {
         bowelMovements = try container.decodeIfPresent([BowelMovementEntry].self, forKey: .bowelMovements) ?? []
         sexualActivities = try container.decodeIfPresent([SexualActivityEntry].self, forKey: .sexualActivities) ?? []
         sunTimes = try container.decodeIfPresent(SunTimes.self, forKey: .sunTimes)
+        aiInsightNarrative = try container.decodeIfPresent(DailyInsightNarrative.self, forKey: .aiInsightNarrative)
         modifiedAt = try container.decodeIfPresent(Date.self, forKey: .modifiedAt)
     }
 
@@ -575,7 +579,8 @@ struct DailyRecord: Codable, Equatable {
             showers: [],
             bowelMovements: [],
             sexualActivities: [],
-            sunTimes: nil
+            sunTimes: nil,
+            aiInsightNarrative: nil
         )
     }
 }

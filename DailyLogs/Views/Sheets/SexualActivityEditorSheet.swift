@@ -26,7 +26,7 @@ struct SexualActivityEditorSheet: View {
         onDelete: (() -> Void)?
     ) {
         _dateOnly = State(initialValue: initialValue.time == nil)
-        _draftTime = State(initialValue: initialValue.time ?? baseDate.settingTime(hour: 22, minute: 0, in: .autoupdatingCurrent))
+        _draftTime = State(initialValue: initialValue.time ?? baseDate.anchoringCurrentClockTime())
         _isMasturbation = State(initialValue: initialValue.isMasturbation)
         _draftNote = State(initialValue: initialValue.note ?? "")
         self.entryID = initialValue.id
@@ -144,6 +144,6 @@ struct SexualActivityEditorSheet: View {
         var calendar = Calendar.current
         calendar.timeZone = timeZone
         let components = calendar.dateComponents([.hour, .minute], from: draftTime)
-        return baseDate.settingTime(hour: components.hour ?? 22, minute: components.minute ?? 0, in: timeZone)
+        return baseDate.settingTime(hour: components.hour ?? 12, minute: components.minute ?? 0, in: timeZone)
     }
 }

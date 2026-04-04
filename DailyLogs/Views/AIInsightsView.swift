@@ -13,11 +13,7 @@ struct AIInsightsView: View {
     }
 
     private var activeNarrative: DailyInsightNarrative? {
-        guard let report,
-              appViewModel.dailyInsightNarrativeDate?.startOfDay == report.date.startOfDay else {
-            return nil
-        }
-        return appViewModel.dailyInsightNarrative
+        appViewModel.activeDailyInsightNarrative
     }
 
     private var resolvedLocale: Locale {
@@ -42,7 +38,7 @@ struct AIInsightsView: View {
                         .padding(.bottom, 28)
                     }
                     .refreshable {
-                        if appViewModel.hasOpenAIAPIKey {
+                        if appViewModel.canGenerateAIInsights {
                             await appViewModel.refreshDailyInsightNarrative(force: true)
                         }
                     }
@@ -53,7 +49,7 @@ struct AIInsightsView: View {
             .navigationTitle(NSLocalizedString("AI 洞察", comment: ""))
             .navigationBarTitleDisplayMode(.inline)
             .task(id: taskRefreshKey) {
-                guard appViewModel.hasOpenAIAPIKey else { return }
+                guard appViewModel.canGenerateAIInsights else { return }
                 await appViewModel.refreshDailyInsightNarrative()
             }
         }
@@ -61,7 +57,7 @@ struct AIInsightsView: View {
 
     private var taskRefreshKey: String {
         let dateKey = appViewModel.dailyInsightTargetDate?.storageKey() ?? "none"
-        return "\(dateKey)-\(appViewModel.hasOpenAIAPIKey)-\(appViewModel.preferences.appLanguage.rawValue)"
+        return "\(dateKey)-\(appViewModel.canGenerateAIInsights)-\(appViewModel.preferences.appLanguage.rawValue)"
     }
 
     private var backgroundLayer: some View {
@@ -116,8 +112,8 @@ struct AIInsightsView: View {
                         .clipShape(Circle())
                 }
                 .buttonStyle(.plain)
-                .opacity(appViewModel.hasOpenAIAPIKey ? 1 : 0)
-                .accessibilityHidden(!appViewModel.hasOpenAIAPIKey)
+                .opacity(appViewModel.canGenerateAIInsights ? 1 : 0)
+                .accessibilityHidden(!appViewModel.canGenerateAIInsights)
             }
 
             HStack(spacing: 18) {
@@ -131,9 +127,11 @@ struct AIInsightsView: View {
 
                     HStack(spacing: 8) {
                         Label(
-                            appViewModel.hasOpenAIAPIKey
+                            appViewModel.canGenerateAIInsights
                                 ? (appViewModel.isDisplayingAIScoredInsight
-                                    ? NSLocalizedString("AI 评分已启用", comment: "")
+                                    ? (appViewModel.isUsingCloudAIProxy
+                                        ? NSLocalizedString("云端 AI 已启用", comment: "")
+                                        : NSLocalizedString("AI 评分已启用", comment: ""))
                                     : NSLocalizedString("可生成 AI 评分", comment: ""))
                                 : NSLocalizedString("当前显示本地评分", comment: ""),
                             systemImage: appViewModel.isDisplayingAIScoredInsight ? "wand.and.stars" : "cpu"
@@ -275,11 +273,11 @@ struct AIInsightsView: View {
         VStack(alignment: .leading, spacing: 16) {
             SectionHeader(
                 title: NSLocalizedString("昨天的观察", comment: ""),
-                subtitle: appViewModel.hasOpenAIAPIKey
+                subtitle: appViewModel.canGenerateAIInsights
                     ? (appViewModel.isDisplayingAIScoredInsight
                         ? NSLocalizedString("这张卡片的分数和文案都由 AI 给出。", comment: "")
                         : NSLocalizedString("现在还是本地兜底分数；生成后会切换成 AI 评分。", comment: ""))
-                    : NSLocalizedString("当前先显示本地总结。添加 API Key 后，这里会升级成 AI 打分和文案。", comment: "")
+                    : NSLocalizedString("登录后自动启用云端 AI。", comment: "")
             )
 
             if let aiInsightErrorMessage = appViewModel.aiInsightErrorMessage, !aiInsightErrorMessage.isEmpty {
@@ -304,7 +302,7 @@ struct AIInsightsView: View {
                 }
             }
 
-            if appViewModel.hasOpenAIAPIKey {
+            if appViewModel.canGenerateAIInsights {
                 Button {
                     Task { await appViewModel.refreshDailyInsightNarrative(force: true) }
                 } label: {
@@ -326,15 +324,11 @@ struct AIInsightsView: View {
                 .disabled(appViewModel.isGeneratingDailyInsightNarrative)
             } else {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text(NSLocalizedString("想启用 AI 文案的话，到“设置 > AI 洞察”里贴入你的 OpenAI API Key 就可以。", comment: ""))
+                    Text(NSLocalizedString("登录后自动启用云端 AI。", comment: ""))
                         .font(.system(size: 14, weight: .medium, design: .rounded))
                         .foregroundStyle(AppTheme.secondaryText)
 
-                    Text(NSLocalizedString("配置后，这一页的总分和分项分也会一起改成 AI 来打。", comment: ""))
-                        .font(.system(size: 14, weight: .medium, design: .rounded))
-                        .foregroundStyle(AppTheme.secondaryText)
-
-                    Text(NSLocalizedString("Key 只保存在这台设备，不会同步到云端。", comment: ""))
+                    Text(NSLocalizedString("游客模式显示本地评分。", comment: ""))
                         .font(.system(size: 12, weight: .semibold, design: .rounded))
                         .foregroundStyle(AppTheme.secondaryText.opacity(0.9))
                 }
@@ -373,11 +367,11 @@ struct AIInsightsView: View {
                 subtitle: NSLocalizedString("这是一项趣味型分析功能，不构成医疗或健康建议。", comment: "")
             )
 
-            Text(NSLocalizedString("当前版本只分析最近一个完整日的睡眠、餐食、洗澡和排便。未开启的模块不会被纳入评分。", comment: ""))
+            Text(NSLocalizedString("当前只分析昨天的睡眠、餐食、洗澡和排便。", comment: ""))
                 .font(.system(size: 14, weight: .medium, design: .rounded))
                 .foregroundStyle(AppTheme.secondaryText)
 
-            Text(NSLocalizedString("未配置 OpenAI API Key 时会回退到本地兜底评分；配置后会优先显示 AI 给出的分数和解读。", comment: ""))
+            Text(NSLocalizedString("AI 请求会经你的云端代理转发。", comment: ""))
                 .font(.system(size: 14, weight: .medium, design: .rounded))
                 .foregroundStyle(AppTheme.secondaryText)
         }

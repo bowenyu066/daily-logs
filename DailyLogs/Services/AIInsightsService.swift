@@ -1,4 +1,5 @@
 import Foundation
+@preconcurrency import FirebaseAuth
 import Security
 
 enum DailyInsightComponentKind: String, CaseIterable, Identifiable {
@@ -159,6 +160,28 @@ struct DailyInsightReport: Equatable {
 }
 
 struct DailyInsightPayload: Codable {
+    struct StatisticSummary: Codable {
+        var average: Double?
+        var standardDeviation: Double?
+    }
+
+    struct HistoryWindowSummary: Codable {
+        var windowDays: Int
+        var recordedDays: Int
+        var sleepDurationHours: StatisticSummary
+        var mealCompletionRate: StatisticSummary
+        var timedMealLoggingRate: StatisticSummary
+        var showerCount: StatisticSummary
+        var bowelMovementCount: StatisticSummary
+        var bedtimeDeviationMinutes: StatisticSummary
+        var note: String?
+    }
+
+    struct HistoryContext: Codable {
+        var trailing7Days: HistoryWindowSummary
+        var trailing30Days: HistoryWindowSummary
+    }
+
     struct SleepSection: Codable {
         var source: String
         var bedtimeISO8601: String?
@@ -198,6 +221,7 @@ struct DailyInsightPayload: Codable {
     var showers: [EventSection]
     var bowelMovementEnabled: Bool
     var bowelMovements: [EventSection]
+    var comparisonContext: HistoryContext
 }
 
 enum DailyInsightAnalyzer {
@@ -256,7 +280,8 @@ enum DailyInsightAnalyzer {
         record: DailyRecord,
         preferences: UserPreferences,
         language: AppLanguage,
-        locale: Locale
+        locale: Locale,
+        history: [DailyRecord]
     ) -> DailyInsightPayload {
         let sleepTimeZone = TimeZone(identifier: record.sleepRecord.timeZoneIdentifier ?? "") ?? .autoupdatingCurrent
 
@@ -309,7 +334,87 @@ enum DailyInsightAnalyzer {
             showerEnabled: preferences.visibleHomeSections.contains(.showers),
             showers: showers,
             bowelMovementEnabled: preferences.visibleHomeSections.contains(.bowelMovements),
-            bowelMovements: bowelMovements
+            bowelMovements: bowelMovements,
+            comparisonContext: historyContext(
+                for: record,
+                preferences: preferences,
+                history: history
+            )
+        )
+    }
+
+    private static func historyContext(
+        for record: DailyRecord,
+        preferences: UserPreferences,
+        history: [DailyRecord]
+    ) -> DailyInsightPayload.HistoryContext {
+        DailyInsightPayload.HistoryContext(
+            trailing7Days: historyWindowSummary(
+                for: record,
+                lookbackDays: 7,
+                preferences: preferences,
+                history: history
+            ),
+            trailing30Days: historyWindowSummary(
+                for: record,
+                lookbackDays: 30,
+                preferences: preferences,
+                history: history
+            )
+        )
+    }
+
+    private static func historyWindowSummary(
+        for record: DailyRecord,
+        lookbackDays: Int,
+        preferences: UserPreferences,
+        history: [DailyRecord]
+    ) -> DailyInsightPayload.HistoryWindowSummary {
+        let endDate = record.date.startOfDay
+        let startDate = endDate.adding(days: -lookbackDays)
+        let windowRecords = history
+            .filter {
+                let day = $0.date.startOfDay
+                return day >= startDate && day < endDate
+            }
+            .sorted { $0.date < $1.date }
+
+        let sleepHours = windowRecords.compactMap { $0.sleepRecord.duration.map { ($0 / 3600 * 10).rounded() / 10 } }
+        let mealCompletionRates = windowRecords.map(mealCompletionRate(for:))
+        let timedMealLoggingRates = windowRecords.map(timedMealLoggingRate(for:))
+        let showerCounts = preferences.visibleHomeSections.contains(.showers)
+            ? windowRecords.map { Double($0.showers.count) }
+            : []
+        let bowelMovementCounts = preferences.visibleHomeSections.contains(.bowelMovements)
+            ? windowRecords.map { Double($0.bowelMovements.count) }
+            : []
+        let bedtimeDeviationValues = windowRecords.compactMap {
+            bedtimeDeviationMinutes(for: $0.sleepRecord)
+        }
+
+        let note: String? = {
+            guard !windowRecords.isEmpty else {
+                return NSLocalizedString("历史样本还不够，暂时只参考当天表现。", comment: "")
+            }
+            if windowRecords.count < min(lookbackDays, 3) {
+                return String(
+                    format: NSLocalizedString("最近只有 %d 天可用记录，趋势判断会更保守。", comment: ""),
+                    windowRecords.count
+                )
+            }
+            return nil
+        }()
+
+        return DailyInsightPayload.HistoryWindowSummary(
+            windowDays: lookbackDays,
+            recordedDays: windowRecords.count,
+            sleepDurationHours: statisticSummary(for: sleepHours),
+            mealCompletionRate: statisticSummary(for: mealCompletionRates),
+            timedMealLoggingRate: statisticSummary(for: timedMealLoggingRates),
+            showerCount: statisticSummary(for: showerCounts),
+            bowelMovementCount: statisticSummary(for: bowelMovementCounts),
+            bedtimeDeviationMinutes: statisticSummary(for: bedtimeDeviationValues),
+            note: note
         )
     }
 
@@ -472,6 +577,32 @@ enum DailyInsightAnalyzer {
         )
     }
 
+    private static func mealCompletionRate(for record: DailyRecord) -> Double {
+        guard !record.meals.isEmpty else { return 0 }
+        let completed = record.meals.reduce(0.0) { partial, meal in
+            switch mealStatusName(meal, recordDate: record.date) {
+            case "logged_with_time":
+                partial + 1.0
+            case "logged_without_time":
+                partial + 0.8
+            case "skipped":
+                partial + 0.4
+            default:
+                partial
+            }
+        }
+        return (completed / Double(record.meals.count) * 100).rounded() / 100
+    }
+
+    private static func timedMealLoggingRate(for record: DailyRecord) -> Double {
+        let loggedMeals = record.meals.filter {
+            mealStatusName($0, recordDate: record.date).hasPrefix("logged")
+        }
+        guard !loggedMeals.isEmpty else { return 0 }
+        let timedMeals = loggedMeals.filter { $0.time != nil }
+        return (Double(timedMeals.count) / Double(loggedMeals.count) * 100).rounded() / 100
+    }
+
     private static func hygieneComponent(
         kind: DailyInsightComponentKind,
         enabled: Bool,
@@ -548,6 +679,38 @@ enum DailyInsightAnalyzer {
         default:
             return 1
         }
+    }
+
+    private static func bedtimeDeviationMinutes(for sleep: SleepRecord) -> Double? {
+        guard let bedtime = sleep.bedtimePreviousNight,
+              let target = sleep.targetBedtime else {
+            return nil
+        }
+
+        let timeZone = TimeZone(identifier: sleep.timeZoneIdentifier ?? "") ?? .autoupdatingCurrent
+        var calendar = Calendar.current
+        calendar.timeZone = timeZone
+
+        let actual = calendar.dateComponents([.hour, .minute], from: bedtime)
+        let actualMinutes = normalizedBedtimeMinutes(hour: actual.hour ?? 0, minute: actual.minute ?? 0)
+        let targetMinutes = normalizedBedtimeMinutes(hour: target.hour ?? 0, minute: target.minute ?? 0)
+        return Double(abs(actualMinutes - targetMinutes))
+    }
+
+    private static func statisticSummary(for values: [Double]) -> DailyInsightPayload.StatisticSummary {
+        guard !values.isEmpty else {
+            return DailyInsightPayload.StatisticSummary(average: nil, standardDeviation: nil)
+        }
+
+        let average = values.reduce(0, +) / Double(values.count)
+        let variance = values.reduce(0) { partial, value in
+            partial + pow(value - average, 2)
+        } / Double(values.count)
+
+        return DailyInsightPayload.StatisticSummary(
+            average: (average * 100).rounded() / 100,
+            standardDeviation: (sqrt(variance) * 100).rounded() / 100
+        )
     }
 
     private static func normalizedBedtimeMinutes(hour: Int, minute: Int) -> Int {
@@ -703,6 +866,8 @@ struct NoopAIInsightNarrativeService: AIInsightNarrativeGenerating, Sendable {
 
 enum AIInsightServiceError: LocalizedError {
     case missingAPIKey
+    case missingAuthToken
+    case missingProxyURL
     case invalidResponse
     case emptyResponse
     case missingScores
@@ -711,6 +876,10 @@ enum AIInsightServiceError: LocalizedError {
         switch self {
         case .missingAPIKey:
             NSLocalizedString("还没有配置 OpenAI API Key。", comment: "")
+        case .missingAuthToken:
+            NSLocalizedString("云端 AI 需要登录后的 Firebase 身份令牌。", comment: "")
+        case .missingProxyURL:
+            NSLocalizedString("云端 AI 代理地址还没有配置。", comment: "")
         case .invalidResponse:
             NSLocalizedString("AI 返回的数据格式无法识别。", comment: "")
         case .emptyResponse:
@@ -718,6 +887,26 @@ enum AIInsightServiceError: LocalizedError {
         case .missingScores:
             NSLocalizedString("AI 返回了文案，但没有返回分数。", comment: "")
         }
+    }
+}
+
+struct AIProxyConfiguration: Sendable {
+    private static let urlKey = "AIProxyURL"
+
+    let endpointURL: URL?
+
+    init(bundle: Bundle = .main) {
+        let rawValue = bundle.object(forInfoDictionaryKey: Self.urlKey) as? String
+        let trimmed = rawValue?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let trimmed, !trimmed.isEmpty {
+            endpointURL = URL(string: trimmed)
+        } else {
+            endpointURL = nil
+        }
+    }
+
+    var isConfigured: Bool {
+        endpointURL != nil
     }
 }
 
@@ -745,162 +934,271 @@ struct OpenAIResponsesInsightService: AIInsightNarrativeGenerating, Sendable {
             throw AIInsightServiceError.missingAPIKey
         }
 
-        var request = URLRequest(url: URL(string: "https://api.openai.com/v1/responses")!)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.sortedKeys]
-        encoder.dateEncodingStrategy = .iso8601
-        request.httpBody = try encoder.encode(makeRequestBody(from: payload))
-
-        let (data, response) = try await session.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse,
-              200..<300 ~= httpResponse.statusCode else {
-            throw AIInsightServiceError.invalidResponse
-        }
-
-        let decoded = try JSONDecoder().decode(OpenAIResponseEnvelope.self, from: data)
-        guard let text = decoded.extractedText, !text.isEmpty else {
-            throw AIInsightServiceError.emptyResponse
-        }
-
-        let jsonText = extractJSONObject(from: text)
-        guard let jsonData = jsonText.data(using: .utf8) else {
-            throw AIInsightServiceError.invalidResponse
-        }
-        let narrative = try JSONDecoder().decode(DailyInsightNarrative.self, from: jsonData)
-        guard narrative.hasAIScoring else {
-            #if DEBUG
-            print("AI insight response missing scores:", jsonText)
-            #endif
-            throw AIInsightServiceError.missingScores
-        }
-        return narrative
-    }
-
-    private func makeRequestBody(from payload: DailyInsightPayload) throws -> OpenAIResponsesRequestBody {
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        encoder.dateEncodingStrategy = .iso8601
-        let payloadData = try encoder.encode(payload)
-        let payloadString = String(decoding: payloadData, as: UTF8.self)
-
-        return OpenAIResponsesRequestBody(
+        return try await performNarrativeRequest(
+            endpointURL: URL(string: "https://api.openai.com/v1/responses")!,
+            authorizationHeader: "Bearer \(apiKey)",
+            payload: payload,
             model: model,
-            instructions: """
-            You are scoring one complete day of lifestyle logs for a journaling app.
-            This is fun lifestyle analysis only, not medical advice, diagnosis, or treatment.
-            Use only the provided JSON.
-            The payload does not include any precomputed score. Compute every score yourself from the raw data.
-            Respect whether a section is excluded, skipped, logged without time, or simply unrecorded.
-            Be concrete about times and counts when present.
-            Keep the tone warm, brief, lightly playful, and non-judgmental.
-            You must return an overallScore from 0 to 100.
-            You must return a score for every section.
-            If a section is not enabled, set included to false and score to 0.
-            Do not omit score fields. Do not return null score fields.
-            Return valid JSON that matches the schema exactly.
-            """,
-            input: payloadString,
-            store: false,
-            text: OpenAIResponsesRequestBody.TextConfiguration(
-                format: OpenAIResponsesRequestBody.SchemaConfiguration(
-                    name: "daily_insight_narrative",
-                    schema: makeNarrativeSchema()
-                )
-            )
+            session: session
         )
     }
+}
 
-    private func makeNarrativeSchema() -> JSONValue {
-        .object([
-            "type": .string("object"),
-            "properties": .object([
-                "headline": .object([
-                    "type": .string("string"),
-                    "minLength": .number(1)
-                ]),
-                "summary": .object([
-                    "type": .string("string"),
-                    "minLength": .number(1)
-                ]),
-                "bullets": .object([
-                    "type": .string("array"),
-                    "items": .object([
-                        "type": .string("string"),
-                        "minLength": .number(1)
-                    ]),
-                    "minItems": .number(2),
-                    "maxItems": .number(4)
-                ]),
-                "overallScore": .object([
-                    "type": .string("integer")
-                ]),
-                "components": .object([
-                    "type": .string("object"),
-                    "properties": .object([
-                        "sleep": componentSchema(),
-                        "meals": componentSchema(),
-                        "shower": componentSchema(),
-                        "bowelMovement": componentSchema()
-                    ]),
-                    "required": .array([
-                        .string("sleep"),
-                        .string("meals"),
-                        .string("shower"),
-                        .string("bowelMovement")
-                    ]),
-                    "additionalProperties": .bool(false)
-                ])
-            ]),
-            "required": .array([
-                .string("headline"),
-                .string("summary"),
-                .string("bullets"),
-                .string("overallScore"),
-                .string("components")
-            ]),
-            "additionalProperties": .bool(false)
-        ])
-    }
+struct CloudAIInsightService: AIInsightNarrativeGenerating, Sendable {
+    private let configuration: AIProxyConfiguration
+    private let session: URLSession
+    private let model: String
+    private let authTokenProvider: @Sendable () async throws -> String?
 
-    private func componentSchema() -> JSONValue {
-        .object([
-            "type": .string("object"),
-            "properties": .object([
-                "included": .object([
-                    "type": .string("boolean")
-                ]),
-                "score": .object([
-                    "type": .string("integer")
-                ]),
-                "maxScore": .object([
-                    "type": .string("integer")
-                ]),
-                "detail": .object([
-                    "type": .string("string"),
-                    "minLength": .number(1)
-                ])
-            ]),
-            "required": .array([
-                .string("included"),
-                .string("score"),
-                .string("maxScore"),
-                .string("detail")
-            ]),
-            "additionalProperties": .bool(false)
-        ])
-    }
-
-    private func extractJSONObject(from text: String) -> String {
-        guard let start = text.firstIndex(of: "{"),
-              let end = text.lastIndex(of: "}") else {
-            return text
+    init(
+        configuration: AIProxyConfiguration = AIProxyConfiguration(),
+        session: URLSession = .shared,
+        model: String = "gpt-5.4-mini",
+        authTokenProvider: @escaping @Sendable () async throws -> String? = {
+            try await fetchFirebaseIDToken()
         }
-        return String(text[start...end])
+    ) {
+        self.configuration = configuration
+        self.session = session
+        self.model = model
+        self.authTokenProvider = authTokenProvider
     }
+
+    var isConfigured: Bool {
+        configuration.isConfigured
+    }
+
+    func generateNarrative(from payload: DailyInsightPayload) async throws -> DailyInsightNarrative {
+        guard let endpointURL = configuration.endpointURL else {
+            throw AIInsightServiceError.missingProxyURL
+        }
+        guard let idToken = try await authTokenProvider(), !idToken.isEmpty else {
+            throw AIInsightServiceError.missingAuthToken
+        }
+
+        return try await performNarrativeRequest(
+            endpointURL: endpointURL,
+            authorizationHeader: "Bearer \(idToken)",
+            payload: payload,
+            model: model,
+            session: session
+        )
+    }
+}
+
+struct HybridAIInsightNarrativeService: AIInsightNarrativeGenerating, Sendable {
+    private let cloudService: CloudAIInsightService
+    private let customKeyService: OpenAIResponsesInsightService
+
+    init(
+        cloudService: CloudAIInsightService,
+        customKeyService: OpenAIResponsesInsightService
+    ) {
+        self.cloudService = cloudService
+        self.customKeyService = customKeyService
+    }
+
+    var isConfigured: Bool {
+        customKeyService.isConfigured || cloudService.isConfigured
+    }
+
+    func generateNarrative(from payload: DailyInsightPayload) async throws -> DailyInsightNarrative {
+        if customKeyService.isConfigured {
+            return try await customKeyService.generateNarrative(from: payload)
+        }
+        return try await cloudService.generateNarrative(from: payload)
+    }
+}
+
+private func performNarrativeRequest(
+    endpointURL: URL,
+    authorizationHeader: String,
+    payload: DailyInsightPayload,
+    model: String,
+    session: URLSession
+) async throws -> DailyInsightNarrative {
+    var request = URLRequest(url: endpointURL)
+    request.httpMethod = "POST"
+    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    request.setValue(authorizationHeader, forHTTPHeaderField: "Authorization")
+
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = [.sortedKeys]
+    encoder.dateEncodingStrategy = .iso8601
+    request.httpBody = try encoder.encode(makeRequestBody(from: payload, model: model))
+
+    let (data, response) = try await session.data(for: request)
+    guard let httpResponse = response as? HTTPURLResponse,
+          200..<300 ~= httpResponse.statusCode else {
+        throw AIInsightServiceError.invalidResponse
+    }
+
+    return try parseNarrative(from: data)
+}
+
+private func fetchFirebaseIDToken() async throws -> String? {
+    return try await withCheckedThrowingContinuation { continuation in
+        Task { @MainActor in
+            guard let currentUser = Auth.auth().currentUser else {
+                continuation.resume(returning: nil)
+                return
+            }
+
+            currentUser.getIDToken { token, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                } else {
+                    continuation.resume(returning: token)
+                }
+            }
+        }
+    }
+}
+
+private func parseNarrative(from data: Data) throws -> DailyInsightNarrative {
+    let decoded = try JSONDecoder().decode(OpenAIResponseEnvelope.self, from: data)
+    guard let text = decoded.extractedText, !text.isEmpty else {
+        throw AIInsightServiceError.emptyResponse
+    }
+
+    let jsonText = extractJSONObject(from: text)
+    guard let jsonData = jsonText.data(using: .utf8) else {
+        throw AIInsightServiceError.invalidResponse
+    }
+
+    let narrative = try JSONDecoder().decode(DailyInsightNarrative.self, from: jsonData)
+    guard narrative.hasAIScoring else {
+        #if DEBUG
+        print("AI insight response missing scores:", jsonText)
+        #endif
+        throw AIInsightServiceError.missingScores
+    }
+    return narrative
+}
+
+private func makeRequestBody(from payload: DailyInsightPayload, model: String) throws -> OpenAIResponsesRequestBody {
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+    encoder.dateEncodingStrategy = .iso8601
+    let payloadData = try encoder.encode(payload)
+    let payloadString = String(decoding: payloadData, as: UTF8.self)
+
+    return OpenAIResponsesRequestBody(
+        model: model,
+        instructions: """
+        You are scoring one complete day of lifestyle logs for a journaling app.
+        This is fun lifestyle analysis only, not medical advice, diagnosis, or treatment.
+        Use only the provided JSON.
+        The payload includes the target day plus trailing 7-day and 30-day summary statistics.
+        Use the target day as the baseline, then use the 7-day summary for short-term trend context and the 30-day summary for habit stability context.
+        Reward genuine improvement versus the recent baseline, and avoid over-penalizing a single off day when the 30-day habit pattern is stable.
+        The payload does not include any precomputed score. Compute every score yourself from the raw data.
+        Respect whether a section is excluded, skipped, logged without time, or simply unrecorded.
+        Be concrete about times and counts when present.
+        Keep the tone warm, brief, lightly playful, and non-judgmental.
+        You must return an overallScore from 0 to 100.
+        You must return a score for every section.
+        If a section is not enabled, set included to false and score to 0.
+        Do not omit score fields. Do not return null score fields.
+        Return valid JSON that matches the schema exactly.
+        """,
+        input: payloadString,
+        store: false,
+        text: OpenAIResponsesRequestBody.TextConfiguration(
+            format: OpenAIResponsesRequestBody.SchemaConfiguration(
+                name: "daily_insight_narrative",
+                schema: makeNarrativeSchema()
+            )
+        )
+    )
+}
+
+private func makeNarrativeSchema() -> JSONValue {
+    .object([
+        "type": .string("object"),
+        "properties": .object([
+            "headline": .object([
+                "type": .string("string"),
+                "minLength": .number(1)
+            ]),
+            "summary": .object([
+                "type": .string("string"),
+                "minLength": .number(1)
+            ]),
+            "bullets": .object([
+                "type": .string("array"),
+                "items": .object([
+                    "type": .string("string"),
+                    "minLength": .number(1)
+                ]),
+                "minItems": .number(2),
+                "maxItems": .number(4)
+            ]),
+            "overallScore": .object([
+                "type": .string("integer")
+            ]),
+            "components": .object([
+                "type": .string("object"),
+                "properties": .object([
+                    "sleep": componentSchema(),
+                    "meals": componentSchema(),
+                    "shower": componentSchema(),
+                    "bowelMovement": componentSchema()
+                ]),
+                "required": .array([
+                    .string("sleep"),
+                    .string("meals"),
+                    .string("shower"),
+                    .string("bowelMovement")
+                ]),
+                "additionalProperties": .bool(false)
+            ])
+        ]),
+        "required": .array([
+            .string("headline"),
+            .string("summary"),
+            .string("bullets"),
+            .string("overallScore"),
+            .string("components")
+        ]),
+        "additionalProperties": .bool(false)
+    ])
+}
+
+private func componentSchema() -> JSONValue {
+    .object([
+        "type": .string("object"),
+        "properties": .object([
+            "included": .object([
+                "type": .string("boolean")
+            ]),
+            "score": .object([
+                "type": .string("integer")
+            ]),
+            "maxScore": .object([
+                "type": .string("integer")
+            ]),
+            "detail": .object([
+                "type": .string("string"),
+                "minLength": .number(1)
+            ])
+        ]),
+        "required": .array([
+            .string("included"),
+            .string("score"),
+            .string("maxScore"),
+            .string("detail")
+        ]),
+        "additionalProperties": .bool(false)
+    ])
+}
+
+private func extractJSONObject(from text: String) -> String {
+    guard let start = text.firstIndex(of: "{"),
+          let end = text.lastIndex(of: "}") else {
+        return text
+    }
+    return String(text[start...end])
 }
 
 private struct OpenAIResponsesRequestBody: Encodable {

@@ -2,6 +2,7 @@ import SwiftUI
 
 struct RootView: View {
     @EnvironmentObject private var appViewModel: AppViewModel
+    @Environment(\.scenePhase) private var scenePhase
 
     private var resolvedLocale: Locale {
         appViewModel.preferences.appLanguage.locale ?? Locale.autoupdatingCurrent
@@ -25,6 +26,12 @@ struct RootView: View {
         }
         .task {
             await appViewModel.bootstrap()
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            guard newPhase == .active else { return }
+            Task {
+                await appViewModel.handleAppBecomingActive()
+            }
         }
     }
 }

@@ -1,0 +1,12 @@
+{
+  "name": "dailylogs-functions",
+  "private": true,
+  "main": "index.js",
+  "engines": {
+    "node": "22"
+  },
+  "dependencies": {
+    "firebase-admin": "^13.7.0",
+    "firebase-functions": "^7.2.3"
+  }
+}

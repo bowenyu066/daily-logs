@@ -24,7 +24,7 @@ struct ShowerEditorSheet: View {
         onSave: @escaping (ShowerEntry) -> Void,
         onDelete: (() -> Void)?
     ) {
-        let fallbackTime = initialValue.time ?? baseDate.settingTime(hour: 21, minute: 30, in: .autoupdatingCurrent)
+        let fallbackTime = initialValue.time ?? baseDate.anchoringCurrentClockTime()
         _draftTime = State(initialValue: fallbackTime)
         _logsExistenceOnly = State(initialValue: initialValue.time == nil)
         _draftNote = State(initialValue: initialValue.note ?? "")
@@ -132,6 +132,6 @@ struct ShowerEditorSheet: View {
         var calendar = Calendar.current
         calendar.timeZone = timeZone
         let components = calendar.dateComponents([.hour, .minute], from: draftTime)
-        return baseDate.settingTime(hour: components.hour ?? 21, minute: components.minute ?? 30, in: timeZone)
+        return baseDate.settingTime(hour: components.hour ?? 12, minute: components.minute ?? 0, in: timeZone)
     }
 }

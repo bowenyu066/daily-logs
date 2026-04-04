@@ -125,9 +125,7 @@ struct HomeView: View {
             .sheet(isPresented: $showingNewShower) {
                 ShowerEditorSheet(
                     initialValue: ShowerEntry(
-                        time: appViewModel.selectedDate.settingTime(
-                            hour: 21,
-                            minute: 30,
+                        time: appViewModel.selectedDate.anchoringCurrentClockTime(
                             in: appViewModel.displayedTimeZone(for: nil)
                         )
                     ),
@@ -161,9 +159,7 @@ struct HomeView: View {
             .sheet(isPresented: $showingNewBowelMovement) {
                 BowelMovementEditorSheet(
                     initialValue: BowelMovementEntry(
-                        time: appViewModel.selectedDate.settingTime(
-                            hour: 8,
-                            minute: 0,
+                        time: appViewModel.selectedDate.anchoringCurrentClockTime(
                             in: appViewModel.displayedTimeZone(for: nil)
                         )
                     ),
@@ -198,9 +194,7 @@ struct HomeView: View {
                 SexualActivityEditorSheet(
                     initialValue: SexualActivityEntry(
                         date: appViewModel.selectedDate,
-                        time: appViewModel.selectedDate.settingTime(
-                            hour: 22,
-                            minute: 0,
+                        time: appViewModel.selectedDate.anchoringCurrentClockTime(
                             in: appViewModel.displayedTimeZone(for: nil)
                         )
                     ),
