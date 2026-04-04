@@ -779,6 +779,22 @@ struct AnalyticsSummary {
 }
 
 enum AnalyticsCalculator {
+    static func visibleDateBounds(
+        range: AnalyticsRange,
+        customRange: ClosedRange<Date>? = nil,
+        today: Date = .now,
+        calendar: Calendar = .current
+    ) -> ClosedRange<Date> {
+        let clampedToday = calendar.startOfDay(for: today)
+        if range == .custom, let customRange {
+            let lower = calendar.startOfDay(for: customRange.lowerBound)
+            let upper = min(calendar.startOfDay(for: customRange.upperBound), clampedToday)
+            return lower...upper
+        }
+        let lower = clampedToday.adding(days: -(range.dayCount - 1))
+        return lower...clampedToday
+    }
+
     static func build(
         records: [DailyRecord],
         range: AnalyticsRange,
@@ -787,15 +803,12 @@ enum AnalyticsCalculator {
     ) -> AnalyticsSummary {
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: .now)
-        let chartBounds: ClosedRange<Date> = {
-            if range == .custom, let customRange {
-                let lower = customRange.lowerBound.startOfDay
-                let upper = min(customRange.upperBound.startOfDay, today)
-                return lower...upper
-            }
-            let lower = today.adding(days: -(range.dayCount - 1))
-            return lower...today
-        }()
+        let chartBounds = visibleDateBounds(
+            range: range,
+            customRange: customRange,
+            today: today,
+            calendar: calendar
+        )
         let chartFiltered = records.filter { $0.date >= chartBounds.lowerBound && $0.date <= chartBounds.upperBound }
         let chartRecordMap = Dictionary(uniqueKeysWithValues: chartFiltered.map { ($0.date.startOfDay, $0) })
         let daySpan = calendar.dateComponents([.day], from: chartBounds.lowerBound, to: chartBounds.upperBound).day ?? 0

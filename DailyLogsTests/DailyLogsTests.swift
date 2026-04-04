@@ -146,6 +146,28 @@ struct DailyLogsTests {
     }
 
     @Test
+    func analyticsCustomRangeStopsAtToday() {
+        let today = Date().startOfDay
+        let customStart = today.adding(days: -3)
+        let customEnd = today.adding(days: 3)
+        let record = DailyRecord(
+            date: customStart,
+            sleepRecord: SleepRecord(),
+            meals: [MealEntry(mealKind: .breakfast)],
+            showers: [],
+            sunTimes: nil
+        )
+        let summary = AnalyticsCalculator.build(
+            records: [record],
+            range: .custom,
+            customRange: customStart...customEnd
+        )
+
+        #expect(summary.days.first?.date == customStart)
+        #expect(summary.days.last?.date == today)
+    }
+
+    @Test
     func dailyInsightReportOnlyIncludesEnabledOptionalSections() throws {
         let day = Calendar.current.date(from: DateComponents(year: 2026, month: 3, day: 20))!
         let preferences = UserPreferences(

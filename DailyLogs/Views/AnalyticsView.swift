@@ -1,4 +1,5 @@
 import Charts
+import MapKit
 import SwiftUI
 
 struct AnalyticsView: View {
@@ -28,6 +29,9 @@ struct AnalyticsView: View {
                             summaryGrid
                             Divider()
                             visibleWidgetCards
+                            if shouldShowMealMemories {
+                                mealMemoriesSection
+                            }
                             customizationCard
                         }
                         .padding(.horizontal, 18)
@@ -102,6 +106,31 @@ struct AnalyticsView: View {
         }
     }
 
+    private var shouldShowMealMemories: Bool {
+        appViewModel.preferences.visibleHomeSections.contains(.meals)
+    }
+
+    private var analyticsDateBounds: ClosedRange<Date> {
+        AnalyticsCalculator.visibleDateBounds(
+            range: appViewModel.analyticsRange,
+            customRange: appViewModel.analyticsRange == .custom ? appViewModel.analyticsCustomDateRange : nil
+        )
+    }
+
+    private var mealMemoryItems: [MealMemoryItem] {
+        appViewModel.allRecords
+            .filter { record in
+                record.date >= analyticsDateBounds.lowerBound && record.date <= analyticsDateBounds.upperBound
+            }
+            .flatMap { record in
+                record.meals.compactMap { meal -> MealMemoryItem? in
+                    guard meal.effectiveStatus(on: record.date) == .logged else { return nil }
+                    return MealMemoryItem(recordDate: record.date, meal: meal)
+                }
+            }
+            .sorted { $0.sortDate > $1.sortDate }
+    }
+
     private var header: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text(NSLocalizedString("规律不是为了控制你，而是为了更轻松地生活。", comment: ""))
@@ -151,6 +180,10 @@ struct AnalyticsView: View {
             )
         }
         .sectionStyle()
+    }
+
+    private var mealMemoriesSection: some View {
+        MealMemoriesSection(items: mealMemoryItems)
     }
 
     private var customizationCard: some View {
@@ -2043,4 +2076,412 @@ private struct DurationLineChart: View {
         }
         return "\(m)m"
     }
+}
+
+private struct MealMemoryItem: Identifiable, Equatable {
+    let id: String
+    let mealTitle: String
+    let recordDate: Date
+    let time: Date?
+    let photoURLs: [String]
+    let timeZoneIdentifier: String?
+    let locationName: String?
+    let latitude: Double?
+    let longitude: Double?
+
+    init(recordDate: Date, meal: MealEntry) {
+        id = "\(recordDate.storageKey())-\(meal.id.uuidString)"
+        mealTitle = meal.displayTitle
+        self.recordDate = recordDate
+        time = meal.time
+        photoURLs = meal.photoURLs
+        timeZoneIdentifier = meal.timeZoneIdentifier
+        locationName = meal.locationName
+        latitude = meal.latitude
+        longitude = meal.longitude
+    }
+
+    var sortDate: Date {
+        time ?? recordDate
+    }
+
+    var recordedTimeZone: TimeZone {
+        TimeZone(identifier: timeZoneIdentifier ?? "") ?? .autoupdatingCurrent
+    }
+
+    var coordinate: CLLocationCoordinate2D? {
+        guard let latitude, let longitude else { return nil }
+        return CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
+    }
+
+    var coordinateLabel: String {
+        guard let latitude, let longitude else { return "" }
+        return String(format: "%.3f, %.3f", latitude, longitude)
+    }
+
+    var markerTitle: String {
+        if let locationName, !locationName.isEmpty {
+            return locationName
+        }
+        return mealTitle
+    }
+
+    var recordedHour: Int? {
+        guard let time else { return nil }
+        return Calendar.current.dateComponents(in: recordedTimeZone, from: time).hour
+    }
+
+    var recordedWeekday: Weekday? {
+        guard let time else { return nil }
+        let weekday = Calendar.current.dateComponents(in: recordedTimeZone, from: time).weekday ?? 1
+        let isoWeekday = weekday == 1 ? 7 : weekday - 1
+        return Weekday(rawValue: isoWeekday)
+    }
+}
+
+private struct MealPhotoTile: Identifiable, Equatable {
+    let id: String
+    let photoURL: String
+    let mealTitle: String
+}
+
+private struct MealLocationSummary: Identifiable, Equatable {
+    let id: String
+    let title: String
+    let count: Int
+}
+
+private struct MealHeatmapRow: Identifiable, Equatable {
+    let weekday: Weekday
+    let counts: [Int]
+
+    var id: Int { weekday.rawValue }
+}
+
+private struct MealMemoriesSection: View {
+    let items: [MealMemoryItem]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            SectionHeader(title: NSLocalizedString("餐食记忆", comment: ""), subtitle: nil)
+            MealMemoryMapCard(items: items)
+            MealPhotoWallCard(items: items)
+            MealTimeHeatmapCard(items: items)
+        }
+        .sectionStyle()
+    }
+}
+
+private struct MealMemoryMapCard: View {
+    let items: [MealMemoryItem]
+
+    @State private var cameraPosition: MapCameraPosition = .automatic
+
+    private var mappedItems: [MealMemoryItem] {
+        items.filter { $0.coordinate != nil }
+    }
+
+    private var topLocations: [MealLocationSummary] {
+        let groups = Dictionary(grouping: mappedItems) { item in
+            if let locationName = item.locationName?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !locationName.isEmpty {
+                return locationName
+            }
+            return item.coordinateLabel
+        }
+
+        return groups
+            .map { key, value in
+                MealLocationSummary(id: key, title: key, count: value.count)
+            }
+            .sorted { lhs, rhs in
+                if lhs.count == rhs.count {
+                    return lhs.title < rhs.title
+                }
+                return lhs.count > rhs.count
+            }
+            .prefix(4)
+            .map { $0 }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            cardTitle(NSLocalizedString("地图", comment: ""))
+
+            if mappedItems.isEmpty {
+                emptyCardState(
+                    systemImage: "map",
+                    title: NSLocalizedString("还没有带地点的餐食", comment: "")
+                )
+            } else {
+                Map(position: $cameraPosition) {
+                    ForEach(mappedItems) { item in
+                        if let coordinate = item.coordinate {
+                            Marker(item.markerTitle, coordinate: coordinate)
+                                .tint(AppTheme.accent)
+                        }
+                    }
+                }
+                .frame(height: 240)
+                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .onAppear(perform: updateCamera)
+                .onChange(of: mappedItems.map(\.id)) { _, _ in
+                    updateCamera()
+                }
+
+                if !topLocations.isEmpty {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(topLocations) { location in
+                                Text("\(location.title) · \(location.count)")
+                                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                                    .foregroundStyle(AppTheme.primaryText)
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 8)
+                                    .background(AppTheme.surface)
+                                    .clipShape(Capsule())
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        .padding(16)
+        .appCardStyle()
+    }
+
+    private func updateCamera() {
+        guard !mappedItems.isEmpty else {
+            cameraPosition = .automatic
+            return
+        }
+
+        let coordinates = mappedItems.compactMap(\.coordinate)
+        guard let first = coordinates.first else { return }
+        guard coordinates.count > 1 else {
+            cameraPosition = .region(
+                MKCoordinateRegion(
+                    center: first,
+                    latitudinalMeters: 1200,
+                    longitudinalMeters: 1200
+                )
+            )
+            return
+        }
+
+        let latitudes = coordinates.map(\.latitude)
+        let longitudes = coordinates.map(\.longitude)
+        let minLat = latitudes.min() ?? first.latitude
+        let maxLat = latitudes.max() ?? first.latitude
+        let minLon = longitudes.min() ?? first.longitude
+        let maxLon = longitudes.max() ?? first.longitude
+        let latitudeDelta = max(0.02, (maxLat - minLat) * 1.6)
+        let longitudeDelta = max(0.02, (maxLon - minLon) * 1.6)
+
+        cameraPosition = .region(
+            MKCoordinateRegion(
+                center: CLLocationCoordinate2D(
+                    latitude: (minLat + maxLat) / 2,
+                    longitude: (minLon + maxLon) / 2
+                ),
+                span: MKCoordinateSpan(latitudeDelta: latitudeDelta, longitudeDelta: longitudeDelta)
+            )
+        )
+    }
+}
+
+private struct MealPhotoWallCard: View {
+    let items: [MealMemoryItem]
+
+    @State private var previewingPhoto: MealPhotoTile?
+
+    private var photoTiles: [MealPhotoTile] {
+        items
+            .flatMap { item in
+                item.photoURLs.enumerated().map { index, photoURL in
+                    MealPhotoTile(
+                        id: "\(item.id)-\(index)",
+                        photoURL: photoURL,
+                        mealTitle: item.mealTitle
+                    )
+                }
+            }
+            .prefix(12)
+            .map { $0 }
+    }
+
+    private let columns = [
+        GridItem(.flexible(), spacing: 10),
+        GridItem(.flexible(), spacing: 10)
+    ]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            cardTitle(NSLocalizedString("照片墙", comment: ""))
+
+            if photoTiles.isEmpty {
+                emptyCardState(
+                    systemImage: "photo.on.rectangle.angled",
+                    title: NSLocalizedString("还没有餐食照片", comment: "")
+                )
+            } else {
+                LazyVGrid(columns: columns, spacing: 10) {
+                    ForEach(photoTiles) { tile in
+                        Button {
+                            previewingPhoto = tile
+                        } label: {
+                            ZStack(alignment: .topLeading) {
+                                PhotoContentView(photoURL: tile.photoURL, contentMode: .fill)
+                                    .frame(height: 132)
+                                    .frame(maxWidth: .infinity)
+                                    .clipped()
+
+                                Text(tile.mealTitle)
+                                    .font(.system(size: 11, weight: .bold, design: .rounded))
+                                    .foregroundStyle(Color.white)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 5)
+                                    .background(.black.opacity(0.42))
+                                    .clipShape(Capsule())
+                                    .padding(8)
+                            }
+                            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+        }
+        .padding(16)
+        .appCardStyle()
+        .sheet(item: $previewingPhoto) { tile in
+            MealPhotoPreview(photoURL: tile.photoURL)
+        }
+    }
+}
+
+private struct MealTimeHeatmapCard: View {
+    let items: [MealMemoryItem]
+
+    private var rows: [MealHeatmapRow] {
+        Weekday.allCases.map { weekday in
+            MealHeatmapRow(
+                weekday: weekday,
+                counts: (0..<24).map { hour in
+                    items.filter { $0.recordedWeekday == weekday && $0.recordedHour == hour }.count
+                }
+            )
+        }
+    }
+
+    private var maxCount: Int {
+        rows.flatMap(\.counts).max() ?? 0
+    }
+
+    private var hasTimedMeals: Bool {
+        items.contains { $0.recordedHour != nil }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            cardTitle(NSLocalizedString("时间热力图", comment: ""))
+
+            if !hasTimedMeals {
+                emptyCardState(
+                    systemImage: "clock",
+                    title: NSLocalizedString("还没有餐食时间", comment: "")
+                )
+            } else {
+                GeometryReader { geometry in
+                    let labelWidth: CGFloat = 20
+                    let spacing: CGFloat = 4
+                    let cellWidth = max(8, (geometry.size.width - labelWidth - (spacing * 23)) / 24)
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack(spacing: spacing) {
+                            Color.clear.frame(width: labelWidth)
+                            ForEach(0..<24, id: \.self) { hour in
+                                Text(hour % 6 == 0 ? "\(hour)" : "")
+                                    .font(.system(size: 9, weight: .semibold, design: .rounded))
+                                    .foregroundStyle(AppTheme.secondaryText)
+                                    .frame(width: cellWidth, alignment: .center)
+                            }
+                        }
+
+                        ForEach(rows) { row in
+                            HStack(spacing: spacing) {
+                                Text(row.weekday.shortLabel)
+                                    .font(.system(size: 11, weight: .bold, design: .rounded))
+                                    .foregroundStyle(AppTheme.secondaryText)
+                                    .frame(width: labelWidth, alignment: .leading)
+
+                                ForEach(Array(row.counts.enumerated()), id: \.offset) { entry in
+                                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                                        .fill(heatmapColor(for: entry.element))
+                                        .frame(width: cellWidth, height: 18)
+                                }
+                            }
+                        }
+                    }
+                }
+                .frame(height: 176)
+            }
+        }
+        .padding(16)
+        .appCardStyle()
+    }
+
+    private func heatmapColor(for count: Int) -> Color {
+        guard count > 0, maxCount > 0 else {
+            return AppTheme.mutedFill
+        }
+        let intensity = Double(count) / Double(maxCount)
+        return AppTheme.accent.opacity(0.20 + intensity * 0.70)
+    }
+}
+
+private struct MealPhotoPreview: View {
+    @Environment(\.dismiss) private var dismiss
+
+    let photoURL: String
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                Color.black.ignoresSafeArea()
+
+                PhotoContentView(photoURL: photoURL, contentMode: .fit)
+                    .padding(24)
+            }
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(NSLocalizedString("关闭", comment: "")) {
+                        dismiss()
+                    }
+                    .font(.system(size: 16, weight: .semibold, design: .rounded))
+                    .foregroundStyle(Color.white)
+                }
+            }
+        }
+    }
+}
+
+private func cardTitle(_ title: String) -> some View {
+    Text(title)
+        .font(.system(size: 18, weight: .bold, design: .rounded))
+        .foregroundStyle(AppTheme.primaryText)
+}
+
+private func emptyCardState(systemImage: String, title: String) -> some View {
+    VStack(spacing: 10) {
+        Image(systemName: systemImage)
+            .font(.system(size: 24, weight: .semibold))
+            .foregroundStyle(AppTheme.secondaryText)
+        Text(title)
+            .font(.system(size: 14, weight: .semibold, design: .rounded))
+            .foregroundStyle(AppTheme.secondaryText)
+    }
+    .frame(maxWidth: .infinity, minHeight: 140)
+    .background(AppTheme.surface)
+    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
 }
