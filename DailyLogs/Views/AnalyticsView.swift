@@ -2,6 +2,74 @@ import Charts
 import MapKit
 import SwiftUI
 
+struct MemoryView: View {
+    @EnvironmentObject private var appViewModel: AppViewModel
+    @State private var isShowingCustomRange = false
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                AppTheme.background.ignoresSafeArea()
+
+                ScrollView(.vertical, showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 24) {
+                        header
+                        MealMemoriesSection(items: mealMemoryItems)
+                    }
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 16)
+                }
+            }
+            .navigationTitle(NSLocalizedString("记忆", comment: ""))
+            .navigationBarTitleDisplayMode(.inline)
+            .sheet(isPresented: $isShowingCustomRange) {
+                AnalyticsDateRangeSheet(
+                    dateRange: appViewModel.analyticsCustomDateRange,
+                    allowedRange: appViewModel.availableDateRange
+                ) { range in
+                    appViewModel.updateAnalyticsCustomDateRange(range)
+                }
+            }
+        }
+    }
+
+    private var analyticsDateBounds: ClosedRange<Date> {
+        AnalyticsCalculator.visibleDateBounds(
+            range: appViewModel.analyticsRange,
+            customRange: appViewModel.analyticsRange == .custom ? appViewModel.analyticsCustomDateRange : nil
+        )
+    }
+
+    private var mealMemoryItems: [MealMemoryItem] {
+        appViewModel.allRecords
+            .filter { record in
+                record.date >= analyticsDateBounds.lowerBound && record.date <= analyticsDateBounds.upperBound
+            }
+            .flatMap { record in
+                record.meals.compactMap { meal -> MealMemoryItem? in
+                    guard meal.effectiveStatus(on: record.date) == .logged else { return nil }
+                    return MealMemoryItem(recordDate: record.date, meal: meal)
+                }
+            }
+            .sorted { $0.sortDate > $1.sortDate }
+    }
+
+    private var header: some View {
+        Picker(NSLocalizedString("范围", comment: ""), selection: $appViewModel.analyticsRange) {
+            ForEach(AnalyticsRange.allCases) { range in
+                Text(range.title).tag(range)
+            }
+        }
+        .pickerStyle(.segmented)
+        .onChange(of: appViewModel.analyticsRange) { _, newValue in
+            if newValue == .custom {
+                isShowingCustomRange = true
+            }
+        }
+        .sectionStyle()
+    }
+}
+
 struct AnalyticsView: View {
     @EnvironmentObject private var appViewModel: AppViewModel
     @State private var route: AnalyticsRoute?
@@ -29,9 +97,6 @@ struct AnalyticsView: View {
                             summaryGrid
                             Divider()
                             visibleWidgetCards
-                            if shouldShowMealMemories {
-                                mealMemoriesSection
-                            }
                             customizationCard
                         }
                         .padding(.horizontal, 18)
@@ -106,31 +171,6 @@ struct AnalyticsView: View {
         }
     }
 
-    private var shouldShowMealMemories: Bool {
-        appViewModel.preferences.visibleHomeSections.contains(.meals)
-    }
-
-    private var analyticsDateBounds: ClosedRange<Date> {
-        AnalyticsCalculator.visibleDateBounds(
-            range: appViewModel.analyticsRange,
-            customRange: appViewModel.analyticsRange == .custom ? appViewModel.analyticsCustomDateRange : nil
-        )
-    }
-
-    private var mealMemoryItems: [MealMemoryItem] {
-        appViewModel.allRecords
-            .filter { record in
-                record.date >= analyticsDateBounds.lowerBound && record.date <= analyticsDateBounds.upperBound
-            }
-            .flatMap { record in
-                record.meals.compactMap { meal -> MealMemoryItem? in
-                    guard meal.effectiveStatus(on: record.date) == .logged else { return nil }
-                    return MealMemoryItem(recordDate: record.date, meal: meal)
-                }
-            }
-            .sorted { $0.sortDate > $1.sortDate }
-    }
-
     private var header: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text(NSLocalizedString("规律不是为了控制你，而是为了更轻松地生活。", comment: ""))
@@ -180,10 +220,6 @@ struct AnalyticsView: View {
             )
         }
         .sectionStyle()
-    }
-
-    private var mealMemoriesSection: some View {
-        MealMemoriesSection(items: mealMemoryItems)
     }
 
     private var customizationCard: some View {
@@ -2163,7 +2199,6 @@ private struct MealMemoriesSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            SectionHeader(title: NSLocalizedString("餐食记忆", comment: ""), subtitle: nil)
             MealMemoryMapCard(items: items)
             MealPhotoWallCard(items: items)
             MealTimeHeatmapCard(items: items)
@@ -2395,14 +2430,17 @@ private struct MealTimeHeatmapCard: View {
                 GeometryReader { geometry in
                     let labelWidth: CGFloat = 20
                     let spacing: CGFloat = 4
-                    let cellWidth = max(8, (geometry.size.width - labelWidth - (spacing * 23)) / 24)
+                    let cellWidth = max(10, (geometry.size.width - labelWidth - (spacing * 23)) / 24)
 
                     VStack(alignment: .leading, spacing: 6) {
                         HStack(spacing: spacing) {
                             Color.clear.frame(width: labelWidth)
                             ForEach(0..<24, id: \.self) { hour in
                                 Text(hour % 6 == 0 ? "\(hour)" : "")
-                                    .font(.system(size: 9, weight: .semibold, design: .rounded))
+                                    .font(.system(size: 8, weight: .semibold, design: .rounded))
+                                    .monospacedDigit()
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.7)
                                     .foregroundStyle(AppTheme.secondaryText)
                                     .frame(width: cellWidth, alignment: .center)
                             }

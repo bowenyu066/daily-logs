@@ -995,6 +995,22 @@
         }
       }
     },
+    "关闭" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Close"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "关闭"
+          }
+        }
+      }
+    },
     "其中有 %d 个餐次被主动标记为跳过。" : {
       "localizations" : {
         "en" : {
@@ -1493,6 +1509,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "图表"
+          }
+        }
+      }
+    },
+    "地图" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Map"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "地图"
           }
         }
       }
@@ -2121,6 +2153,22 @@
         }
       }
     },
+    "记忆" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Memories"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "记忆"
+          }
+        }
+      }
+    },
     "无记录" : {
       "localizations" : {
         "en" : {
@@ -2207,6 +2255,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Time display"
+          }
+        }
+      }
+    },
+    "时间热力图" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Heatmap"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "时间热力图"
           }
         }
       }
@@ -3074,6 +3138,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "游客模式显示本地评分。"
+          }
+        }
+      }
+    },
+    "照片墙" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Photo Wall"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "照片墙"
           }
         }
       }
@@ -3972,6 +4052,22 @@
         }
       }
     },
+    "还没有带地点的餐食" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No mapped meals yet"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "还没有带地点的餐食"
+          }
+        }
+      }
+    },
     "还没有性生活记录数据。" : {
       "localizations" : {
         "en" : {
@@ -4052,6 +4148,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "OpenAI API Key is not configured."
+          }
+        }
+      }
+    },
+    "还没有餐食时间" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No meal times yet"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "还没有餐食时间"
+          }
+        }
+      }
+    },
+    "还没有餐食照片" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No meal photos yet"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "还没有餐食照片"
           }
         }
       }
@@ -4334,118 +4462,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "餐食记忆"
-          }
-        }
-      }
-    },
-    "关闭" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Close"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "关闭"
-          }
-        }
-      }
-    },
-    "地图" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Map"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "地图"
-          }
-        }
-      }
-    },
-    "时间热力图" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Heatmap"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "时间热力图"
-          }
-        }
-      }
-    },
-    "照片墙" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Photo Wall"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "照片墙"
-          }
-        }
-      }
-    },
-    "还没有带地点的餐食" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No mapped meals yet"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "还没有带地点的餐食"
-          }
-        }
-      }
-    },
-    "还没有餐食时间" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No meal times yet"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "还没有餐食时间"
-          }
-        }
-      }
-    },
-    "还没有餐食照片" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No meal photos yet"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "还没有餐食照片"
           }
         }
       }
