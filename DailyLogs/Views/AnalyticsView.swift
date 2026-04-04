@@ -11,13 +11,23 @@ struct MemoryView: View {
             ZStack {
                 AppTheme.background.ignoresSafeArea()
 
-                ScrollView(.vertical, showsIndicators: false) {
-                    VStack(alignment: .leading, spacing: 24) {
-                        header
-                        MealMemoriesSection(items: mealMemoryItems)
+                if appViewModel.canDisplayAnalytics {
+                    ScrollView(.vertical, showsIndicators: false) {
+                        VStack(alignment: .leading, spacing: 24) {
+                            header
+                            MealMemoriesSection(items: mealMemoryItems)
+                        }
+                        .padding(.horizontal, 18)
+                        .padding(.vertical, 16)
                     }
+                } else {
+                    VStack {
+                        PlaceholderCard(
+                            text: NSLocalizedString("满7天后解锁记忆页", comment: "")
+                        )
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
                     .padding(.horizontal, 18)
-                    .padding(.vertical, 16)
                 }
             }
             .navigationTitle(NSLocalizedString("记忆", comment: ""))
@@ -105,7 +115,7 @@ struct AnalyticsView: View {
                 } else {
                     VStack {
                         PlaceholderCard(
-                            text: NSLocalizedString("尚未记录超过7天，请等待使用7天后再来浏览数据趋势哦", comment: "")
+                            text: NSLocalizedString("满7天后解锁数据趋势", comment: "")
                         )
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)

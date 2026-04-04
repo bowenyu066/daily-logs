@@ -43,6 +43,16 @@
         }
       }
     },
+    "%@ · %@" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ · %2$@"
+          }
+        }
+      }
+    },
     "%@ %@" : {
       "localizations" : {
         "en" : {
@@ -2153,22 +2163,6 @@
         }
       }
     },
-    "记忆" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Memories"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "记忆"
-          }
-        }
-      }
-    },
     "无记录" : {
       "localizations" : {
         "en" : {
@@ -2271,6 +2265,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "时间热力图"
+          }
+        }
+      }
+    },
+    "满7天后解锁数据趋势" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unlock trends after 7 days"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "满7天后解锁数据趋势"
+          }
+        }
+      }
+    },
+    "满7天后解锁记忆页" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unlock memories after 7 days"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "满7天后解锁记忆页"
           }
         }
       }
@@ -3802,6 +3828,22 @@
         }
       }
     },
+    "记忆" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Memories"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "记忆"
+          }
+        }
+      }
+    },
     "设置" : {
       "localizations" : {
         "en" : {
@@ -4451,6 +4493,7 @@
       }
     },
     "餐食记忆" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
