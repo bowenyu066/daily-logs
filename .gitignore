@@ -26,6 +26,12 @@ xcuserdata/
 Packages/
 Package.resolved
 
+# Node / Firebase Functions
+node_modules/
+firebase/functions/node_modules/
+firebase-debug.log
+firebase-debug.*.log
+
 # Fastlane
 fastlane/report.xml
 fastlane/Preview.html
