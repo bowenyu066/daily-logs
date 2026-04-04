@@ -505,7 +505,9 @@ struct HomeView: View {
                 }
             }
 
-            Spacer(minLength: 0)
+            if photoCount > 0 {
+                Spacer(minLength: 0)
+            }
 
             if photoCount == 0 {
                 Button {
