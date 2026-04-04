@@ -34,7 +34,14 @@
       }
     },
     "%@" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@"
+          }
+        }
+      }
     },
     "%@ %@" : {
       "localizations" : {
@@ -73,10 +80,24 @@
       }
     },
     "%@有明确记录，这部分拿到了稳定加分。" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ has clear records, earning stable points here."
+          }
+        }
+      }
     },
     "%@这部分昨天没有记录，所以分数偏保守。" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ had no records yesterday, so scoring is conservative."
+          }
+        }
+      }
     },
     "%d小时%d分" : {
       "localizations" : {
@@ -143,7 +164,14 @@
       }
     },
     "AI" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI"
+          }
+        }
+      }
     },
     "AI 洞察" : {
       "localizations" : {
@@ -162,7 +190,14 @@
       }
     },
     "AI 解读生成失败：" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI interpretation failed: "
+          }
+        }
+      }
     },
     "AI 评分已启用" : {
       "localizations" : {
@@ -197,13 +232,34 @@
       }
     },
     "AI 返回了文案，但没有返回分数。" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI returned text but no score."
+          }
+        }
+      }
     },
     "AI 返回的数据格式无法识别。" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI returned an unrecognized data format."
+          }
+        }
+      }
     },
     "AI 这次没有返回可用内容。" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI didn't return usable content this time."
+          }
+        }
+      }
     },
     "Apple Health 睡眠" : {
       "localizations" : {
@@ -405,6 +461,12 @@
     },
     "主要加分项是%@，目前最值得再留意的是%@。" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Top scoring area: %1$@. Most worth attention: %2$@."
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "new",
@@ -462,7 +524,14 @@
       }
     },
     "云端 AI 代理地址还没有配置。" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cloud AI proxy URL is not configured."
+          }
+        }
+      }
     },
     "云端 AI 已启用" : {
       "localizations" : {
@@ -513,7 +582,14 @@
       }
     },
     "云端 AI 需要登录后的 Firebase 身份令牌。" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cloud AI requires a Firebase token. Please sign in."
+          }
+        }
+      }
     },
     "云端偏好同步失败：" : {
       "localizations" : {
@@ -894,7 +970,14 @@
       }
     },
     "入睡时间和目标时间偏差较大，作息规律性还有提升空间。" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bedtime varied significantly from target — sleep regularity has room to improve."
+          }
+        }
+      }
     },
     "六" : {
       "localizations" : {
@@ -913,7 +996,14 @@
       }
     },
     "其中有 %d 个餐次被主动标记为跳过。" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%d meals were marked as skipped."
+          }
+        }
+      }
     },
     "再多记录几天，这里会更有参考价值。" : {
       "localizations" : {
@@ -948,7 +1038,14 @@
       }
     },
     "最近只有 %d 天可用记录，趋势判断会更保守。" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Only %d days of data available — trend analysis will be conservative."
+          }
+        }
+      }
     },
     "初始化失败：" : {
       "localizations" : {
@@ -977,7 +1074,14 @@
       }
     },
     "删除照片？" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete photo?"
+          }
+        }
+      }
     },
     "删除照片失败：" : {
       "localizations" : {
@@ -1006,7 +1110,14 @@
       }
     },
     "删除记录？" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete record?"
+          }
+        }
+      }
     },
     "删除记录失败：" : {
       "localizations" : {
@@ -1035,7 +1146,14 @@
       }
     },
     "删除餐次？" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete meal?"
+          }
+        }
+      }
     },
     "删除餐食失败：" : {
       "localizations" : {
@@ -1132,7 +1250,14 @@
       }
     },
     "历史样本还不够，暂时只参考当天表现。" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not enough history yet — scoring based on today's data only."
+          }
+        }
+      }
     },
     "取消" : {
       "localizations" : {
@@ -1193,7 +1318,14 @@
       }
     },
     "同步密码不正确，无法解锁加密数据。" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Incorrect sync password, cannot unlock encrypted data."
+          }
+        }
+      }
     },
     "名称" : {
       "localizations" : {
@@ -1212,7 +1344,14 @@
       }
     },
     "启用加密同步失败：" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Failed to enable encrypted sync: "
+          }
+        }
+      }
     },
     "周一" : {
       "localizations" : {
@@ -1439,6 +1578,7 @@
       }
     },
     "展示页使用绝对时间" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1449,6 +1589,7 @@
       }
     },
     "展示页全部使用记录地原始时间" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1629,6 +1770,7 @@
       }
     },
     "开启加密后，所有数据将完全以加密方式安全存储在云端。" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1889,6 +2031,7 @@
       }
     },
     "按你当前所在时区换算显示同一时刻。" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2085,28 +2228,84 @@
       }
     },
     "昨天整体不错" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yesterday went well"
+          }
+        }
+      }
     },
     "昨天整体还可以，但还有一两项记录不够稳。" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yesterday was decent, but a couple of areas were inconsistent."
+          }
+        }
+      }
     },
     "昨天有点乱" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yesterday was a bit off"
+          }
+        }
+      }
     },
     "昨天没有可分析的餐食数据。" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No meal data available to analyze from yesterday."
+          }
+        }
+      }
     },
     "昨天没有相关记录" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No records from yesterday"
+          }
+        }
+      }
     },
     "昨天状态很稳" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yesterday was solid"
+          }
+        }
+      }
     },
     "昨天的数据提示节奏有些散，今天可以再收一收。" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yesterday's data suggests things were scattered — today's a good chance to reset."
+          }
+        }
+      }
     },
     "昨天的整体节奏比较顺，可以继续保持。" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yesterday's rhythm was smooth — keep it going."
+          }
+        }
+      }
     },
     "昨天的观察" : {
       "localizations" : {
@@ -2125,13 +2324,34 @@
       }
     },
     "昨天的餐食记录比较完整，这一项整体是加分的。" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yesterday's meal records were fairly complete — a positive area overall."
+          }
+        }
+      }
     },
     "昨天还没有睡眠记录，所以这部分暂时没有加分。" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No sleep records from yesterday — no points in this area yet."
+          }
+        }
+      }
     },
     "昨天需要重整节奏" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yesterday needed a reset"
+          }
+        }
+      }
     },
     "昨日分数" : {
       "localizations" : {
@@ -2266,7 +2486,14 @@
       }
     },
     "未纳入昨天的分析范围" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not included in yesterday's analysis"
+          }
+        }
+      }
     },
     "未记录" : {
       "localizations" : {
@@ -2445,13 +2672,34 @@
       }
     },
     "此操作会删除整个餐次，且无法撤销。" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This will delete the entire meal and cannot be undone."
+          }
+        }
+      }
     },
     "此操作会清除当前时间记录，且无法撤销。" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This will clear the current time record and cannot be undone."
+          }
+        }
+      }
     },
     "此操作会移除这张照片，且无法撤销。" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This will remove this photo and cannot be undone."
+          }
+        }
+      }
     },
     "此操作将会覆盖已有数据。" : {
       "localizations" : {
@@ -2464,7 +2712,14 @@
       }
     },
     "此操作无法撤销。" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This cannot be undone."
+          }
+        }
+      }
     },
     "每天只记几件事" : {
       "localizations" : {
@@ -2660,7 +2915,14 @@
       }
     },
     "添加记录" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add record"
+          }
+        }
+      }
     },
     "添加餐次" : {
       "localizations" : {
@@ -2711,7 +2973,14 @@
       }
     },
     "清除记录？" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clear record?"
+          }
+        }
+      }
     },
     "游客模式" : {
       "localizations" : {
@@ -2794,7 +3063,14 @@
       }
     },
     "现在的数据还不足以形成稳定分析。" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not enough data yet to form a reliable analysis."
+          }
+        }
+      }
     },
     "现在还是本地兜底分数；生成后会切换成 AI 评分。" : {
       "localizations" : {
@@ -2813,6 +3089,7 @@
       }
     },
     "登录后自动使用云端 AI。" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2989,7 +3266,14 @@
       }
     },
     "睡眠备注" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sleep notes"
+          }
+        }
+      }
     },
     "睡眠时段" : {
       "localizations" : {
@@ -3008,19 +3292,54 @@
       }
     },
     "睡眠时长偏短，是昨天最明显的扣分点。" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sleep duration was short — the biggest deduction from yesterday."
+          }
+        }
+      }
     },
     "睡眠时长落在比较稳的区间，整体是加分项。" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sleep duration was in a good range — a positive contributor overall."
+          }
+        }
+      }
     },
     "睡眠时间偏长，可能说明昨天整体恢复感比较重。" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sleep ran long — may suggest you needed more recovery yesterday."
+          }
+        }
+      }
     },
     "睡眠时间记录还不完整" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sleep time record is incomplete"
+          }
+        }
+      }
     },
     "睡眠记录只有一半，补齐入睡和起床时间后会更准确。" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sleep record is only half complete — add both bedtime and wake time for better accuracy."
+          }
+        }
+      }
     },
     "睡眠记录还不够。" : {
       "localizations" : {
@@ -3097,7 +3416,14 @@
       }
     },
     "移除照片" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remove photo"
+          }
+        }
+      }
     },
     "立即升级为端到端加密" : {
       "localizations" : {
@@ -3326,7 +3652,14 @@
       }
     },
     "记录了 %d 次" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recorded %d times"
+          }
+        }
+      }
     },
     "记录几天之后，这里会出现睡眠曲线。" : {
       "localizations" : {
@@ -3596,7 +3929,14 @@
       }
     },
     "还有 %d 个餐次没有记录，餐食分数主要扣在完整度上。" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%d meals have no records — meal score mainly deducted for completeness."
+          }
+        }
+      }
     },
     "还没有可分析的数据" : {
       "localizations" : {
@@ -3663,7 +4003,14 @@
       }
     },
     "还没有睡眠记录" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No sleep records yet"
+          }
+        }
+      }
     },
     "还没有足够的睡眠阶段数据。" : {
       "localizations" : {
@@ -3682,10 +4029,24 @@
       }
     },
     "还没有配置 OpenAI API Key。" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OpenAI API Key is not configured."
+          }
+        }
+      }
     },
     "还没有餐食设置" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No meal settings yet"
+          }
+        }
+      }
     },
     "这一天" : {
       "extractionState" : "stale",
@@ -3705,6 +4066,7 @@
       }
     },
     "这台设备已受端到端加密保护" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -3785,7 +4147,14 @@
       }
     },
     "这是趣味性 AI 分析，不是医疗或健康建议。" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This is a fun AI analysis, not medical or health advice."
+          }
+        }
+      }
     },
     "进入游客模式失败：" : {
       "localizations" : {
@@ -3937,6 +4306,7 @@
       }
     },
     "默认使用原始时间；跨时区后仍显示记录当时的本地时间。" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -3947,6 +4317,7 @@
       }
     },
     "默认使用记录地原始时间，跨时区后回看旧记录时，仍保持记录当时的本地钟点。" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {

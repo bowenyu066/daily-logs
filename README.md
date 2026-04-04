@@ -30,5 +30,3 @@ It is intentionally small. The goal is to make daily logging feel light enough t
 ## Website
 
 Project page: [bowenyu066.github.io/daily-logs](https://bowenyu066.github.io/daily-logs/)
-
-The repository includes a static site in `docs/` for GitHub Pages deployment.

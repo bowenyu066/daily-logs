@@ -193,10 +193,7 @@ struct SettingsView: View {
 
     private var cloudEncryptionCard: some View {
         VStack(alignment: .leading, spacing: 16) {
-            SectionHeader(
-                title: NSLocalizedString("云端加密", comment: ""),
-                subtitle: NSLocalizedString("开启加密后，所有数据将完全以加密方式安全存储在云端。", comment: "")
-            )
+            SectionHeader(title: NSLocalizedString("云端加密", comment: ""), subtitle: nil)
 
             if !cloudEncryptionDescription.isEmpty {
                 Text(cloudEncryptionDescription)
@@ -228,21 +225,12 @@ struct SettingsView: View {
     }
 
     private var aiInsightsCard: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text(NSLocalizedString("AI 洞察", comment: ""))
-                .font(.system(size: 18, weight: .bold, design: .rounded))
-                .foregroundStyle(AppTheme.primaryText)
-
-            Text(NSLocalizedString("登录后自动使用云端 AI。", comment: ""))
-                .font(.system(size: 13, weight: .medium, design: .rounded))
-                .foregroundStyle(AppTheme.secondaryText)
-                .fixedSize(horizontal: false, vertical: true)
-
+        VStack(alignment: .leading, spacing: 16) {
+            SectionHeader(title: NSLocalizedString("AI 洞察", comment: ""), subtitle: nil)
             HStack(spacing: 10) {
                 Circle()
                     .fill(appViewModel.canGenerateAIInsights ? Color(red: 0.20, green: 0.63, blue: 0.60) : AppTheme.warning)
                     .frame(width: 10, height: 10)
-
                 Text(aiInsightsStatusText)
                     .font(.system(size: 14, weight: .semibold, design: .rounded))
                     .foregroundStyle(AppTheme.primaryText)
@@ -284,11 +272,7 @@ struct SettingsView: View {
                 )
             }
         case .unlocked:
-            primaryActionButton(
-                title: NSLocalizedString("这台设备已受端到端加密保护", comment: ""),
-                action: {}
-            )
-            .disabled(true)
+            EmptyView()
         }
     }
 
@@ -362,70 +346,21 @@ struct SettingsView: View {
     }
 
     private var timeDisplayModeSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(NSLocalizedString("时间展示方式", comment: ""))
-                    .font(.system(size: 16, weight: .semibold, design: .rounded))
-                    .foregroundStyle(AppTheme.primaryText)
-
-                Text(NSLocalizedString("默认使用记录地原始时间，跨时区后回看旧记录时，仍保持记录当时的本地钟点。", comment: ""))
-                    .font(.system(size: 13, weight: .medium, design: .rounded))
-                    .foregroundStyle(AppTheme.secondaryText)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            VStack(spacing: 10) {
-                timeDisplayModeRow(
-                    mode: .recorded,
-                    title: NSLocalizedString("展示页全部使用记录地原始时间", comment: ""),
-                    subtitle: NSLocalizedString("默认使用原始时间；跨时区后仍显示记录当时的本地时间。", comment: "")
-                )
-
-                timeDisplayModeRow(
-                    mode: .current,
-                    title: NSLocalizedString("展示页使用绝对时间", comment: ""),
-                    subtitle: NSLocalizedString("按你当前所在时区换算显示同一时刻。", comment: "")
-                )
-            }
-        }
-    }
-
-    private func timeDisplayModeRow(mode: TimeDisplayMode, title: String, subtitle: String) -> some View {
-        Button {
-            Task { await appViewModel.updateTimeDisplayMode(mode) }
-        } label: {
-            HStack(alignment: .top, spacing: 12) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(title)
-                        .font(.system(size: 15, weight: .semibold, design: .rounded))
-                        .foregroundStyle(AppTheme.primaryText)
-                        .multilineTextAlignment(.leading)
-
-                    Text(subtitle)
-                        .font(.system(size: 13, weight: .medium, design: .rounded))
-                        .foregroundStyle(AppTheme.secondaryText)
-                        .multilineTextAlignment(.leading)
-                        .fixedSize(horizontal: false, vertical: true)
+        Menu {
+            ForEach(TimeDisplayMode.allCases) { mode in
+                Button {
+                    Task { await appViewModel.updateTimeDisplayMode(mode) }
+                } label: {
+                    HStack {
+                        Text(mode.title)
+                        if appViewModel.preferences.timeDisplayMode == mode {
+                            Image(systemName: "checkmark")
+                        }
+                    }
                 }
-
-                Spacer(minLength: 12)
-
-                Image(systemName: appViewModel.preferences.timeDisplayMode == mode ? "checkmark.circle.fill" : "circle")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(appViewModel.preferences.timeDisplayMode == mode ? AppTheme.accent : AppTheme.secondaryText.opacity(0.5))
-                    .padding(.top, 2)
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 14)
-            .background(AppTheme.elevatedSurface)
-            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .stroke(
-                        appViewModel.preferences.timeDisplayMode == mode ? AppTheme.accent.opacity(0.35) : AppTheme.border,
-                        lineWidth: 1
-                    )
-            )
+        } label: {
+            SettingsStaticRow(title: NSLocalizedString("时间展示方式", comment: ""), value: appViewModel.preferences.timeDisplayMode.title)
         }
         .buttonStyle(.plain)
     }
@@ -470,11 +405,11 @@ struct SettingsView: View {
     }
 
     private var healthKitCard: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            SectionHeader(title: NSLocalizedString("Apple Health 睡眠", comment: ""), subtitle: nil)
-            Text(NSLocalizedString("自动从 Apple Health 同步睡眠数据（含阶段），替代手动输入。", comment: ""))
-                .font(.system(size: 14, weight: .medium, design: .rounded))
-                .foregroundStyle(AppTheme.secondaryText)
+        VStack(alignment: .leading, spacing: 16) {
+            SectionHeader(
+                title: NSLocalizedString("Apple Health 睡眠", comment: ""),
+                subtitle: NSLocalizedString("自动从 Apple Health 同步睡眠数据（含阶段），替代手动输入。", comment: "")
+            )
             HStack {
                 Text(NSLocalizedString("HealthKit 同步", comment: ""))
                     .font(.system(size: 16, weight: .semibold, design: .rounded))
