@@ -108,7 +108,10 @@ struct MealEditorSheet: View {
             }
             .sheet(isPresented: $showingImagePicker) {
                 if let pickerSource {
-                    ImagePicker(sourceType: pickerSource) { selectedImage in
+                    ImagePicker(
+                        sourceType: pickerSource,
+                        fallbackLocationProvider: { appViewModel.locationService.latestLocation }
+                    ) { selectedImage in
                         if let selectedImage {
                             let hadPhotosBeforeAppending = allPhotoCount > 0
                             selectedImages.append(selectedImage)
@@ -457,6 +460,16 @@ struct MealEditorSheet: View {
     private func openPicker(_ source: UIImagePickerController.SourceType) {
         guard isEditable else { return }
         guard source != .camera || UIImagePickerController.isSourceTypeAvailable(.camera) else { return }
+        if source == .camera {
+            switch appViewModel.locationService.permissionState {
+            case .authorized:
+                appViewModel.locationService.refreshCurrentLocation()
+            case .notDetermined:
+                appViewModel.locationService.requestAccess()
+            case .denied:
+                break
+            }
+        }
         pickerSource = source
         showingImagePicker = true
     }
@@ -662,6 +675,7 @@ private struct SelectedMealImage: Identifiable {
 
 private struct ImagePicker: UIViewControllerRepresentable {
     let sourceType: UIImagePickerController.SourceType
+    let fallbackLocationProvider: () -> CLLocation?
     let onImagePicked: (SelectedMealImage?) -> Void
 
     func makeUIViewController(context: Context) -> UIImagePickerController {
@@ -674,13 +688,21 @@ private struct ImagePicker: UIViewControllerRepresentable {
     func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {}
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(onImagePicked: onImagePicked)
+        Coordinator(
+            fallbackLocationProvider: fallbackLocationProvider,
+            onImagePicked: onImagePicked
+        )
     }
 
     final class Coordinator: NSObject, UINavigationControllerDelegate, UIImagePickerControllerDelegate {
+        let fallbackLocationProvider: () -> CLLocation?
         let onImagePicked: (SelectedMealImage?) -> Void
 
-        init(onImagePicked: @escaping (SelectedMealImage?) -> Void) {
+        init(
+            fallbackLocationProvider: @escaping () -> CLLocation?,
+            onImagePicked: @escaping (SelectedMealImage?) -> Void
+        ) {
+            self.fallbackLocationProvider = fallbackLocationProvider
             self.onImagePicked = onImagePicked
         }
 
@@ -724,7 +746,7 @@ private struct ImagePicker: UIViewControllerRepresentable {
             if sourceType == .camera {
                 return SelectedMealImage.Metadata(
                     capturedAt: Date(),
-                    location: nil
+                    location: fallbackLocationProvider()
                 )
             }
 
