@@ -94,6 +94,22 @@
         }
       }
     },
+    "%@/%@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@/%2$@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@/%2$@"
+          }
+        }
+      }
+    },
     "%@是昨天最主要的参考项，目前整体分数在 %d 分。" : {
       "localizations" : {
         "en" : {
@@ -317,6 +333,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "AI didn't return usable content this time."
+          }
+        }
+      }
+    },
+    "AI 服务当前比较繁忙，请稍后再试。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI is busy right now. Please try again in a bit."
+          }
+        }
+      }
+    },
+    "AI 服务暂时不可用（%d）。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI service is temporarily unavailable (%d)."
           }
         }
       }
@@ -654,6 +690,46 @@
         }
       }
     },
+    "云端 AI 的登录状态已过期，请重新登录后再试。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your Cloud AI session has expired. Please sign in again."
+          }
+        }
+      }
+    },
+    "云端 AI 的限流检查失败，请稍后再试。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cloud AI couldn't verify the rate limit. Please try again later."
+          }
+        }
+      }
+    },
+    "云端 AI 代理调用上游失败，请稍后再试。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cloud AI couldn't reach the upstream model. Please try again later."
+          }
+        }
+      }
+    },
+    "云端 AI 还没有配置可用的模型密钥。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cloud AI doesn't have a usable model key configured yet."
+          }
+        }
+      }
+    },
     "云端偏好同步失败：" : {
       "localizations" : {
         "en" : {
@@ -800,6 +876,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "今天是"
+          }
+        }
+      }
+    },
+    "今天的 AI 评分次数已用完，请稍后再试。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You've used up today's AI scoring attempts. Please try again later."
+          }
+        }
+      }
+    },
+    "今天的 AI 评分次数已用完（上限 %d 次），请稍后再试。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You've used up today's AI scoring attempts (limit: %d). Please try again later."
           }
         }
       }
@@ -1350,9 +1446,6 @@
         }
       }
     },
-    "历史分数" : {
-
-    },
     "历史样本还不够，暂时只参考当天表现。" : {
       "localizations" : {
         "en" : {
@@ -1620,6 +1713,7 @@
 
     },
     "固定为凌晨 4 点" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1807,9 +1901,6 @@
           }
         }
       }
-    },
-    "带圆环的是已经固定下来的 AI 评分。" : {
-
     },
     "平均入睡" : {
       "localizations" : {
@@ -2213,9 +2304,6 @@
         }
       }
     },
-    "截止时间" : {
-
-    },
     "拍照" : {
       "localizations" : {
         "en" : {
@@ -2328,9 +2416,6 @@
           }
         }
       }
-    },
-    "新的稳定版 AI 评分会从现在开始逐天积累。" : {
-
     },
     "无记录" : {
       "localizations" : {

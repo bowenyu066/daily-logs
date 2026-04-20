@@ -505,6 +505,10 @@ private struct AIInsightRingCalendarPreview: View {
     let report: DailyInsightReport
     let locale: Locale
 
+    private let ringLineWidth: CGFloat = 16
+    private let ringSpacing: CGFloat = 12
+    private let outerRingSize: CGFloat = 252
+
     private var rings: [CalendarRingMetric] {
         let overall = CalendarRingMetric(
             title: NSLocalizedString("当日分数", comment: ""),
@@ -512,7 +516,11 @@ private struct AIInsightRingCalendarPreview: View {
             maxScore: 100,
             color: AppTheme.accent
         )
-        let components = report.components.map {
+        let orderedKinds = DailyInsightComponentKind.allCases
+        let orderedComponents = orderedKinds.compactMap { kind in
+            report.components.first(where: { $0.kind == kind })
+        }
+        let components = orderedComponents.map {
             CalendarRingMetric(
                 title: $0.kind.title,
                 score: $0.score,
@@ -526,16 +534,20 @@ private struct AIInsightRingCalendarPreview: View {
     var body: some View {
         VStack(spacing: 20) {
             ZStack {
+                Circle()
+                    .fill(AppTheme.background.opacity(0.92))
+                    .frame(width: centerDiscSize, height: centerDiscSize)
+
                 ForEach(Array(rings.enumerated()), id: \.offset) { index, ring in
                     Circle()
-                        .stroke(ring.color.opacity(0.14), lineWidth: 12)
+                        .stroke(ring.color.opacity(0.14), lineWidth: ringLineWidth)
                         .frame(width: ringSize(for: index), height: ringSize(for: index))
 
                     Circle()
-                        .trim(from: 0, to: ring.progress)
+                        .trim(from: 0.001, to: max(ring.progress, 0.001))
                         .stroke(
                             ring.color,
-                            style: StrokeStyle(lineWidth: 12, lineCap: .round)
+                            style: StrokeStyle(lineWidth: ringLineWidth, lineCap: .round)
                         )
                         .rotationEffect(.degrees(-90))
                         .frame(width: ringSize(for: index), height: ringSize(for: index))
@@ -543,17 +555,17 @@ private struct AIInsightRingCalendarPreview: View {
 
                 VStack(spacing: 4) {
                     Text("\(report.overallScore)")
-                        .font(.system(size: 34, weight: .bold, design: .rounded))
+                        .font(.system(size: 42, weight: .bold, design: .rounded))
                         .foregroundStyle(AppTheme.primaryText)
 
                     Text(report.date.formattedDayTitle(locale: locale))
-                        .font(.system(size: 13, weight: .semibold, design: .rounded))
+                        .font(.system(size: 15, weight: .semibold, design: .rounded))
                         .foregroundStyle(AppTheme.secondaryText)
                         .multilineTextAlignment(.center)
-                        .padding(.horizontal, 20)
+                        .padding(.horizontal, 28)
                 }
             }
-            .frame(height: 230)
+            .frame(height: 280)
 
             VStack(spacing: 10) {
                 ForEach(rings) { ring in
@@ -581,7 +593,11 @@ private struct AIInsightRingCalendarPreview: View {
     }
 
     private func ringSize(for index: Int) -> CGFloat {
-        max(78, 208 - CGFloat(index * 28))
+        outerRingSize - CGFloat(index) * (ringLineWidth + ringSpacing)
+    }
+
+    private var centerDiscSize: CGFloat {
+        ringSize(for: max(rings.count - 1, 0)) - ringLineWidth - 16
     }
 
     private func color(for kind: DailyInsightComponentKind) -> Color {

@@ -8,7 +8,10 @@ initializeApp();
 const db = getFirestore();
 const auth = getAuth();
 
-const DAILY_LIMIT = Number.parseInt(process.env.DAILY_AI_REQUEST_LIMIT || "5", 10);
+// One visible AI score currently fans out to 5 upstream samples for averaging.
+// Keep the default daily ceiling comfortably above a single generation so
+// automatic generation plus a manual retry do not immediately exhaust the quota.
+const DAILY_LIMIT = Number.parseInt(process.env.DAILY_AI_REQUEST_LIMIT || "25", 10);
 const OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses";
 
 exports.proxyOpenAIResponses = onRequest(

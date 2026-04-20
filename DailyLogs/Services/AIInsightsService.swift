@@ -1074,25 +1074,49 @@ struct NoopAIInsightNarrativeService: AIInsightNarrativeGenerating, Sendable {
 enum AIInsightServiceError: LocalizedError {
     case missingAPIKey
     case missingAuthToken
+    case invalidAuthToken
     case missingProxyURL
     case invalidResponse
     case emptyResponse
     case missingScores
+    case dailyLimitReached(limit: Int?)
+    case providerError(String)
+    case requestFailed(statusCode: Int, message: String?)
 
     var errorDescription: String? {
         switch self {
         case .missingAPIKey:
-            NSLocalizedString("还没有配置 OpenAI API Key。", comment: "")
+            return NSLocalizedString("还没有配置 OpenAI API Key。", comment: "")
         case .missingAuthToken:
-            NSLocalizedString("云端 AI 需要登录后的 Firebase 身份令牌。", comment: "")
+            return NSLocalizedString("云端 AI 需要登录后的 Firebase 身份令牌。", comment: "")
+        case .invalidAuthToken:
+            return NSLocalizedString("云端 AI 的登录状态已过期，请重新登录后再试。", comment: "")
         case .missingProxyURL:
-            NSLocalizedString("云端 AI 代理地址还没有配置。", comment: "")
+            return NSLocalizedString("云端 AI 代理地址还没有配置。", comment: "")
         case .invalidResponse:
-            NSLocalizedString("AI 返回的数据格式无法识别。", comment: "")
+            return NSLocalizedString("AI 返回的数据格式无法识别。", comment: "")
         case .emptyResponse:
-            NSLocalizedString("AI 这次没有返回可用内容。", comment: "")
+            return NSLocalizedString("AI 这次没有返回可用内容。", comment: "")
         case .missingScores:
-            NSLocalizedString("AI 返回了文案，但没有返回分数。", comment: "")
+            return NSLocalizedString("AI 返回了文案，但没有返回分数。", comment: "")
+        case .dailyLimitReached(let limit):
+            if let limit, limit > 0 {
+                return String(
+                    format: NSLocalizedString("今天的 AI 评分次数已用完（上限 %d 次），请稍后再试。", comment: ""),
+                    limit
+                )
+            }
+            return NSLocalizedString("今天的 AI 评分次数已用完，请稍后再试。", comment: "")
+        case .providerError(let message):
+            return message
+        case .requestFailed(let statusCode, let message):
+            if let message, !message.isEmpty {
+                return message
+            }
+            return String(
+                format: NSLocalizedString("AI 服务暂时不可用（%d）。", comment: ""),
+                statusCode
+            )
         }
     }
 }
@@ -1110,6 +1134,10 @@ struct AIProxyConfiguration: Sendable {
         } else {
             endpointURL = nil
         }
+    }
+
+    init(endpointURL: URL?) {
+        self.endpointURL = endpointURL
     }
 
     var isConfigured: Bool {
@@ -1241,7 +1269,8 @@ private func performNarrativeRequest(
     let (data, response) = try await session.data(for: request)
     guard let httpResponse = response as? HTTPURLResponse,
           200..<300 ~= httpResponse.statusCode else {
-        throw AIInsightServiceError.invalidResponse
+        let statusCode = (response as? HTTPURLResponse)?.statusCode ?? -1
+        throw parseNarrativeRequestError(statusCode: statusCode, data: data)
     }
 
     return try parseNarrative(from: data)
@@ -1276,6 +1305,10 @@ private func parseNarrative(from data: Data) throws -> DailyInsightNarrative {
         return narrative
     }
 
+    if let refusal = decoded.extractedRefusal, !refusal.isEmpty {
+        throw AIInsightServiceError.providerError(refusal)
+    }
+
     guard let text = decoded.extractedText, !text.isEmpty else {
         throw AIInsightServiceError.emptyResponse
     }
@@ -1293,6 +1326,42 @@ private func parseNarrative(from data: Data) throws -> DailyInsightNarrative {
         throw AIInsightServiceError.missingScores
     }
     return narrative
+}
+
+private func parseNarrativeRequestError(statusCode: Int, data: Data) -> AIInsightServiceError {
+    if let envelope = try? JSONDecoder().decode(AIErrorEnvelope.self, from: data) {
+        switch envelope.errorValue {
+        case .string("missing_auth_token"):
+            return .missingAuthToken
+        case .string("invalid_auth_token"):
+            return .invalidAuthToken
+        case .string("daily_limit_reached"):
+            return .dailyLimitReached(limit: envelope.limit)
+        case .string("rate_limit_failed"):
+            return .providerError(NSLocalizedString("云端 AI 的限流检查失败，请稍后再试。", comment: ""))
+        case .string("missing_openai_key"):
+            return .providerError(NSLocalizedString("云端 AI 还没有配置可用的模型密钥。", comment: ""))
+        case .string("openai_proxy_failed"):
+            return .providerError(NSLocalizedString("云端 AI 代理调用上游失败，请稍后再试。", comment: ""))
+        case .string(let code):
+            return .requestFailed(statusCode: statusCode, message: code)
+        case .provider(let providerError):
+            let message = providerError.message?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let fallback = providerError.code?.trimmingCharacters(in: .whitespacesAndNewlines)
+            return .requestFailed(statusCode: statusCode, message: message?.isEmpty == false ? message : fallback)
+        case .none:
+            break
+        }
+    }
+
+    switch statusCode {
+    case 401:
+        return .invalidAuthToken
+    case 429:
+        return .providerError(NSLocalizedString("AI 服务当前比较繁忙，请稍后再试。", comment: ""))
+    default:
+        return .requestFailed(statusCode: statusCode, message: nil)
+    }
 }
 
 private func tryDirectNarrative(from data: Data) -> DailyInsightNarrative? {
@@ -1540,6 +1609,7 @@ private struct OpenAIResponseEnvelope: Decodable {
             var type: String?
             var text: String?
             var parsed: DailyInsightNarrative?
+            var refusal: String?
         }
 
         var content: [ContentItem]?
@@ -1548,11 +1618,13 @@ private struct OpenAIResponseEnvelope: Decodable {
     var outputText: String?
     var outputParsed: DailyInsightNarrative?
     var output: [OutputItem]?
+    var refusal: String?
 
     enum CodingKeys: String, CodingKey {
         case outputText = "output_text"
         case outputParsed = "output_parsed"
         case output
+        case refusal
     }
 
     var extractedNarrative: DailyInsightNarrative? {
@@ -1575,6 +1647,49 @@ private struct OpenAIResponseEnvelope: Decodable {
             .compactMap(\.text)
             .joined(separator: "\n")
         return joined?.isEmpty == true ? nil : joined
+    }
+
+    var extractedRefusal: String? {
+        if let refusal, !refusal.isEmpty {
+            return refusal
+        }
+        let joined = output?
+            .flatMap { $0.content ?? [] }
+            .compactMap(\.refusal)
+            .joined(separator: "\n")
+        return joined?.isEmpty == true ? nil : joined
+    }
+}
+
+private struct AIErrorEnvelope: Decodable {
+    struct ProviderError: Decodable {
+        var message: String?
+        var type: String?
+        var code: String?
+    }
+
+    enum ErrorValue: Decodable {
+        case string(String)
+        case provider(ProviderError)
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.singleValueContainer()
+            if let value = try? container.decode(String.self) {
+                self = .string(value)
+                return
+            }
+            self = .provider(try container.decode(ProviderError.self))
+        }
+    }
+
+    var errorValue: ErrorValue?
+    var limit: Int?
+    var dateKey: String?
+
+    enum CodingKeys: String, CodingKey {
+        case errorValue = "error"
+        case limit
+        case dateKey
     }
 }
 

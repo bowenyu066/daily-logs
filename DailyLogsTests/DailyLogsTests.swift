@@ -1008,6 +1008,121 @@ struct DailyLogsTests {
         #expect(resolved.sampleCount == 5)
     }
 
+    @Test
+    func openAIResponsesInsightServiceSurfacesUpstreamProviderMessage() async {
+        let payload = sampleInsightPayload()
+        let data = """
+        {
+          "error": {
+            "message": "Rate limit reached for gpt-5.4-mini.",
+            "type": "rate_limit_error",
+            "code": "rate_limit_exceeded"
+          }
+        }
+        """.data(using: .utf8)!
+        let session = makeMockSession(responseData: data, statusCode: 429)
+        let service = OpenAIResponsesInsightService(
+            keyStore: MockOpenAIKeyStore(key: "test-key"),
+            session: session,
+            model: "gpt-5.4-mini"
+        )
+
+        do {
+            _ = try await service.generateNarrative(from: payload)
+            Issue.record("Expected provider error to be thrown.")
+        } catch {
+            #expect(error.localizedDescription == "Rate limit reached for gpt-5.4-mini.")
+        }
+    }
+
+    @Test
+    func cloudAIInsightServiceSurfacesDailyLimitError() async {
+        let payload = sampleInsightPayload()
+        let data = """
+        {
+          "error": "daily_limit_reached",
+          "limit": 5,
+          "dateKey": "2026-04-20"
+        }
+        """.data(using: .utf8)!
+        let session = makeMockSession(responseData: data, statusCode: 429)
+        let service = CloudAIInsightService(
+            configuration: AIProxyConfiguration(endpointURL: URL(string: "https://example.com/proxy")),
+            session: session,
+            model: "gpt-5.4-mini",
+            authTokenProvider: { "mock-token" }
+        )
+
+        do {
+            _ = try await service.generateNarrative(from: payload)
+            Issue.record("Expected daily limit error to be thrown.")
+        } catch {
+            #expect(error.localizedDescription == "今天的 AI 评分次数已用完（上限 5 次），请稍后再试。")
+        }
+    }
+
+    @Test @MainActor
+    func refreshDailyInsightNarrativeForceBypassesValidNarrativeCache() async {
+        let today = Date().startOfDay
+        let yesterday = today.adding(days: -1)
+        let preferences = UserPreferences(
+            healthKitSyncEnabled: false,
+            visibleHomeSections: [.sleep, .meals, .showers]
+        )
+        let user = UserAccount(
+            userID: "force-ai-user",
+            displayName: "Tester",
+            email: nil,
+            authMode: .guest,
+            createdAt: today.adding(days: -30)
+        )
+        let record = DailyRecord(
+            date: yesterday,
+            sleepRecord: SleepRecord(
+                bedtimePreviousNight: yesterday.adding(days: -1).settingTime(hour: 23, minute: 50),
+                wakeTimeCurrentDay: yesterday.settingTime(hour: 7, minute: 15),
+                source: .manual
+            ),
+            meals: [
+                MealEntry(mealKind: .breakfast, status: .logged, time: yesterday.settingTime(hour: 8, minute: 15))
+            ],
+            showers: [],
+            bowelMovements: [],
+            sexualActivities: [],
+            sunTimes: nil
+        )
+        let aiService = MockAIInsightNarrativeService(responses: [
+            sampleAINarrative(headline: "第一次", overallScore: 81),
+            sampleAINarrative(headline: "第二次", overallScore: 86)
+        ])
+        let viewModel = AppViewModel(
+            authService: MockAuthService(user: user),
+            repository: InMemoryDailyRecordRepository(records: [yesterday.storageKey(): record]),
+            preferencesStore: MockPreferencesStore(preferences: preferences),
+            photoStorageService: MockPhotoStorageService(),
+            sunTimesService: MockSunTimesService(),
+            weatherService: MockWeatherService(),
+            healthSyncAdapter: MockHealthSyncAdapter(sleepRecord: nil),
+            cloudSyncService: NoopCloudSyncService(),
+            aiInsightNarrativeService: aiService,
+            openAIKeyStore: MockOpenAIKeyStore(key: "test-key"),
+            locationService: LocationService(),
+            selectedDate: yesterday,
+            dailyRecord: DailyRecord.empty(for: yesterday, preferences: preferences),
+            preferences: preferences
+        )
+
+        await viewModel.bootstrap()
+        await viewModel.refreshDailyInsightNarrative()
+        #expect(aiService.callCount == 1)
+        #expect(viewModel.activeDailyInsightNarrative?.headline == "第一次")
+
+        await viewModel.refreshDailyInsightNarrative(force: true)
+
+        #expect(aiService.callCount == 2)
+        #expect(viewModel.activeDailyInsightNarrative?.headline == "第二次")
+    }
+
     @Test @MainActor
     func bootstrapClearsLegacyOpenAIKeyAndUsesInjectedAIServiceState() async {
         let today = Date().startOfDay

@@ -297,7 +297,6 @@ final class AppViewModel: ObservableObject {
         force: Bool,
         isAutomatic: Bool
     ) async {
-        _ = force
         guard insightReport(for: targetDate) != nil else { return }
         guard canGenerateAIInsights else {
             aiInsightErrorMessage = nil
@@ -306,7 +305,7 @@ final class AppViewModel: ObservableObject {
         if isGeneratingDailyInsightNarrative {
             return
         }
-        if let cachedNarrative = validatedNarrative(for: targetDate) {
+        if !force, let cachedNarrative = validatedNarrative(for: targetDate) {
             dailyInsightNarrative = cachedNarrative
             dailyInsightNarrativeDate = targetDate.startOfDay
             return
