@@ -1,4 +1,5 @@
 import Foundation
+import CryptoKit
 @preconcurrency import FirebaseAuth
 import Security
 
@@ -40,6 +41,8 @@ struct DailyInsightComponent: Identifiable, Equatable {
 }
 
 struct DailyInsightNarrative: Codable, Equatable {
+    static let currentScoringVersion = 2
+
     struct ComponentScoreOverride: Codable, Equatable {
         var score: Int?
         var maxScore: Int?
@@ -53,6 +56,9 @@ struct DailyInsightNarrative: Codable, Equatable {
     var overallScore: Int?
     var components: [String: ComponentScoreOverride]?
     var generatedAt: Date = .now
+    var scoringVersion: Int
+    var sampleCount: Int
+    var payloadSignature: String?
 
     enum CodingKeys: String, CodingKey {
         case headline
@@ -61,6 +67,9 @@ struct DailyInsightNarrative: Codable, Equatable {
         case overallScore
         case components
         case generatedAt
+        case scoringVersion
+        case sampleCount
+        case payloadSignature
     }
 
     init(
@@ -69,7 +78,10 @@ struct DailyInsightNarrative: Codable, Equatable {
         bullets: [String],
         overallScore: Int? = nil,
         components: [String: ComponentScoreOverride]? = nil,
-        generatedAt: Date = .now
+        generatedAt: Date = .now,
+        scoringVersion: Int = DailyInsightNarrative.currentScoringVersion,
+        sampleCount: Int = 1,
+        payloadSignature: String? = nil
     ) {
         self.headline = headline
         self.summary = summary
@@ -77,6 +89,9 @@ struct DailyInsightNarrative: Codable, Equatable {
         self.overallScore = overallScore
         self.components = components
         self.generatedAt = generatedAt
+        self.scoringVersion = scoringVersion
+        self.sampleCount = sampleCount
+        self.payloadSignature = payloadSignature
     }
 
     init(from decoder: any Decoder) throws {
@@ -87,6 +102,9 @@ struct DailyInsightNarrative: Codable, Equatable {
         overallScore = try container.decodeIfPresent(Int.self, forKey: .overallScore)
         components = try container.decodeIfPresent([String: ComponentScoreOverride].self, forKey: .components)
         generatedAt = try container.decodeIfPresent(Date.self, forKey: .generatedAt) ?? .now
+        scoringVersion = try container.decodeIfPresent(Int.self, forKey: .scoringVersion) ?? 1
+        sampleCount = try container.decodeIfPresent(Int.self, forKey: .sampleCount) ?? 1
+        payloadSignature = try container.decodeIfPresent(String.self, forKey: .payloadSignature)
     }
 
     var hasAIScoring: Bool {
@@ -205,9 +223,36 @@ struct DailyInsightPayload: Codable {
     }
 
     struct EventSection: Codable {
+        var title: String?
+        var status: String?
         var timeISO8601: String?
         var timeLocal: String?
         var note: String?
+    }
+
+    struct TimelineEntry: Codable {
+        var order: Int
+        var category: String
+        var title: String
+        var status: String
+        var timeISO8601: String?
+        var timeLocal: String?
+        var detail: String?
+    }
+
+    struct RubricSection: Codable {
+        var key: String
+        var title: String
+        var maxScore: Int
+        var fullCreditRule: String
+        var partialCreditRule: String
+        var cautionRule: String
+    }
+
+    struct ScoringRubric: Codable {
+        var sampleCount: Int
+        var overallMethod: String
+        var sections: [RubricSection]
     }
 
     var language: String
@@ -221,6 +266,8 @@ struct DailyInsightPayload: Codable {
     var showers: [EventSection]
     var bowelMovementEnabled: Bool
     var bowelMovements: [EventSection]
+    var timeline: [TimelineEntry]
+    var scoringRubric: ScoringRubric
     var comparisonContext: HistoryContext
 }
 
@@ -298,6 +345,8 @@ enum DailyInsightAnalyzer {
 
         let showers = record.showers.map {
             DailyInsightPayload.EventSection(
+                title: NSLocalizedString("洗澡", comment: ""),
+                status: "logged",
                 timeISO8601: $0.time?.displayISO8601,
                 timeLocal: localizedClockTime($0.time, timeZoneIdentifier: $0.timeZoneIdentifier),
                 note: trimmedOptional($0.note)
@@ -306,11 +355,15 @@ enum DailyInsightAnalyzer {
 
         let bowelMovements = record.bowelMovements.map {
             DailyInsightPayload.EventSection(
+                title: NSLocalizedString("排便", comment: ""),
+                status: "logged",
                 timeISO8601: $0.time?.displayISO8601,
                 timeLocal: localizedClockTime($0.time, timeZoneIdentifier: $0.timeZoneIdentifier),
                 note: trimmedOptional($0.note)
             )
         }
+
+        let timeline = dailyTimeline(for: record)
 
         return DailyInsightPayload(
             language: language.displayNameForPrompt,
@@ -335,6 +388,8 @@ enum DailyInsightAnalyzer {
             showers: showers,
             bowelMovementEnabled: preferences.visibleHomeSections.contains(.bowelMovements),
             bowelMovements: bowelMovements,
+            timeline: timeline,
+            scoringRubric: scoringRubric(),
             comparisonContext: historyContext(
                 for: record,
                 preferences: preferences,
@@ -361,6 +416,158 @@ enum DailyInsightAnalyzer {
                 preferences: preferences,
                 history: history
             )
+        )
+    }
+
+    private static func dailyTimeline(for record: DailyRecord) -> [DailyInsightPayload.TimelineEntry] {
+        struct Candidate {
+            var sortDate: Date?
+            var category: String
+            var title: String
+            var status: String
+            var detail: String?
+            var timeZoneIdentifier: String?
+        }
+
+        var candidates: [Candidate] = []
+
+        if let bedtime = record.sleepRecord.bedtimePreviousNight {
+            candidates.append(
+                Candidate(
+                    sortDate: bedtime,
+                    category: "sleep",
+                    title: NSLocalizedString("入睡", comment: ""),
+                    status: "logged",
+                    detail: record.sleepRecord.duration.map {
+                        String(format: NSLocalizedString("总睡眠 %.1f 小时", comment: ""), $0 / 3600)
+                    },
+                    timeZoneIdentifier: record.sleepRecord.timeZoneIdentifier
+                )
+            )
+        }
+
+        if let wake = record.sleepRecord.wakeTimeCurrentDay {
+            candidates.append(
+                Candidate(
+                    sortDate: wake,
+                    category: "sleep",
+                    title: NSLocalizedString("起床", comment: ""),
+                    status: "logged",
+                    detail: nil,
+                    timeZoneIdentifier: record.sleepRecord.timeZoneIdentifier
+                )
+            )
+        }
+
+        for meal in record.meals {
+            let status = mealStatusName(meal, recordDate: record.date)
+            candidates.append(
+                Candidate(
+                    sortDate: meal.time,
+                    category: "meal",
+                    title: meal.displayTitle,
+                    status: status,
+                    detail: meal.note?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+                        ? NSLocalizedString("含备注", comment: "")
+                        : (meal.hasPhoto ? NSLocalizedString("含照片", comment: "") : nil),
+                    timeZoneIdentifier: meal.timeZoneIdentifier
+                )
+            )
+        }
+
+        for shower in record.showers {
+            candidates.append(
+                Candidate(
+                    sortDate: shower.time,
+                    category: "shower",
+                    title: NSLocalizedString("洗澡", comment: ""),
+                    status: "logged",
+                    detail: trimmedOptional(shower.note),
+                    timeZoneIdentifier: shower.timeZoneIdentifier
+                )
+            )
+        }
+
+        for bowel in record.bowelMovements {
+            candidates.append(
+                Candidate(
+                    sortDate: bowel.time,
+                    category: "bowelMovement",
+                    title: NSLocalizedString("排便", comment: ""),
+                    status: "logged",
+                    detail: trimmedOptional(bowel.note),
+                    timeZoneIdentifier: bowel.timeZoneIdentifier
+                )
+            )
+        }
+
+        let sorted = candidates.enumerated().sorted { lhs, rhs in
+            switch (lhs.element.sortDate, rhs.element.sortDate) {
+            case let (left?, right?):
+                if left == right {
+                    return lhs.offset < rhs.offset
+                }
+                return left < right
+            case (_?, nil):
+                return true
+            case (nil, _?):
+                return false
+            case (nil, nil):
+                return lhs.offset < rhs.offset
+            }
+        }
+
+        return sorted.enumerated().map { index, item in
+            DailyInsightPayload.TimelineEntry(
+                order: index + 1,
+                category: item.element.category,
+                title: item.element.title,
+                status: item.element.status,
+                timeISO8601: item.element.sortDate?.displayISO8601,
+                timeLocal: localizedClockTime(item.element.sortDate, timeZoneIdentifier: item.element.timeZoneIdentifier),
+                detail: item.element.detail
+            )
+        }
+    }
+
+    private static func scoringRubric() -> DailyInsightPayload.ScoringRubric {
+        DailyInsightPayload.ScoringRubric(
+            sampleCount: 5,
+            overallMethod: NSLocalizedString("四个部分按固定满分评分后，按总分折算到 0-100。", comment: ""),
+            sections: [
+                .init(
+                    key: "sleep",
+                    title: NSLocalizedString("睡眠", comment: ""),
+                    maxScore: 45,
+                    fullCreditRule: NSLocalizedString("7-9 小时且入睡时间接近目标，记录完整时可拿高分。", comment: ""),
+                    partialCreditRule: NSLocalizedString("时长稍短/稍长，或作息与目标相差 30-120 分钟，拿中间分。", comment: ""),
+                    cautionRule: NSLocalizedString("时长明显不足、严重偏离目标或记录残缺时，才给低分。", comment: "")
+                ),
+                .init(
+                    key: "meals",
+                    title: NSLocalizedString("餐食", comment: ""),
+                    maxScore: 35,
+                    fullCreditRule: NSLocalizedString("三餐记录完整、时间清楚、时间线合理时可拿高分。", comment: ""),
+                    partialCreditRule: NSLocalizedString("仅记录有无但没写时间，仍算完成，只扣少量完整度分。", comment: ""),
+                    cautionRule: NSLocalizedString("必须结合起床时间和整天时间线判断，不能凭空批评用户没吃早餐。若起床已接近中午，跳过早餐只能算轻微影响或合理。", comment: "")
+                ),
+                .init(
+                    key: "shower",
+                    title: NSLocalizedString("洗澡", comment: ""),
+                    maxScore: 10,
+                    fullCreditRule: NSLocalizedString("启用该项目且有明确记录时，可给 8-10 分。", comment: ""),
+                    partialCreditRule: NSLocalizedString("没有记录时给保守中低分，不做重罚。", comment: ""),
+                    cautionRule: NSLocalizedString("如果该项目未启用，必须 excluded，不得纳入总分。", comment: "")
+                ),
+                .init(
+                    key: "bowelMovement",
+                    title: NSLocalizedString("排便", comment: ""),
+                    maxScore: 10,
+                    fullCreditRule: NSLocalizedString("启用该项目且有明确记录时，可给 8-10 分。", comment: ""),
+                    partialCreditRule: NSLocalizedString("没有记录时给保守中低分，不做重罚。", comment: ""),
+                    cautionRule: NSLocalizedString("如果该项目未启用，必须 excluded，不得纳入总分。", comment: "")
+                )
+            ]
         )
     }
 
@@ -934,13 +1141,15 @@ struct OpenAIResponsesInsightService: AIInsightNarrativeGenerating, Sendable {
             throw AIInsightServiceError.missingAPIKey
         }
 
-        return try await performNarrativeRequest(
-            endpointURL: URL(string: "https://api.openai.com/v1/responses")!,
-            authorizationHeader: "Bearer \(apiKey)",
-            payload: payload,
-            model: model,
-            session: session
-        )
+        return try await generateAveragedNarrative(sampleCount: 5) {
+            try await performNarrativeRequest(
+                endpointURL: URL(string: "https://api.openai.com/v1/responses")!,
+                authorizationHeader: "Bearer \(apiKey)",
+                payload: payload,
+                model: model,
+                session: session
+            )
+        }
     }
 }
 
@@ -976,13 +1185,15 @@ struct CloudAIInsightService: AIInsightNarrativeGenerating, Sendable {
             throw AIInsightServiceError.missingAuthToken
         }
 
-        return try await performNarrativeRequest(
-            endpointURL: endpointURL,
-            authorizationHeader: "Bearer \(idToken)",
-            payload: payload,
-            model: model,
-            session: session
-        )
+        return try await generateAveragedNarrative(sampleCount: 5) {
+            try await performNarrativeRequest(
+                endpointURL: endpointURL,
+                authorizationHeader: "Bearer \(idToken)",
+                payload: payload,
+                model: model,
+                session: session
+            )
+        }
     }
 }
 
@@ -1089,16 +1300,20 @@ private func makeRequestBody(from payload: DailyInsightPayload, model: String) t
         You are scoring one complete day of lifestyle logs for a journaling app.
         This is fun lifestyle analysis only, not medical advice, diagnosis, or treatment.
         Use only the provided JSON.
-        The payload includes the target day plus trailing 7-day and 30-day summary statistics.
-        Use the target day as the baseline, then use the 7-day summary for short-term trend context and the 30-day summary for habit stability context.
-        Reward genuine improvement versus the recent baseline, and avoid over-penalizing a single off day when the 30-day habit pattern is stable.
-        The payload does not include any precomputed score. Compute every score yourself from the raw data.
+        First reconstruct the user's full day timeline from the previous-night bedtime through wake time, meals, showers, and bowel events.
+        Use the timeline to avoid contradictions. Example: if wake time is near noon, skipping breakfast is not automatically a serious problem.
+        The payload includes the target day, an ordered timeline, a fixed scoring rubric, and trailing 7-day/30-day statistics.
+        Use the target day as the baseline, the 7-day summary for short-term trend context, and the 30-day summary for habit stability context.
+        The payload does not include any precomputed score. Compute every score yourself from the raw data and the provided rubric.
         Respect whether a section is excluded, skipped, logged without time, or simply unrecorded.
+        Logged without time still counts as completed logging. It should lose only a small amount of completeness credit, not be treated as missing.
+        Follow the fixed section maxima exactly: sleep 45, meals 35, shower 10, bowelMovement 10.
+        If a section is not enabled, set included=false, score=0, and explain that it was not included.
+        Never invent habits or judge a meal pattern without timeline support.
         Be concrete about times and counts when present.
         Keep the tone warm, brief, lightly playful, and non-judgmental.
         You must return an overallScore from 0 to 100.
         You must return a score for every section.
-        If a section is not enabled, set included to false and score to 0.
         Do not omit score fields. Do not return null score fields.
         Return valid JSON that matches the schema exactly.
         """,
@@ -1111,6 +1326,75 @@ private func makeRequestBody(from payload: DailyInsightPayload, model: String) t
             )
         )
     )
+}
+
+private func generateAveragedNarrative(
+    sampleCount: Int,
+    generate: @escaping @Sendable () async throws -> DailyInsightNarrative
+) async throws -> DailyInsightNarrative {
+    var samples: [DailyInsightNarrative] = []
+    samples.reserveCapacity(sampleCount)
+
+    for _ in 0..<sampleCount {
+        samples.append(try await generate())
+    }
+
+    guard let representative = representativeNarrative(from: samples) else {
+        throw AIInsightServiceError.emptyResponse
+    }
+
+    let averagedOverall = Int(
+        (Double(samples.compactMap(\.overallScore).reduce(0, +)) / Double(max(samples.compactMap(\.overallScore).count, 1)))
+            .rounded()
+    )
+
+    let keys = Set(samples.flatMap { Array(($0.components ?? [:]).keys) })
+    let averagedComponents: [String: DailyInsightNarrative.ComponentScoreOverride] = Dictionary(uniqueKeysWithValues: keys.map { key in
+        let overrides = samples.compactMap { $0.components?[key] }
+        let includedCount = overrides.filter { $0.included ?? true }.count
+        let included = includedCount * 2 >= overrides.count
+        let averagedScore = Int(
+            (Double(overrides.compactMap(\.score).reduce(0, +)) / Double(max(overrides.compactMap(\.score).count, 1)))
+                .rounded()
+        )
+        let averagedMax = Int(
+            (Double(overrides.compactMap(\.maxScore).reduce(0, +)) / Double(max(overrides.compactMap(\.maxScore).count, 1)))
+                .rounded()
+        )
+        let representativeDetail = overrides
+            .compactMap(\.detail)
+            .first(where: { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty })
+
+        return (
+            key,
+            DailyInsightNarrative.ComponentScoreOverride(
+                score: included ? averagedScore : 0,
+                maxScore: max(1, averagedMax),
+                detail: representativeDetail,
+                included: included
+            )
+        )
+    })
+
+    return DailyInsightNarrative(
+        headline: representative.headline,
+        summary: representative.summary,
+        bullets: representative.bullets,
+        overallScore: averagedOverall,
+        components: averagedComponents,
+        generatedAt: .now,
+        scoringVersion: DailyInsightNarrative.currentScoringVersion,
+        sampleCount: sampleCount,
+        payloadSignature: representative.payloadSignature
+    )
+}
+
+private func representativeNarrative(from samples: [DailyInsightNarrative]) -> DailyInsightNarrative? {
+    guard !samples.isEmpty else { return nil }
+    let overallAverage = Double(samples.compactMap(\.overallScore).reduce(0, +)) / Double(max(samples.compactMap(\.overallScore).count, 1))
+    return samples.min { lhs, rhs in
+        abs(Double(lhs.overallScore ?? 0) - overallAverage) < abs(Double(rhs.overallScore ?? 0) - overallAverage)
+    }
 }
 
 private func makeNarrativeSchema() -> JSONValue {
@@ -1292,6 +1576,16 @@ private struct DynamicCodingKey: CodingKey {
 
     init?(intValue: Int) {
         return nil
+    }
+}
+
+extension DailyInsightPayload {
+    func stableSignature() throws -> String {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        let data = try encoder.encode(self)
+        let digest = SHA256.hash(data: data)
+        return digest.map { String(format: "%02x", $0) }.joined()
     }
 }
 

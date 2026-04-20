@@ -241,6 +241,8 @@ struct WeatherSnapshot: Equatable, Sendable {
     var conditionDescription: String
     var symbolName: String
     var temperatureCelsius: Double
+    var lowTemperatureCelsius: Double
+    var highTemperatureCelsius: Double
 }
 
 enum SleepStage: String, Codable, CaseIterable {
@@ -853,15 +855,17 @@ struct UserPreferences: Codable, Equatable {
 }
 
 struct MidnightModeSettings: Codable, Equatable {
+    static let fixedCutoffHour = 4
+
     var isEnabled: Bool = false
-    var cutoffHour: Int = 4
+    var cutoffHour: Int = MidnightModeSettings.fixedCutoffHour
     var effectiveFrom: Date?
 
     static let `default` = MidnightModeSettings()
 
-    init(isEnabled: Bool = false, cutoffHour: Int = 4, effectiveFrom: Date? = nil) {
+    init(isEnabled: Bool = false, cutoffHour: Int = MidnightModeSettings.fixedCutoffHour, effectiveFrom: Date? = nil) {
         self.isEnabled = isEnabled
-        self.cutoffHour = max(0, min(11, cutoffHour))
+        self.cutoffHour = cutoffHour
         self.effectiveFrom = effectiveFrom
     }
 
@@ -880,7 +884,7 @@ struct MidnightModeSettings: Codable, Equatable {
         adjustedCalendar.timeZone = timeZone
         var logicalDay = adjustedCalendar.startOfDay(for: timestamp)
         guard applies(to: timestamp) else { return logicalDay }
-        if adjustedCalendar.component(.hour, from: timestamp) < cutoffHour {
+        if adjustedCalendar.component(.hour, from: timestamp) < MidnightModeSettings.fixedCutoffHour {
             logicalDay = adjustedCalendar.date(byAdding: .day, value: -1, to: logicalDay) ?? logicalDay
         }
         return logicalDay
@@ -1135,10 +1139,10 @@ enum AnalyticsWidgetKind: String, Codable, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .sleepTrend: NSLocalizedString("睡眠趋势", comment: "")
+        case .sleepTrend: NSLocalizedString("睡眠总时长", comment: "")
         case .sleepDuration: NSLocalizedString("平均睡眠", comment: "")
-        case .wakeTrend: NSLocalizedString("平均起床", comment: "")
-        case .bedtimeTrend: NSLocalizedString("平均入睡", comment: "")
+        case .wakeTrend: NSLocalizedString("起床时间", comment: "")
+        case .bedtimeTrend: NSLocalizedString("入睡时间", comment: "")
         case .lightSleepTrend: NSLocalizedString("浅睡时长", comment: "")
         case .deepSleepTrend: NSLocalizedString("深睡时长", comment: "")
         case .remSleepTrend: NSLocalizedString("REM 时长", comment: "")

@@ -10,8 +10,8 @@ struct SettingsView: View {
     @State private var nicknameText = ""
     @State private var showingHomeSections = false
     @State private var showingMidnightModeConfirmation = false
+    @State private var showingMidnightModeInfoPopover = false
     @State private var pendingMidnightModeEnabled = false
-    @State private var pendingMidnightCutoffHour = 4
 
     var body: some View {
         NavigationStack {
@@ -69,29 +69,6 @@ struct SettingsView: View {
                 }
             } message: {
                 Text(appViewModel.errorMessage ?? "")
-            }
-            .confirmationDialog(NSLocalizedString("午夜模式如何生效？", comment: ""), isPresented: $showingMidnightModeConfirmation, titleVisibility: .visible) {
-                Button(NSLocalizedString("更新之前日期的数据", comment: "")) {
-                    Task {
-                        await appViewModel.configureMidnightMode(
-                            enabled: pendingMidnightModeEnabled,
-                            cutoffHour: pendingMidnightCutoffHour,
-                            applyToExistingRecords: true
-                        )
-                    }
-                }
-                Button(NSLocalizedString("仅从现在开始生效", comment: "")) {
-                    Task {
-                        await appViewModel.configureMidnightMode(
-                            enabled: pendingMidnightModeEnabled,
-                            cutoffHour: pendingMidnightCutoffHour,
-                            applyToExistingRecords: false
-                        )
-                    }
-                }
-                Button(NSLocalizedString("取消", comment: ""), role: .cancel) {}
-            } message: {
-                Text(NSLocalizedString("凌晨截止前的记录会被算到前一天。", comment: ""))
             }
             .task(id: appViewModel.user?.userID) {
                 await appViewModel.refreshCloudEncryptionState()
@@ -416,22 +393,40 @@ struct SettingsView: View {
     private var midnightModeSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text(NSLocalizedString("午夜模式", comment: ""))
-                    .font(.system(size: 16, weight: .semibold, design: .rounded))
-                    .foregroundStyle(AppTheme.primaryText)
+                HStack(spacing: 6) {
+                    Text(NSLocalizedString("午夜模式", comment: ""))
+                        .font(.system(size: 16, weight: .semibold, design: .rounded))
+                        .foregroundStyle(AppTheme.primaryText)
+
+                    Button {
+                        showingMidnightModeInfoPopover.toggle()
+                    } label: {
+                        Image(systemName: "questionmark.circle")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(AppTheme.secondaryText)
+                    }
+                    .buttonStyle(.plain)
+                    .popover(
+                        isPresented: $showingMidnightModeInfoPopover,
+                        attachmentAnchor: .rect(.bounds),
+                        arrowEdge: .bottom
+                    ) {
+                        midnightModeInfoPopover
+                            .presentationCompactAdaptation(.popover)
+                    }
+                }
+
                 Spacer()
                 Toggle("", isOn: Binding(
                     get: { appViewModel.preferences.midnightMode.isEnabled },
                     set: { isOn in
                         if isOn {
                             pendingMidnightModeEnabled = true
-                            pendingMidnightCutoffHour = appViewModel.preferences.midnightMode.cutoffHour
                             showingMidnightModeConfirmation = true
                         } else {
                             Task {
                                 await appViewModel.configureMidnightMode(
                                     enabled: false,
-                                    cutoffHour: appViewModel.preferences.midnightMode.cutoffHour,
                                     applyToExistingRecords: false
                                 )
                             }
@@ -441,32 +436,102 @@ struct SettingsView: View {
                 .labelsHidden()
                 .tint(AppTheme.accent)
             }
+            .popover(
+                isPresented: $showingMidnightModeConfirmation,
+                attachmentAnchor: .rect(.bounds),
+                arrowEdge: .top
+            ) {
+                midnightModeConfirmationPopover
+                    .presentationCompactAdaptation(.popover)
+            }
 
             if appViewModel.preferences.midnightMode.isEnabled {
-                Menu {
-                    ForEach(0..<12, id: \.self) { hour in
-                        Button {
-                            pendingMidnightModeEnabled = true
-                            pendingMidnightCutoffHour = hour
-                            showingMidnightModeConfirmation = true
-                        } label: {
-                            HStack {
-                                Text(String(format: NSLocalizedString("凌晨 %d 点", comment: ""), hour))
-                                if appViewModel.preferences.midnightMode.cutoffHour == hour {
-                                    Image(systemName: "checkmark")
-                                }
-                            }
-                        }
-                    }
-                } label: {
-                    SettingsStaticRow(
-                        title: NSLocalizedString("截止时间", comment: ""),
-                        value: String(format: NSLocalizedString("凌晨 %d 点前算前一天", comment: ""), appViewModel.preferences.midnightMode.cutoffHour)
-                    )
-                }
-                .buttonStyle(.plain)
+                SettingsStaticRow(
+                    title: NSLocalizedString("截止时间", comment: ""),
+                    value: NSLocalizedString("固定为凌晨 4 点", comment: "")
+                )
             }
         }
+    }
+
+    private var midnightModeInfoPopover: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(NSLocalizedString("午夜模式", comment: ""))
+                .font(.system(size: 17, weight: .bold, design: .rounded))
+                .foregroundStyle(AppTheme.primaryText)
+
+            Text(
+                NSLocalizedString("启用后，凌晨 4 点前的记录会自动归到前一天，适合经常跨零点记录。", comment: "")
+            )
+            .font(.system(size: 14, weight: .medium, design: .rounded))
+            .foregroundStyle(AppTheme.secondaryText)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(16)
+        .frame(width: 260, alignment: .leading)
+        .background(AppTheme.background)
+    }
+
+    private var midnightModeConfirmationPopover: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(NSLocalizedString("午夜模式如何生效？", comment: ""))
+                .font(.system(size: 18, weight: .bold, design: .rounded))
+                .foregroundStyle(AppTheme.primaryText)
+
+            Text(NSLocalizedString("凌晨截止前的记录会被算到前一天。", comment: ""))
+                .font(.system(size: 14, weight: .medium, design: .rounded))
+                .foregroundStyle(AppTheme.secondaryText)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Button {
+                showingMidnightModeConfirmation = false
+                Task {
+                    await appViewModel.configureMidnightMode(
+                        enabled: pendingMidnightModeEnabled,
+                        applyToExistingRecords: true
+                    )
+                }
+            } label: {
+                Text(NSLocalizedString("更新之前日期的数据", comment: ""))
+                    .font(.system(size: 15, weight: .bold, design: .rounded))
+                    .foregroundStyle(AppTheme.accent)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(AppTheme.surface)
+                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            }
+            .buttonStyle(.plain)
+
+            Button {
+                showingMidnightModeConfirmation = false
+                Task {
+                    await appViewModel.configureMidnightMode(
+                        enabled: pendingMidnightModeEnabled,
+                        applyToExistingRecords: false
+                    )
+                }
+            } label: {
+                Text(NSLocalizedString("仅从现在开始生效", comment: ""))
+                    .font(.system(size: 15, weight: .bold, design: .rounded))
+                    .foregroundStyle(AppTheme.accent)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(AppTheme.surface)
+                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            }
+            .buttonStyle(.plain)
+
+            Button(NSLocalizedString("取消", comment: "")) {
+                showingMidnightModeConfirmation = false
+            }
+            .font(.system(size: 14, weight: .semibold, design: .rounded))
+            .foregroundStyle(AppTheme.secondaryText)
+            .frame(maxWidth: .infinity)
+            .padding(.top, 2)
+        }
+        .padding(16)
+        .frame(width: 300, alignment: .leading)
+        .background(AppTheme.background)
     }
 
     private var defaultMealsCard: some View {

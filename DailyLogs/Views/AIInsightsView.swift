@@ -2,6 +2,8 @@ import SwiftUI
 
 struct AIInsightsView: View {
     @EnvironmentObject private var appViewModel: AppViewModel
+    @State private var showingDatePicker = false
+    @State private var selectedInsightDate: Date?
 
     private let columns = [
         GridItem(.flexible(), spacing: 12),
@@ -9,15 +11,30 @@ struct AIInsightsView: View {
     ]
 
     private var report: DailyInsightReport? {
-        appViewModel.displayedDailyInsightReport
+        guard let resolvedInsightDate else { return nil }
+        return appViewModel.displayedDailyInsightReport(for: resolvedInsightDate)
     }
 
     private var activeNarrative: DailyInsightNarrative? {
-        appViewModel.activeDailyInsightNarrative
+        guard let resolvedInsightDate else { return nil }
+        return appViewModel.activeDailyInsightNarrative(for: resolvedInsightDate)
+    }
+
+    private var resolvedInsightDate: Date? {
+        selectedInsightDate?.startOfDay ?? appViewModel.dailyInsightTargetDate
+    }
+
+    private var historyDates: [Date] {
+        appViewModel.scoredAIInsightDates
     }
 
     private var resolvedLocale: Locale {
         appViewModel.preferences.appLanguage.locale ?? Locale.autoupdatingCurrent
+    }
+
+    private var isDisplayingAIScoreForSelection: Bool {
+        guard let resolvedInsightDate else { return false }
+        return appViewModel.isDisplayingAIScoredInsight(for: resolvedInsightDate)
     }
 
     var body: some View {
@@ -29,6 +46,7 @@ struct AIInsightsView: View {
                     ScrollView(.vertical, showsIndicators: false) {
                         VStack(spacing: 18) {
                             heroCard(report)
+                            historyCard
                             breakdownGrid(report)
                             insightNarrativeCard(report)
                             privacyCard
@@ -48,15 +66,28 @@ struct AIInsightsView: View {
             }
             .navigationTitle(NSLocalizedString("AI 洞察", comment: ""))
             .navigationBarTitleDisplayMode(.inline)
+            .sheet(isPresented: $showingDatePicker) {
+                DatePickerSheet(
+                    selectedDate: resolvedInsightDate ?? appViewModel.dailyInsightTargetDate ?? appViewModel.logicalToday,
+                    allowedRange: appViewModel.availableDateRange
+                ) { date in
+                    selectedInsightDate = date.startOfDay
+                }
+            }
             .task(id: taskRefreshKey) {
-                guard appViewModel.canGenerateAIInsights else { return }
-                await appViewModel.refreshDailyInsightNarrative()
+                if selectedInsightDate == nil {
+                    selectedInsightDate = appViewModel.dailyInsightTargetDate
+                }
+                guard appViewModel.canGenerateAIInsights,
+                      let targetDate = appViewModel.dailyInsightTargetDate,
+                      resolvedInsightDate?.startOfDay == targetDate.startOfDay else { return }
+                await appViewModel.refreshDailyInsightNarrative(for: targetDate)
             }
         }
     }
 
     private var taskRefreshKey: String {
-        let dateKey = appViewModel.dailyInsightTargetDate?.storageKey() ?? "none"
+        let dateKey = resolvedInsightDate?.storageKey() ?? appViewModel.dailyInsightTargetDate?.storageKey() ?? "none"
         return "\(dateKey)-\(appViewModel.canGenerateAIInsights)-\(appViewModel.preferences.appLanguage.rawValue)"
     }
 
@@ -102,9 +133,9 @@ struct AIInsightsView: View {
                 Spacer(minLength: 12)
 
                 Button {
-                    Task { await appViewModel.refreshDailyInsightNarrative(force: true) }
+                    showingDatePicker = true
                 } label: {
-                    Image(systemName: "sparkles")
+                    Image(systemName: "calendar")
                         .font(.system(size: 16, weight: .bold))
                         .foregroundStyle(.white)
                         .frame(width: 40, height: 40)
@@ -112,8 +143,6 @@ struct AIInsightsView: View {
                         .clipShape(Circle())
                 }
                 .buttonStyle(.plain)
-                .opacity(appViewModel.canGenerateAIInsights ? 1 : 0)
-                .accessibilityHidden(!appViewModel.canGenerateAIInsights)
             }
 
             HStack(spacing: 18) {
@@ -128,13 +157,13 @@ struct AIInsightsView: View {
                     HStack(spacing: 8) {
                         Label(
                             appViewModel.canGenerateAIInsights
-                                ? (appViewModel.isDisplayingAIScoredInsight
+                                ? (isDisplayingAIScoreForSelection
                                     ? (appViewModel.isUsingCloudAIProxy
                                         ? NSLocalizedString("云端 AI 已启用", comment: "")
                                         : NSLocalizedString("AI 评分已启用", comment: ""))
                                     : NSLocalizedString("可生成 AI 评分", comment: ""))
                                 : NSLocalizedString("当前显示本地评分", comment: ""),
-                            systemImage: appViewModel.isDisplayingAIScoredInsight ? "wand.and.stars" : "cpu"
+                            systemImage: isDisplayingAIScoreForSelection ? "wand.and.stars" : "cpu"
                         )
                         .font(.system(size: 13, weight: .semibold, design: .rounded))
                         .foregroundStyle(Color.white.opacity(0.84))
@@ -196,12 +225,100 @@ struct AIInsightsView: View {
                 Text("\(score)")
                     .font(.system(size: 30, weight: .bold, design: .rounded))
                     .foregroundStyle(.white)
-                Text(NSLocalizedString("昨日分数", comment: ""))
+                Text(NSLocalizedString("当日分数", comment: ""))
                     .font(.system(size: 11, weight: .semibold, design: .rounded))
                     .foregroundStyle(Color.white.opacity(0.72))
             }
         }
         .frame(width: 112, height: 112)
+    }
+
+    private var historyCard: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                SectionHeader(
+                    title: NSLocalizedString("历史分数", comment: ""),
+                    subtitle: NSLocalizedString("带圆环的是已经固定下来的 AI 评分。", comment: "")
+                )
+                Spacer(minLength: 12)
+                Button {
+                    showingDatePicker = true
+                } label: {
+                    Image(systemName: "calendar")
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundStyle(AppTheme.accent)
+                        .frame(width: 38, height: 38)
+                        .background(AppTheme.accentSoft)
+                        .clipShape(Circle())
+                }
+                .buttonStyle(.plain)
+            }
+
+            if historyDates.isEmpty {
+                Text(NSLocalizedString("新的稳定版 AI 评分会从现在开始逐天积累。", comment: ""))
+                    .font(.system(size: 14, weight: .medium, design: .rounded))
+                    .foregroundStyle(AppTheme.secondaryText)
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 12) {
+                        ForEach(historyDates, id: \.self) { date in
+                            if let score = appViewModel.displayedDailyInsightReport(for: date)?.overallScore {
+                                Button {
+                                    selectedInsightDate = date.startOfDay
+                                } label: {
+                                    historyRing(date: date, score: score, isSelected: resolvedInsightDate?.startOfDay == date.startOfDay)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
+                    .padding(.vertical, 2)
+                }
+            }
+        }
+        .padding(22)
+        .appCardStyle()
+    }
+
+    private func historyRing(date: Date, score: Int, isSelected: Bool) -> some View {
+        VStack(spacing: 8) {
+            ZStack {
+                Circle()
+                    .stroke(AppTheme.border, lineWidth: 8)
+
+                Circle()
+                    .trim(from: 0, to: CGFloat(max(0, min(score, 100))) / 100)
+                    .stroke(
+                        AngularGradient(
+                            colors: [
+                                Color(red: 0.98, green: 0.85, blue: 0.54),
+                                Color(red: 0.49, green: 0.91, blue: 0.78),
+                                AppTheme.accent
+                            ],
+                            center: .center
+                        ),
+                        style: StrokeStyle(lineWidth: 8, lineCap: .round)
+                    )
+                    .rotationEffect(.degrees(-90))
+
+                Text("\(score)")
+                    .font(.system(size: 16, weight: .bold, design: .rounded))
+                    .foregroundStyle(AppTheme.primaryText)
+            }
+            .frame(width: 58, height: 58)
+
+            Text(date, format: .dateTime.month().day())
+                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                .foregroundStyle(AppTheme.secondaryText)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 12)
+        .background(isSelected ? AppTheme.accentSoft : AppTheme.elevatedSurface)
+        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .stroke(isSelected ? AppTheme.accent.opacity(0.4) : AppTheme.border, lineWidth: 1)
+        )
     }
 
     private func breakdownGrid(_ report: DailyInsightReport) -> some View {
@@ -272,9 +389,9 @@ struct AIInsightsView: View {
     private func insightNarrativeCard(_ report: DailyInsightReport) -> some View {
         VStack(alignment: .leading, spacing: 16) {
             SectionHeader(
-                title: NSLocalizedString("昨天的观察", comment: ""),
+                title: NSLocalizedString("这一天的观察", comment: ""),
                 subtitle: appViewModel.canGenerateAIInsights
-                    ? (appViewModel.isDisplayingAIScoredInsight
+                    ? (isDisplayingAIScoreForSelection
                         ? NSLocalizedString("这张卡片的分数和文案都由 AI 给出。", comment: "")
                         : NSLocalizedString("现在还是本地兜底分数；生成后会切换成 AI 评分。", comment: ""))
                     : NSLocalizedString("登录后自动启用云端 AI。", comment: "")
@@ -304,7 +421,8 @@ struct AIInsightsView: View {
 
             if appViewModel.canGenerateAIInsights {
                 Button {
-                    Task { await appViewModel.refreshDailyInsightNarrative(force: true) }
+                    guard let resolvedInsightDate else { return }
+                    Task { await appViewModel.refreshDailyInsightNarrative(for: resolvedInsightDate, force: true) }
                 } label: {
                     Text(appViewModel.isGeneratingDailyInsightNarrative
                         ? NSLocalizedString("正在生成 AI 评分…", comment: "")
@@ -367,11 +485,11 @@ struct AIInsightsView: View {
                 subtitle: NSLocalizedString("这是一项趣味型分析功能，不构成医疗或健康建议。", comment: "")
             )
 
-            Text(NSLocalizedString("当前只分析昨天的睡眠、餐食、洗澡和排便。", comment: ""))
+            Text(NSLocalizedString("当前会分析你所选日期的睡眠、餐食、洗澡和排便，并尽量按整天时间轴来理解。", comment: ""))
                 .font(.system(size: 14, weight: .medium, design: .rounded))
                 .foregroundStyle(AppTheme.secondaryText)
 
-            Text(NSLocalizedString("AI 请求会经你的云端代理转发。", comment: ""))
+            Text(NSLocalizedString("AI 请求会经你的云端代理转发；新评分会固定保存，除非相关记录后来被改动。", comment: ""))
                 .font(.system(size: 14, weight: .medium, design: .rounded))
                 .foregroundStyle(AppTheme.secondaryText)
         }
@@ -389,7 +507,7 @@ struct AIInsightsView: View {
                 .font(.system(size: 22, weight: .bold, design: .rounded))
                 .foregroundStyle(AppTheme.primaryText)
 
-            Text(NSLocalizedString("等你至少记录一天后，这里就会出现昨日评分和 AI 洞察。", comment: ""))
+            Text(NSLocalizedString("等你至少记录一天后，这里就会出现当日评分和 AI 洞察。", comment: ""))
                 .font(.system(size: 15, weight: .medium, design: .rounded))
                 .foregroundStyle(AppTheme.secondaryText)
                 .multilineTextAlignment(.center)

@@ -215,7 +215,7 @@ struct AnalyticsView: View {
                     SummaryCard(
                         title: metric.title,
                         value: metricValue(metric),
-                        detail: metricTrend(metric),
+                        detail: nil,
                         tone: metricColor(metric)
                     )
                 }
@@ -226,10 +226,11 @@ struct AnalyticsView: View {
 
     private var sleepTrendCard: some View {
         VStack(alignment: .leading, spacing: 14) {
-            SectionHeader(title: NSLocalizedString("睡眠趋势", comment: ""), subtitle: nil)
+            SectionHeader(title: NSLocalizedString("睡眠总时长", comment: ""), subtitle: nil)
             SleepTrendChart(
                 days: summary.days,
                 averageSleepHours: summary.averageSleepHours,
+                previousAverageSleepHours: summary.previousAverageSleepHours,
                 selectedDate: $highlightedSleepDate,
                 compact: true
             )
@@ -281,12 +282,14 @@ struct AnalyticsView: View {
             .sectionStyle()
         case .wakeTrend:
             VStack(alignment: .leading, spacing: 14) {
-                SectionHeader(title: NSLocalizedString("起床变化", comment: ""), subtitle: nil)
+                SectionHeader(title: NSLocalizedString("起床时间", comment: ""), subtitle: nil)
                 TimeLineChart(
                     points: summary.days.compactMap { point in
                         point.wakeMinutes.map { ChartTimeValue(date: point.date, minutes: $0) }
                     },
+                    domainDates: summary.days.map(\.date),
                     averageMinutes: summary.averageWakeMinutes,
+                    previousAverageMinutes: summary.previousAverageWakeMinutes,
                     tone: .orange,
                     selectedDate: $highlightedWakeDate,
                     compact: true
@@ -295,12 +298,14 @@ struct AnalyticsView: View {
             .sectionStyle()
         case .bedtimeTrend:
             VStack(alignment: .leading, spacing: 14) {
-                SectionHeader(title: NSLocalizedString("入睡变化", comment: ""), subtitle: nil)
+                SectionHeader(title: NSLocalizedString("入睡时间", comment: ""), subtitle: nil)
                 TimeLineChart(
                     points: summary.days.compactMap { point in
                         point.bedtimeMinutes.map { ChartTimeValue(date: point.date, minutes: wrapForNight($0)) }
                     },
+                    domainDates: summary.days.map(\.date),
                     averageMinutes: summary.averageBedtimeMinutes.map(wrapForNight),
+                    previousAverageMinutes: summary.previousAverageBedtimeMinutes.map(wrapForNight),
                     tone: .indigo,
                     selectedDate: $highlightedBedtimeDate,
                     compact: true,
@@ -323,7 +328,7 @@ struct AnalyticsView: View {
         case .mealTiming:
             VStack(alignment: .leading, spacing: 14) {
                 SectionHeader(title: NSLocalizedString("进餐时间", comment: ""), subtitle: nil)
-                MealTimingScatterChart(series: summary.mealSeries, selectedDate: $highlightedMealDate, compact: true)
+                MealTimingScatterChart(series: summary.mealSeries, domainDates: summary.days.map(\.date), selectedDate: $highlightedMealDate, compact: true)
             }
             .sectionStyle()
         case .showerTiming:
@@ -331,6 +336,7 @@ struct AnalyticsView: View {
                 SectionHeader(title: NSLocalizedString("洗澡时间", comment: ""), subtitle: nil)
                 ShowerScatterChart(
                     points: summary.showerPoints,
+                    domainDates: summary.days.map(\.date),
                     averageMinutes: summary.averageShowerMinutes,
                     selectedDate: $highlightedShowerDate,
                     compact: true
@@ -342,6 +348,7 @@ struct AnalyticsView: View {
                 SectionHeader(title: NSLocalizedString("排便时间", comment: ""), subtitle: nil)
                 BowelMovementScatterChart(
                     points: summary.bowelMovementPoints,
+                    domainDates: summary.days.map(\.date),
                     averageMinutes: summary.averageBowelMovementMinutes,
                     selectedDate: $highlightedBowelMovementDate,
                     compact: true
@@ -368,6 +375,7 @@ struct AnalyticsView: View {
                 points: summary.days.compactMap { point in
                     point[keyPath: keyPath].map { ChartDurationValue(date: point.date, hours: $0) }
                 },
+                domainDates: summary.days.map(\.date),
                 averageHours: average,
                 previousAverageHours: previousAverage,
                 tone: tone,
@@ -413,19 +421,6 @@ struct AnalyticsView: View {
         }
     }
 
-    private func metricTrend(_ metric: AnalyticsMetricKind) -> String {
-        switch metric {
-        case .averageSleep:
-            intervalTrendText(current: summary.averageSleepHours, previous: summary.previousAverageSleepHours)
-        case .averageWake:
-            clockTrendText(current: summary.averageWakeMinutes, previous: summary.previousAverageWakeMinutes)
-        case .averageBedtime:
-            clockTrendText(current: summary.averageBedtimeMinutes, previous: summary.previousAverageBedtimeMinutes)
-        case .mealCompletion, .averageShowers, .averageBowelMovements, .averageSexualActivity:
-            "--"
-        }
-    }
-
     private func formatClock(_ minutes: Double?) -> String {
         guard let minutes else { return "--" }
         let fullDay = 24 * 60
@@ -443,37 +438,6 @@ struct AnalyticsView: View {
 
     private func wrapForNight(_ minutes: Double) -> Double {
         minutes < 18 * 60 ? minutes + 24 * 60 : minutes
-    }
-
-    private func intervalTrendText(current: Double?, previous: Double?) -> String {
-        guard let current, let previous, previous > 0 else { return "--" }
-        let change = (current - previous) / previous
-        if abs(change) < 0.005 {
-            return NSLocalizedString("持平", comment: "")
-        }
-        let percent = abs(change * 100)
-        return change > 0
-            ? String(format: NSLocalizedString("增长 %.0f%%", comment: ""), percent)
-            : String(format: NSLocalizedString("减少 %.0f%%", comment: ""), percent)
-    }
-
-    private func clockTrendText(current: Double?, previous: Double?) -> String {
-        guard let current, let previous else { return "--" }
-        var delta = current - previous
-        let fullDay = 24.0 * 60.0
-        if delta > fullDay / 2 {
-            delta -= fullDay
-        } else if delta < -fullDay / 2 {
-            delta += fullDay
-        }
-        if abs(delta) < 0.5 {
-            return NSLocalizedString("持平", comment: "")
-        }
-        let totalMinutes = Int(abs(delta).rounded())
-        let hours = totalMinutes / 60
-        let minutes = totalMinutes % 60
-        let direction = delta > 0 ? NSLocalizedString("变晚", comment: "") : NSLocalizedString("变早", comment: "")
-        return String(format: NSLocalizedString("%@ %d小时%d分", comment: ""), direction, hours, minutes)
     }
 }
 
@@ -558,10 +522,11 @@ private struct AnalyticsDetailView: View {
             switch widget {
             case .sleepTrend:
                 VStack(alignment: .leading, spacing: 14) {
-                    SectionHeader(title: NSLocalizedString("睡眠趋势", comment: ""), subtitle: nil)
+                    SectionHeader(title: NSLocalizedString("睡眠总时长", comment: ""), subtitle: nil)
                     SleepTrendChart(
                         days: summary.days,
                         averageSleepHours: summary.averageSleepHours,
+                        previousAverageSleepHours: summary.previousAverageSleepHours,
                         selectedDate: $selectedDate,
                         compact: false
                     )
@@ -573,24 +538,28 @@ private struct AnalyticsDetailView: View {
                 }
             case .wakeTrend:
                 VStack(alignment: .leading, spacing: 14) {
-                    SectionHeader(title: NSLocalizedString("起床变化", comment: ""), subtitle: nil)
+                    SectionHeader(title: NSLocalizedString("起床时间", comment: ""), subtitle: nil)
                     TimeLineChart(
                         points: summary.days.compactMap { point in
                             point.wakeMinutes.map { ChartTimeValue(date: point.date, minutes: $0) }
                         },
+                        domainDates: summary.days.map(\.date),
                         averageMinutes: summary.averageWakeMinutes,
+                        previousAverageMinutes: summary.previousAverageWakeMinutes,
                         tone: .orange,
                         selectedDate: $selectedDate
                     )
                 }
             case .bedtimeTrend:
                 VStack(alignment: .leading, spacing: 14) {
-                    SectionHeader(title: NSLocalizedString("入睡变化", comment: ""), subtitle: nil)
+                    SectionHeader(title: NSLocalizedString("入睡时间", comment: ""), subtitle: nil)
                     TimeLineChart(
                         points: summary.days.compactMap { point in
                             point.bedtimeMinutes.map { ChartTimeValue(date: point.date, minutes: wrapNight($0)) }
                         },
+                        domainDates: summary.days.map(\.date),
                         averageMinutes: summary.averageBedtimeMinutes.map(wrapNight),
+                        previousAverageMinutes: summary.previousAverageBedtimeMinutes.map(wrapNight),
                         tone: .indigo,
                         selectedDate: $selectedDate,
                         usesWrappedClock: true
@@ -609,19 +578,20 @@ private struct AnalyticsDetailView: View {
                         MealCompletionBreakdown(series: summary.mealSeries)
                         Divider()
                             .overlay(AppTheme.border)
-                        MealTimingScatterChart(series: summary.mealSeries, selectedDate: $selectedDate, compact: false)
+                        MealTimingScatterChart(series: summary.mealSeries, domainDates: summary.days.map(\.date), selectedDate: $selectedDate, compact: false)
                     }
                 }
             case .mealTiming:
                 VStack(alignment: .leading, spacing: 14) {
                     SectionHeader(title: NSLocalizedString("进餐时间", comment: ""), subtitle: nil)
-                    MealTimingScatterChart(series: summary.mealSeries, selectedDate: $selectedDate, compact: false)
+                    MealTimingScatterChart(series: summary.mealSeries, domainDates: summary.days.map(\.date), selectedDate: $selectedDate, compact: false)
                 }
             case .showerTiming:
                 VStack(alignment: .leading, spacing: 14) {
                     SectionHeader(title: NSLocalizedString("洗澡时间", comment: ""), subtitle: nil)
                     ShowerScatterChart(
                         points: summary.showerPoints,
+                        domainDates: summary.days.map(\.date),
                         averageMinutes: summary.averageShowerMinutes,
                         selectedDate: $selectedDate,
                         compact: false
@@ -632,6 +602,7 @@ private struct AnalyticsDetailView: View {
                     SectionHeader(title: NSLocalizedString("排便时间", comment: ""), subtitle: nil)
                     BowelMovementScatterChart(
                         points: summary.bowelMovementPoints,
+                        domainDates: summary.days.map(\.date),
                         averageMinutes: summary.averageBowelMovementMinutes,
                         selectedDate: $selectedDate,
                         compact: false
@@ -664,6 +635,7 @@ private struct AnalyticsDetailView: View {
                 points: summary.days.compactMap { point in
                     point[keyPath: keyPath].map { ChartDurationValue(date: point.date, hours: $0) }
                 },
+                domainDates: summary.days.map(\.date),
                 averageHours: average,
                 previousAverageHours: previousAverage,
                 tone: tone,
@@ -681,7 +653,7 @@ private struct AnalyticsDetailView: View {
 private struct SummaryCard: View {
     let title: String
     let value: String
-    let detail: String
+    let detail: String?
     let tone: Color
 
     var body: some View {
@@ -700,10 +672,12 @@ private struct SummaryCard: View {
                 .minimumScaleFactor(0.72)
                 .multilineTextAlignment(.center)
 
-            Text(detail)
-                .font(.system(size: 12, weight: .medium, design: .rounded))
-                .foregroundStyle(AppTheme.secondaryText)
-                .lineLimit(1)
+            if let detail, !detail.isEmpty {
+                Text(detail)
+                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .foregroundStyle(AppTheme.secondaryText)
+                    .lineLimit(1)
+            }
         }
         .frame(maxWidth: .infinity, minHeight: 104, alignment: .center)
         .padding(.horizontal, 10)
@@ -730,6 +704,7 @@ private struct PlaceholderCard: View {
 private struct SleepTrendChart: View {
     let days: [AnalyticsDayPoint]
     let averageSleepHours: Double?
+    let previousAverageSleepHours: Double?
     @Binding var selectedDate: Date?
     var compact: Bool
 
@@ -746,7 +721,8 @@ private struct SleepTrendChart: View {
                         AverageTextBlock(
                             title: NSLocalizedString("平均睡眠", comment: ""),
                             value: durationText(averageSleepHours),
-                            tone: AppTheme.accent
+                            tone: AppTheme.accent,
+                            trend: durationTrendDescriptor(current: averageSleepHours, previous: previousAverageSleepHours)
                         )
                     },
                     selected: {
@@ -814,7 +790,7 @@ private struct SleepTrendChart: View {
                 }
                 .frame(height: compact ? 240 : 300)
                 .chartYScale(domain: adaptiveDomain)
-                .chartXScale(range: .plotDimension(startPadding: 14, endPadding: 14))
+                .analyticsChartXScale(domain: chartDateDomain(for: domainDates))
                 .chartYAxis {
                     AxisMarks(position: .leading)
                 }
@@ -833,10 +809,11 @@ private struct SleepTrendChart: View {
     }
 
     private var selectedRatio: CGFloat? {
-        chartSelectionRatio(
-            selectedDate: selectedDate,
-            in: days.compactMap { $0.sleepHours == nil ? nil : $0.date }
-        )
+        chartSelectionRatio(selectedDate: selectedDate, in: domainDates)
+    }
+
+    private var domainDates: [Date] {
+        days.map(\.date)
     }
 
     private var adaptiveDomain: ClosedRange<Double> {
@@ -866,7 +843,7 @@ private struct SleepTrendChart: View {
         }
         let xPosition = location.x - plotRect.origin.x
         if let date: Date = proxy.value(atX: xPosition) {
-            selectedDate = nearestDate(to: date, in: days.compactMap { $0.sleepHours == nil ? nil : $0.date })
+            selectedDate = nearestDate(to: date, in: domainDates)
         } else {
             selectedDate = nil
         }
@@ -881,15 +858,19 @@ private struct ChartTimeValue: Identifiable {
 
 private struct TimeLineChart: View {
     let points: [ChartTimeValue]
+    let domainDates: [Date]
     let averageMinutes: Double?
+    let previousAverageMinutes: Double?
     let tone: Color
     @Binding var selectedDate: Date?
     var compact: Bool = false
     var usesWrappedClock: Bool = false
 
-    init(points: [ChartTimeValue], averageMinutes: Double?, tone: Color, selectedDate: Binding<Date?> = .constant(nil), compact: Bool = false, usesWrappedClock: Bool = false) {
+    init(points: [ChartTimeValue], domainDates: [Date], averageMinutes: Double?, previousAverageMinutes: Double? = nil, tone: Color, selectedDate: Binding<Date?> = .constant(nil), compact: Bool = false, usesWrappedClock: Bool = false) {
         self.points = points
+        self.domainDates = domainDates
         self.averageMinutes = averageMinutes
+        self.previousAverageMinutes = previousAverageMinutes
         self.tone = tone
         self._selectedDate = selectedDate
         self.compact = compact
@@ -909,7 +890,8 @@ private struct TimeLineChart: View {
                         AverageTextBlock(
                             title: averageTitle,
                             value: averageMinutes.map(formatClock) ?? "--",
-                            tone: tone
+                            tone: tone,
+                            trend: clockTrendDescriptor(current: averageMinutes, previous: previousAverageMinutes)
                         )
                     },
                     selected: {
@@ -961,9 +943,14 @@ private struct TimeLineChart: View {
                         }
                     }
                 }
-                .frame(height: compact ? 190 : 260)
+                .frame(height: compact ? (usesWrappedClock ? 214 : 190) : 260)
+                .chartPlotStyle { plotArea in
+                    plotArea
+                        .padding(.top, usesWrappedClock ? 18 : 0)
+                        .padding(.bottom, usesWrappedClock ? 8 : 0)
+                }
                 .chartYScale(domain: adaptiveDomain)
-                .chartXScale(range: .plotDimension(startPadding: 14, endPadding: 14))
+                .analyticsChartXScale(domain: chartDateDomain(for: selectionDates))
                 .chartYAxis {
                     AxisMarks(position: .leading, values: axisValues) { value in
                         AxisGridLine()
@@ -989,7 +976,11 @@ private struct TimeLineChart: View {
     }
 
     private var selectedRatio: CGFloat? {
-        chartSelectionRatio(selectedDate: selectedDate, in: points.map(\.date))
+        chartSelectionRatio(selectedDate: selectedDate, in: selectionDates)
+    }
+
+    private var selectionDates: [Date] {
+        domainDates.isEmpty ? points.map(\.date) : domainDates
     }
 
     private var averageTitle: String {
@@ -1000,7 +991,7 @@ private struct TimeLineChart: View {
         let values = points.map(\.minutes) + (averageMinutes.map { [$0] } ?? [])
         let minValue = values.min() ?? 0
         let maxValue = values.max() ?? 24 * 60
-        let padding = usesWrappedClock ? 45.0 : 30.0
+        let padding = usesWrappedClock ? 75.0 : 30.0
         let lower = max(0, floor((minValue - padding) / 15) * 15)
         let upper = min(usesWrappedClock ? 36 * 60 : 24 * 60, ceil((maxValue + padding) / 15) * 15)
         return plotValue(for: upper)...plotValue(for: lower)
@@ -1010,7 +1001,7 @@ private struct TimeLineChart: View {
         let values = points.map(\.minutes) + (averageMinutes.map { [$0] } ?? [])
         let minValue = values.min() ?? 0
         let maxValue = values.max() ?? (usesWrappedClock ? 36 * 60 : 24 * 60)
-        let padding = usesWrappedClock ? 45.0 : 30.0
+        let padding = usesWrappedClock ? 75.0 : 30.0
         let lower = max(0, floor((minValue - padding) / 60) * 60)
         let upper = min(usesWrappedClock ? 36 * 60 : 24 * 60, ceil((maxValue + padding) / 60) * 60)
         return stride(from: lower, through: upper, by: 120).map(plotValue(for:))
@@ -1035,7 +1026,7 @@ private struct TimeLineChart: View {
         }
         let xPosition = location.x - plotRect.origin.x
         if let date: Date = proxy.value(atX: xPosition) {
-            selectedDate = nearestDate(to: date, in: points.map(\.date))
+            selectedDate = nearestDate(to: date, in: selectionDates)
         } else {
             selectedDate = nil
         }
@@ -1128,7 +1119,7 @@ private struct SleepIntervalChart: View {
                     plotArea.padding(.top, compact ? 14 : 18)
                 }
                 .chartYScale(domain: adaptivePlotDomain)
-                .chartXScale(range: .plotDimension(startPadding: 14, endPadding: 14))
+                .analyticsChartXScale(domain: chartDateDomain(for: domainDates))
                 .chartYAxis {
                     AxisMarks(position: .leading, values: axisValues) { value in
                         AxisGridLine()
@@ -1160,10 +1151,11 @@ private struct SleepIntervalChart: View {
     }
 
     private var selectedRatio: CGFloat? {
-        chartSelectionRatio(
-            selectedDate: selectedDate,
-            in: days.compactMap { ($0.sleepStartMinutes != nil && $0.sleepEndMinutes != nil) ? $0.date : nil }
-        )
+        chartSelectionRatio(selectedDate: selectedDate, in: domainDates)
+    }
+
+    private var domainDates: [Date] {
+        days.map(\.date)
     }
 
     private var sleepValues: [Double] {
@@ -1214,7 +1206,7 @@ private struct SleepIntervalChart: View {
         }
         let xPosition = location.x - plotRect.origin.x
         if let date: Date = proxy.value(atX: xPosition) {
-            selectedDate = nearestDate(to: date, in: days.compactMap { ($0.sleepStartMinutes != nil && $0.sleepEndMinutes != nil) ? $0.date : nil })
+            selectedDate = nearestDate(to: date, in: domainDates)
         } else {
             selectedDate = nil
         }
@@ -1260,6 +1252,7 @@ private struct MealCompletionBreakdown: View {
 
 private struct MealTimingScatterChart: View {
     let series: [MealAnalyticsSeries]
+    let domainDates: [Date]
     @Binding var selectedDate: Date?
     var compact: Bool
 
@@ -1338,7 +1331,7 @@ private struct MealTimingScatterChart: View {
                 }
                 .frame(height: compact ? 200 : 290)
                 .chartYScale(domain: adaptiveDomain)
-                .chartXScale(range: .plotDimension(startPadding: 14, endPadding: 14))
+                .analyticsChartXScale(domain: chartDateDomain(for: selectionDates))
                 .chartYAxis {
                     AxisMarks(position: .leading, values: axisValues) { value in
                         AxisGridLine()
@@ -1368,7 +1361,14 @@ private struct MealTimingScatterChart: View {
     }
 
     private var selectedRatio: CGFloat? {
-        chartSelectionRatio(selectedDate: selectedDate, in: series.flatMap { $0.points.map(\.date) })
+        chartSelectionRatio(selectedDate: selectedDate, in: selectionDates)
+    }
+
+    private var selectionDates: [Date] {
+        if !domainDates.isEmpty {
+            return domainDates
+        }
+        return series.flatMap { $0.points.map(\.date) }
     }
 
     private var averageMealSummary: some View {
@@ -1437,7 +1437,7 @@ private struct MealTimingScatterChart: View {
         }
         let xPosition = location.x - plotRect.origin.x
         if let date: Date = proxy.value(atX: xPosition) {
-            selectedDate = nearestDate(to: date, in: series.flatMap { $0.points.map(\.date) })
+            selectedDate = nearestDate(to: date, in: selectionDates)
         } else {
             selectedDate = nil
         }
@@ -1454,6 +1454,7 @@ private struct MealTimingScatterChart: View {
 
 private struct ShowerScatterChart: View {
     let points: [AnalyticsScatterPoint]
+    let domainDates: [Date]
     let averageMinutes: Double?
     @Binding var selectedDate: Date?
     var compact: Bool
@@ -1535,7 +1536,7 @@ private struct ShowerScatterChart: View {
                 }
                 .frame(height: compact ? 200 : 290)
                 .chartYScale(domain: adaptiveDomain)
-                .chartXScale(range: .plotDimension(startPadding: 14, endPadding: 14))
+                .analyticsChartXScale(domain: chartDateDomain(for: selectionDates))
                 .chartYAxis {
                     AxisMarks(position: .leading, values: axisValues) { value in
                         AxisGridLine()
@@ -1562,7 +1563,11 @@ private struct ShowerScatterChart: View {
     }
 
     private var selectedRatio: CGFloat? {
-        chartSelectionRatio(selectedDate: selectedDate, in: points.map(\.date))
+        chartSelectionRatio(selectedDate: selectedDate, in: selectionDates)
+    }
+
+    private var selectionDates: [Date] {
+        domainDates.isEmpty ? points.map(\.date) : domainDates
     }
 
     private func clockText(_ minutes: Double) -> String {
@@ -1598,7 +1603,7 @@ private struct ShowerScatterChart: View {
         }
         let xPosition = location.x - plotRect.origin.x
         if let date: Date = proxy.value(atX: xPosition) {
-            selectedDate = nearestDate(to: date, in: points.map(\.date))
+            selectedDate = nearestDate(to: date, in: selectionDates)
         } else {
             selectedDate = nil
         }
@@ -1615,6 +1620,7 @@ private struct ShowerScatterChart: View {
 
 private struct BowelMovementScatterChart: View {
     let points: [AnalyticsScatterPoint]
+    let domainDates: [Date]
     let averageMinutes: Double?
     @Binding var selectedDate: Date?
     var compact: Bool
@@ -1696,7 +1702,7 @@ private struct BowelMovementScatterChart: View {
                 }
                 .frame(height: compact ? 200 : 290)
                 .chartYScale(domain: adaptiveDomain)
-                .chartXScale(range: .plotDimension(startPadding: 14, endPadding: 14))
+                .analyticsChartXScale(domain: chartDateDomain(for: selectionDates))
                 .chartYAxis {
                     AxisMarks(position: .leading, values: axisValues) { value in
                         AxisGridLine()
@@ -1723,7 +1729,11 @@ private struct BowelMovementScatterChart: View {
     }
 
     private var selectedRatio: CGFloat? {
-        chartSelectionRatio(selectedDate: selectedDate, in: points.map(\.date))
+        chartSelectionRatio(selectedDate: selectedDate, in: selectionDates)
+    }
+
+    private var selectionDates: [Date] {
+        domainDates.isEmpty ? points.map(\.date) : domainDates
     }
 
     private func clockText(_ minutes: Double) -> String {
@@ -1759,7 +1769,7 @@ private struct BowelMovementScatterChart: View {
         }
         let xPosition = location.x - plotRect.origin.x
         if let date: Date = proxy.value(atX: xPosition) {
-            selectedDate = nearestDate(to: date, in: points.map(\.date))
+            selectedDate = nearestDate(to: date, in: selectionDates)
         } else {
             selectedDate = nil
         }
@@ -2040,21 +2050,25 @@ private struct ChartDisplayZone<Idle: View, Selected: View>: View {
 private struct AverageTextBlock: View {
     let title: String
     let value: String
-    var detail: String? = nil
     let tone: Color
+    var trend: ChartTrendDescriptor? = nil
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(title)
-                .font(.system(size: 12, weight: .medium, design: .rounded))
-                .foregroundStyle(AppTheme.secondaryText)
-            Text(value)
-                .font(.system(size: 18, weight: .bold, design: .rounded))
-                .foregroundStyle(tone)
-            if let detail {
-                Text(detail)
+        HStack(alignment: .lastTextBaseline, spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
                     .font(.system(size: 12, weight: .medium, design: .rounded))
                     .foregroundStyle(AppTheme.secondaryText)
+                Text(value)
+                    .font(.system(size: 18, weight: .bold, design: .rounded))
+                    .foregroundStyle(tone)
+            }
+
+            Spacer(minLength: 0)
+
+            if let trend {
+                trendTag(trend)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
     }
@@ -2108,6 +2122,88 @@ private func averageTag(_ value: String, tone: Color) -> some View {
         .clipShape(Capsule())
 }
 
+private struct ChartTrendDescriptor {
+    let text: String
+    let tone: Color
+}
+
+private func trendTag(_ trend: ChartTrendDescriptor) -> some View {
+    Text(trend.text)
+        .font(.system(size: 11, weight: .bold, design: .rounded))
+        .foregroundStyle(trend.tone)
+        .padding(.horizontal, 9)
+        .padding(.vertical, 5)
+        .background(trend.tone.opacity(0.12))
+        .clipShape(Capsule())
+}
+
+private func positiveTrendColor() -> Color {
+    Color(red: 0.20, green: 0.65, blue: 0.38)
+}
+
+private func negativeTrendColor() -> Color {
+    Color(red: 0.86, green: 0.30, blue: 0.28)
+}
+
+private func neutralTrendDescriptor() -> ChartTrendDescriptor {
+    ChartTrendDescriptor(text: NSLocalizedString("--", comment: ""), tone: AppTheme.secondaryText)
+}
+
+private func formatTrendDuration(minutes: Int) -> String {
+    let hours = minutes / 60
+    let remainingMinutes = minutes % 60
+    if hours > 0, remainingMinutes > 0 {
+        return String(format: NSLocalizedString("%d小时%d分", comment: ""), hours, remainingMinutes)
+    }
+    if hours > 0 {
+        return String(format: NSLocalizedString("%d小时", comment: ""), hours)
+    }
+    return String(format: NSLocalizedString("%d分", comment: ""), remainingMinutes)
+}
+
+private func durationTrendDescriptor(current: Double?, previous: Double?) -> ChartTrendDescriptor {
+    guard let current, let previous else { return neutralTrendDescriptor() }
+    let deltaMinutes = Int(abs((current - previous) * 60).rounded())
+    guard deltaMinutes > 0 else {
+        return ChartTrendDescriptor(text: NSLocalizedString("持平", comment: ""), tone: AppTheme.secondaryText)
+    }
+    return current >= previous
+        ? ChartTrendDescriptor(
+            text: String(format: NSLocalizedString("增加 %@", comment: ""), formatTrendDuration(minutes: deltaMinutes)),
+            tone: positiveTrendColor()
+        )
+        : ChartTrendDescriptor(
+            text: String(format: NSLocalizedString("减少 %@", comment: ""), formatTrendDuration(minutes: deltaMinutes)),
+            tone: negativeTrendColor()
+        )
+}
+
+private func clockTrendDescriptor(current: Double?, previous: Double?) -> ChartTrendDescriptor {
+    guard let current, let previous else { return neutralTrendDescriptor() }
+    var delta = current - previous
+    let fullDay = 24.0 * 60.0
+    if delta > fullDay / 2 {
+        delta -= fullDay
+    } else if delta < -fullDay / 2 {
+        delta += fullDay
+    }
+
+    let deltaMinutes = Int(abs(delta).rounded())
+    guard deltaMinutes > 0 else {
+        return ChartTrendDescriptor(text: NSLocalizedString("持平", comment: ""), tone: AppTheme.secondaryText)
+    }
+
+    return delta > 0
+        ? ChartTrendDescriptor(
+            text: String(format: NSLocalizedString("变晚 %@", comment: ""), formatTrendDuration(minutes: deltaMinutes)),
+            tone: negativeTrendColor()
+        )
+        : ChartTrendDescriptor(
+            text: String(format: NSLocalizedString("变早 %@", comment: ""), formatTrendDuration(minutes: deltaMinutes)),
+            tone: positiveTrendColor()
+        )
+}
+
 private func calloutMetric(label: String, value: String) -> some View {
     VStack(alignment: .leading, spacing: 2) {
         Text(label)
@@ -2131,6 +2227,23 @@ private func chartSelectionRatio(selectedDate: Date?, in dates: [Date]) -> CGFlo
     }
     guard uniqueDates.count > 1 else { return 0.5 }
     return CGFloat(index) / CGFloat(uniqueDates.count - 1)
+}
+
+private func chartDateDomain(for dates: [Date]) -> ClosedRange<Date>? {
+    let uniqueDates = Array(Set(dates.map(\.startOfDay))).sorted()
+    guard let first = uniqueDates.first, let last = uniqueDates.last else { return nil }
+    return first...last
+}
+
+private extension View {
+    @ViewBuilder
+    func analyticsChartXScale(domain: ClosedRange<Date>?) -> some View {
+        if let domain {
+            self.chartXScale(domain: domain, range: .plotDimension(startPadding: 14, endPadding: 14))
+        } else {
+            self.chartXScale(range: .plotDimension(startPadding: 14, endPadding: 14))
+        }
+    }
 }
 
 private func chartColor(for key: String) -> Color {
@@ -2157,6 +2270,7 @@ private struct ChartDurationValue: Identifiable {
 
 private struct DurationLineChart: View {
     let points: [ChartDurationValue]
+    let domainDates: [Date]
     let averageHours: Double?
     let previousAverageHours: Double?
     let tone: Color
@@ -2165,6 +2279,7 @@ private struct DurationLineChart: View {
 
     init(
         points: [ChartDurationValue],
+        domainDates: [Date],
         averageHours: Double?,
         previousAverageHours: Double? = nil,
         tone: Color,
@@ -2172,6 +2287,7 @@ private struct DurationLineChart: View {
         compact: Bool = false
     ) {
         self.points = points
+        self.domainDates = domainDates
         self.averageHours = averageHours
         self.previousAverageHours = previousAverageHours
         self.tone = tone
@@ -2192,8 +2308,8 @@ private struct DurationLineChart: View {
                         AverageTextBlock(
                             title: NSLocalizedString("平均时长", comment: ""),
                             value: averageHours.map(formatDuration) ?? "--",
-                            detail: intervalTrendText(current: averageHours, previous: previousAverageHours),
-                            tone: tone
+                            tone: tone,
+                            trend: durationTrendDescriptor(current: averageHours, previous: previousAverageHours)
                         )
                     },
                     selected: {
@@ -2247,7 +2363,7 @@ private struct DurationLineChart: View {
                 }
                 .frame(height: compact ? 190 : 260)
                 .chartYScale(domain: adaptiveDomain)
-                .chartXScale(range: .plotDimension(startPadding: 14, endPadding: 14))
+                .analyticsChartXScale(domain: chartDateDomain(for: selectionDates))
                 .chartYAxis {
                     AxisMarks(position: .leading) { value in
                         AxisGridLine()
@@ -2273,7 +2389,11 @@ private struct DurationLineChart: View {
     }
 
     private var selectedRatio: CGFloat? {
-        chartSelectionRatio(selectedDate: selectedDate, in: points.map(\.date))
+        chartSelectionRatio(selectedDate: selectedDate, in: selectionDates)
+    }
+
+    private var selectionDates: [Date] {
+        domainDates.isEmpty ? points.map(\.date) : domainDates
     }
 
     private var adaptiveDomain: ClosedRange<Double> {
@@ -2294,19 +2414,6 @@ private struct DurationLineChart: View {
         }
         return "\(m)m"
     }
-
-    private func intervalTrendText(current: Double?, previous: Double?) -> String {
-        guard let current, let previous, previous > 0 else { return "--" }
-        let change = (current - previous) / previous
-        if abs(change) < 0.005 {
-            return NSLocalizedString("持平", comment: "")
-        }
-        let percent = abs(change * 100)
-        return change > 0
-            ? String(format: NSLocalizedString("增长 %.0f%%", comment: ""), percent)
-            : String(format: NSLocalizedString("减少 %.0f%%", comment: ""), percent)
-    }
-
     private func updateSelection(at location: CGPoint, proxy: ChartProxy, geometry: GeometryProxy) {
         guard let plotFrame = proxy.plotFrame else {
             selectedDate = nil
@@ -2319,7 +2426,7 @@ private struct DurationLineChart: View {
         }
         let xPosition = location.x - plotRect.origin.x
         if let date: Date = proxy.value(atX: xPosition) {
-            selectedDate = nearestDate(to: date, in: points.map(\.date))
+            selectedDate = nearestDate(to: date, in: selectionDates)
         } else {
             selectedDate = nil
         }

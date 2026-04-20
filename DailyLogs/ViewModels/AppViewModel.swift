@@ -175,23 +175,12 @@ final class AppViewModel: ObservableObject {
 
     var activeDailyInsightNarrative: DailyInsightNarrative? {
         guard let targetDate = dailyInsightTargetDate else { return nil }
-        if dailyInsightNarrativeDate?.startOfDay == targetDate.startOfDay,
-           let dailyInsightNarrative {
-            return dailyInsightNarrative
-        }
-        return record(for: targetDate)?.aiInsightNarrative
+        return currentNarrative(for: targetDate)
     }
 
     var dailyInsightReport: DailyInsightReport? {
         guard let targetDate = dailyInsightTargetDate else { return nil }
-        let record = record(for: targetDate)
-            ?? DailyRecord.empty(for: targetDate, preferences: preferences)
-        let locale = preferences.appLanguage.locale ?? Locale.autoupdatingCurrent
-        return DailyInsightAnalyzer.buildReport(
-            for: mergedRecord(record, with: preferences),
-            preferences: preferences,
-            locale: locale
-        )
+        return insightReport(for: targetDate)
     }
 
     var displayedDailyInsightReport: DailyInsightReport? {
@@ -206,19 +195,59 @@ final class AppViewModel: ObservableObject {
         activeDailyInsightNarrative?.hasAIScoring == true
     }
 
+    var scoredAIInsightDates: [Date] {
+        allRecords
+            .filter { validatedNarrative(for: $0.date) != nil }
+            .map(\.date.startOfDay)
+            .sorted(by: >)
+    }
+
+    func activeDailyInsightNarrative(for date: Date) -> DailyInsightNarrative? {
+        validatedNarrative(for: date)
+    }
+
+    func insightReport(for date: Date) -> DailyInsightReport? {
+        let locale = preferences.appLanguage.locale ?? Locale.autoupdatingCurrent
+        let resolvedRecord = record(for: date) ?? DailyRecord.empty(for: date, preferences: preferences)
+        return DailyInsightAnalyzer.buildReport(
+            for: mergedRecord(resolvedRecord, with: preferences),
+            preferences: preferences,
+            locale: locale
+        )
+    }
+
+    func displayedDailyInsightReport(for date: Date) -> DailyInsightReport? {
+        guard let baseReport = insightReport(for: date),
+              let narrative = validatedNarrative(for: date),
+              narrative.hasAIScoring else {
+            return insightReport(for: date)
+        }
+        return baseReport.applyingAIOverrides(narrative)
+    }
+
+    func isDisplayingAIScoredInsight(for date: Date) -> Bool {
+        validatedNarrative(for: date)?.hasAIScoring == true
+    }
+
     func bootstrap() async {
         guard !isBootstrapped else { return }
         isBootstrapped = true
         user = authService.restoreSession()
         refreshOpenAIConfigurationState()
         do {
-            preferences = hydratedPreferences(from: try preferencesStore.loadPreferences(userID: user?.userID))
+            let loadedPreferences = try preferencesStore.loadPreferences(userID: user?.userID)
+            let shouldMigrateMidnightModeKeys = loadedPreferences.midnightMode.isEnabled
+                && loadedPreferences.midnightMode.cutoffHour != MidnightModeSettings.fixedCutoffHour
+            preferences = hydratedPreferences(from: loadedPreferences)
             persistPreferences()
             applyCurrentLanguage()
             if let user {
                 selectedDate = max(selectedDate, user.createdAt.startOfDay)
                 analyticsCustomDateRange = defaultAnalyticsCustomRange(startingAt: user.createdAt)
                 try loadAllRecords(for: user.userID)
+                if shouldMigrateMidnightModeKeys {
+                    try rekeyAllRecords(for: user.userID)
+                }
                 try loadSelectedRecord()
                 await refreshFromCloudIfNeeded(for: user)
                 await refreshCloudEncryptionState()
@@ -255,7 +284,11 @@ final class AppViewModel: ObservableObject {
     func refreshDailyInsightNarrative(force: Bool = false) async {
         guard dailyInsightReport != nil,
               let targetDate = dailyInsightTargetDate else { return }
-        await generateDailyInsightNarrative(for: targetDate, force: force, isAutomatic: false)
+        await refreshDailyInsightNarrative(for: targetDate, force: force)
+    }
+
+    func refreshDailyInsightNarrative(for date: Date, force: Bool = false) async {
+        await generateDailyInsightNarrative(for: date.startOfDay, force: force, isAutomatic: false)
     }
 
     private func generateDailyInsightNarrative(
@@ -263,7 +296,8 @@ final class AppViewModel: ObservableObject {
         force: Bool,
         isAutomatic: Bool
     ) async {
-        guard report(for: targetDate) != nil else { return }
+        _ = force
+        guard insightReport(for: targetDate) != nil else { return }
         guard canGenerateAIInsights else {
             aiInsightErrorMessage = nil
             return
@@ -271,30 +305,22 @@ final class AppViewModel: ObservableObject {
         if isGeneratingDailyInsightNarrative {
             return
         }
-        if !force,
-           activeNarrative(for: targetDate)?.hasAIScoring == true {
-            dailyInsightNarrative = activeNarrative(for: targetDate)
+        if let cachedNarrative = validatedNarrative(for: targetDate) {
+            dailyInsightNarrative = cachedNarrative
             dailyInsightNarrativeDate = targetDate.startOfDay
             return
         }
 
-        let record = record(for: targetDate)
-            ?? DailyRecord.empty(for: targetDate, preferences: preferences)
-        let locale = preferences.appLanguage.locale ?? Locale.autoupdatingCurrent
-        let payload = DailyInsightAnalyzer.makePayload(
-            record: mergedRecord(record, with: preferences),
-            preferences: preferences,
-            language: preferences.appLanguage,
-            locale: locale,
-            history: allRecords.map { mergedRecord($0, with: preferences) }
-        )
+        guard let payload = insightPayload(for: targetDate) else { return }
 
         isGeneratingDailyInsightNarrative = true
         if !isAutomatic {
             aiInsightErrorMessage = nil
         }
         do {
-            let narrative = try await aiInsightNarrativeService.generateNarrative(from: payload)
+            var narrative = try await aiInsightNarrativeService.generateNarrative(from: payload)
+            narrative.payloadSignature = try payload.stableSignature()
+            narrative.scoringVersion = DailyInsightNarrative.currentScoringVersion
             try persistDailyInsightNarrative(narrative, for: targetDate)
             dailyInsightNarrative = narrative
             dailyInsightNarrativeDate = targetDate.startOfDay
@@ -558,6 +584,7 @@ final class AppViewModel: ObservableObject {
             preferences.timeDisplayMode = .recorded
             UserDefaults.standard.set(true, forKey: Self.didMigrateTimeDisplayModeDefaultKey)
         }
+        preferences.midnightMode.cutoffHour = MidnightModeSettings.fixedCutoffHour
         return preferences
     }
 
@@ -587,16 +614,19 @@ final class AppViewModel: ObservableObject {
         await syncPreferencesToCloudIfNeeded()
     }
 
-    func configureMidnightMode(enabled: Bool, cutoffHour: Int, applyToExistingRecords: Bool) async {
-        let clampedHour = max(0, min(11, cutoffHour))
+    func configureMidnightMode(enabled: Bool, applyToExistingRecords: Bool) async {
         if enabled {
             preferences.midnightMode = MidnightModeSettings(
                 isEnabled: true,
-                cutoffHour: clampedHour,
+                cutoffHour: MidnightModeSettings.fixedCutoffHour,
                 effectiveFrom: applyToExistingRecords ? nil : .now
             )
         } else {
-            preferences.midnightMode = MidnightModeSettings(isEnabled: false, cutoffHour: clampedHour, effectiveFrom: nil)
+            preferences.midnightMode = MidnightModeSettings(
+                isEnabled: false,
+                cutoffHour: MidnightModeSettings.fixedCutoffHour,
+                effectiveFrom: nil
+            )
         }
 
         persistPreferences()
@@ -1021,7 +1051,7 @@ final class AppViewModel: ObservableObject {
         aiInsightErrorMessage = nil
     }
 
-    private func activeNarrative(for date: Date) -> DailyInsightNarrative? {
+    private func currentNarrative(for date: Date) -> DailyInsightNarrative? {
         if dailyInsightNarrativeDate?.startOfDay == date.startOfDay,
            let dailyInsightNarrative {
             return dailyInsightNarrative
@@ -1029,21 +1059,35 @@ final class AppViewModel: ObservableObject {
         return record(for: date)?.aiInsightNarrative
     }
 
+    private func insightPayload(for date: Date) -> DailyInsightPayload? {
+        let resolvedRecord = record(for: date) ?? DailyRecord.empty(for: date, preferences: preferences)
+        let locale = preferences.appLanguage.locale ?? Locale.autoupdatingCurrent
+        return DailyInsightAnalyzer.makePayload(
+            record: mergedRecord(resolvedRecord, with: preferences),
+            preferences: preferences,
+            language: preferences.appLanguage,
+            locale: locale,
+            history: allRecords.map { mergedRecord($0, with: preferences) }
+        )
+    }
+
+    private func validatedNarrative(for date: Date) -> DailyInsightNarrative? {
+        guard let narrative = currentNarrative(for: date),
+              narrative.hasAIScoring,
+              narrative.scoringVersion >= DailyInsightNarrative.currentScoringVersion,
+              let payload = insightPayload(for: date),
+              let signature = try? payload.stableSignature(),
+              narrative.payloadSignature == signature else {
+            return nil
+        }
+        return narrative
+    }
+
     private func record(for date: Date) -> DailyRecord? {
         if dailyRecord.date.startOfDay == date.startOfDay {
             return dailyRecord
         }
         return allRecords.first(where: { $0.date.startOfDay == date.startOfDay })
-    }
-
-    private func report(for date: Date) -> DailyInsightReport? {
-        let locale = preferences.appLanguage.locale ?? Locale.autoupdatingCurrent
-        let resolvedRecord = record(for: date) ?? DailyRecord.empty(for: date, preferences: preferences)
-        return DailyInsightAnalyzer.buildReport(
-            for: mergedRecord(resolvedRecord, with: preferences),
-            preferences: preferences,
-            locale: locale
-        )
     }
 
     private func persistDailyInsightNarrative(_ narrative: DailyInsightNarrative, for date: Date) throws {
@@ -1075,7 +1119,7 @@ final class AppViewModel: ObservableObject {
 
     private func ensureAutomaticYesterdayInsightIfNeeded() async {
         guard let targetDate = automaticInsightTargetDate else { return }
-        guard activeNarrative(for: targetDate)?.hasAIScoring != true else { return }
+        guard validatedNarrative(for: targetDate)?.hasAIScoring != true else { return }
         await generateDailyInsightNarrative(for: targetDate, force: false, isAutomatic: true)
     }
 
@@ -1623,28 +1667,44 @@ final class AppViewModel: ObservableObject {
 
     func displayedClockTime(for date: Date?, recordedTimeZoneIdentifier: String?) -> String {
         guard let date else { return "--:--" }
-        return date.displayClockTime(in: displayedTimeZone(for: recordedTimeZoneIdentifier))
+        let timeZone = displayedTimeZone(for: recordedTimeZoneIdentifier)
+        return date.displayClockTime(in: timeZone) + nextDayDisplaySuffix(for: date, displayedTimeZone: timeZone)
     }
 
     func displayedShortTime(for date: Date, recordedTimeZoneIdentifier: String?) -> String {
-        date.displayShortTime(in: displayedTimeZone(for: recordedTimeZoneIdentifier))
+        let timeZone = displayedTimeZone(for: recordedTimeZoneIdentifier)
+        return date.displayShortTime(in: timeZone) + nextDayDisplaySuffix(for: date, displayedTimeZone: timeZone)
+    }
+
+    private func convertedTemperatureValue(from celsius: Double) -> Double {
+        switch preferences.temperatureUnit {
+        case .celsius:
+            celsius
+        case .fahrenheit:
+            celsius * 9 / 5 + 32
+        }
+    }
+
+    private func formattedTemperature(_ celsius: Double) -> String {
+        let value = convertedTemperatureValue(from: celsius)
+        return String(format: "%.0f°%@", value.rounded(), preferences.temperatureUnit.symbol)
     }
 
     func formattedCurrentTemperature() -> String {
         guard let currentWeather else { return "--" }
-        let value: Double
-        switch preferences.temperatureUnit {
-        case .celsius:
-            value = currentWeather.temperatureCelsius
-        case .fahrenheit:
-            value = currentWeather.temperatureCelsius * 9 / 5 + 32
-        }
-        return String(format: "%.0f°%@", value.rounded(), preferences.temperatureUnit.symbol)
+        return formattedTemperature(currentWeather.temperatureCelsius)
+    }
+
+    func formattedDailyTemperatureRange() -> String {
+        guard let currentWeather else { return "--" }
+        let low = convertedTemperatureValue(from: currentWeather.lowTemperatureCelsius).rounded()
+        let high = convertedTemperatureValue(from: currentWeather.highTemperatureCelsius).rounded()
+        return String(format: "%.0f ~ %.0f°%@", low, high, preferences.temperatureUnit.symbol)
     }
 
     func currentWeatherSummary() -> String? {
         guard let currentWeather else { return nil }
-        return "\(currentWeather.conditionDescription) · \(formattedCurrentTemperature())"
+        return "\(currentWeather.conditionDescription) · \(formattedDailyTemperatureRange())"
     }
 
     private func editedTimeZoneIdentifier(for recordedTimeZoneIdentifier: String?) -> String {
@@ -1662,6 +1722,18 @@ final class AppViewModel: ObservableObject {
             return false
         }
         return !dailyRecord.sleepRecord.hasSleepData
+    }
+
+    private func nextDayDisplaySuffix(for date: Date, displayedTimeZone: TimeZone) -> String {
+        guard preferences.midnightMode.isEnabled else { return "" }
+
+        var calendar = Calendar.current
+        calendar.timeZone = displayedTimeZone
+        let displayedDay = calendar.startOfDay(for: date)
+        let referenceDay = calendar.startOfDay(for: selectedDate)
+        guard displayedDay > referenceDay else { return "" }
+
+        return " " + NSLocalizedString("+1", comment: "")
     }
 
     private func sortOptionalTimes(_ lhs: Date?, _ rhs: Date?) -> Bool {

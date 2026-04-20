@@ -188,10 +188,10 @@ struct DailyLogsTests {
     }
 
     @Test
-    func analyticsWeekRangeIncludesToday() throws {
+    func analyticsWeekRangeEndsAtYesterday() throws {
         let today = Date().startOfDay
         let records = (0..<7).map { offset in
-            let date = today.adding(days: -offset)
+            let date = today.adding(days: -(offset + 1))
             return DailyRecord(
                 date: date,
                 sleepRecord: SleepRecord(
@@ -212,15 +212,47 @@ struct DailyLogsTests {
         )
 
         #expect(summary.days.count == 7)
-        #expect(summary.days.last?.date == today)
+        #expect(summary.days.last?.date == today.adding(days: -1))
         #expect(summary.averageSleepHours == 8)
+    }
+
+    @Test
+    func analyticsWeekRangeKeepsEmptyLastDayForMidnightModeLogicalToday() throws {
+        let calendar = Calendar.current
+        let logicalToday = calendar.date(from: DateComponents(year: 2026, month: 4, day: 19))!
+        let records = (0..<6).map { offset in
+            let date = logicalToday.adding(days: -(offset + 2))
+            return DailyRecord(
+                date: date,
+                sleepRecord: SleepRecord(
+                    bedtimePreviousNight: date.adding(days: -1).settingTime(hour: 23, minute: 0),
+                    wakeTimeCurrentDay: date.settingTime(hour: 7, minute: 0),
+                    source: .manual
+                ),
+                meals: [MealEntry(mealKind: .breakfast)],
+                showers: [],
+                sunTimes: nil
+            )
+        }
+
+        let summary = AnalyticsCalculator.build(
+            records: records,
+            range: .week,
+            today: logicalToday
+        )
+
+        #expect(summary.days.count == 7)
+        #expect(summary.days.first?.date.storageKey() == "2026-04-12")
+        #expect(summary.days.last?.date.storageKey() == "2026-04-18")
+        #expect(summary.days.last?.sleepHours == nil)
+        #expect(summary.days.last?.loggedMeals == 0)
     }
 
     @Test
     func analyticsComparisonUsesPreviousWindow() {
         let today = Date().startOfDay
         let currentWindow = (0..<7).map { offset in
-            let date = today.adding(days: -offset)
+            let date = today.adding(days: -(offset + 1))
             return DailyRecord(
                 date: date,
                 sleepRecord: SleepRecord(
@@ -234,11 +266,11 @@ struct DailyLogsTests {
             )
         }
         let previousWindow = (7..<14).map { offset in
-            let date = today.adding(days: -offset)
+            let date = today.adding(days: -(offset + 1))
             return DailyRecord(
                 date: date,
                 sleepRecord: SleepRecord(
-                    bedtimePreviousNight: date.adding(days: -1).settingTime(hour: 0, minute: 0),
+                    bedtimePreviousNight: date.settingTime(hour: 0, minute: 0),
                     wakeTimeCurrentDay: date.settingTime(hour: 6, minute: 0),
                     source: .manual
                 ),
@@ -260,6 +292,36 @@ struct DailyLogsTests {
     }
 
     @Test
+    func analyticsMealCompletionCountsLoggedMealWithoutTime() {
+        let day = Calendar.current.date(from: DateComponents(year: 2026, month: 4, day: 10))!
+        let record = DailyRecord(
+            date: day,
+            sleepRecord: SleepRecord(),
+            meals: [
+                MealEntry(mealKind: .breakfast, status: .logged),
+                MealEntry(mealKind: .lunch, status: .logged, time: day.settingTime(hour: 12, minute: 30)),
+                MealEntry(mealKind: .dinner, status: .empty)
+            ],
+            showers: [],
+            bowelMovements: [],
+            sexualActivities: [],
+            sunTimes: nil
+        )
+
+        let summary = AnalyticsCalculator.build(
+            records: [record],
+            range: .custom,
+            customRange: day...day,
+            defaultMealSlots: MealSlot.defaults,
+            today: day
+        )
+
+        let breakfastSeries = try? #require(summary.mealSeries.first(where: { $0.key == MealKind.breakfast.rawValue }))
+        #expect(breakfastSeries?.completionRate == 1)
+        #expect(summary.defaultMealCompletionRate == 2.0 / 3.0)
+    }
+
+    @Test
     func midnightModeShiftsEarlyMorningToPreviousDay() {
         let timestamp = Calendar.current.date(from: DateComponents(year: 2026, month: 4, day: 19, hour: 2, minute: 30))!
         let preferences = UserPreferences(
@@ -268,6 +330,50 @@ struct DailyLogsTests {
 
         let logicalDate = preferences.logicalDate(for: timestamp)
         #expect(logicalDate.storageKey() == "2026-04-18")
+    }
+
+    @Test
+    func midnightModeUsesFixedFourAMCutoff() {
+        let timestamp = Calendar.current.date(from: DateComponents(year: 2026, month: 4, day: 19, hour: 3, minute: 30))!
+        let preferences = UserPreferences(
+            midnightMode: MidnightModeSettings(isEnabled: true, cutoffHour: 1, effectiveFrom: nil)
+        )
+
+        let logicalDate = preferences.logicalDate(for: timestamp)
+        #expect(logicalDate.storageKey() == "2026-04-18")
+    }
+
+    @Test @MainActor
+    func displayedClockTimeAddsNextDayMarkerInMidnightMode() {
+        let referenceDate = Calendar.current.date(from: DateComponents(year: 2026, month: 4, day: 19))!
+        let afterMidnight = Calendar.current.date(from: DateComponents(year: 2026, month: 4, day: 20, hour: 0, minute: 52))!
+        let timeZoneIdentifier = TimeZone.autoupdatingCurrent.identifier
+        let preferences = UserPreferences(
+            midnightMode: MidnightModeSettings(isEnabled: true, cutoffHour: 4, effectiveFrom: nil)
+        )
+        let viewModel = AppViewModel(
+            authService: MockAuthService(user: nil),
+            repository: InMemoryDailyRecordRepository(records: [:]),
+            preferencesStore: MockPreferencesStore(preferences: preferences),
+            photoStorageService: MockPhotoStorageService(),
+            sunTimesService: MockSunTimesService(),
+            weatherService: MockWeatherService(),
+            healthSyncAdapter: MockHealthSyncAdapter(sleepRecord: nil),
+            cloudSyncService: NoopCloudSyncService(),
+            aiInsightNarrativeService: MockAIInsightNarrativeService(responses: []),
+            openAIKeyStore: MockOpenAIKeyStore(key: nil),
+            locationService: LocationService(),
+            selectedDate: referenceDate,
+            dailyRecord: DailyRecord.empty(for: referenceDate, preferences: preferences),
+            preferences: preferences
+        )
+
+        let rendered = viewModel.displayedClockTime(
+            for: afterMidnight,
+            recordedTimeZoneIdentifier: timeZoneIdentifier
+        )
+
+        #expect(rendered.contains("+1"))
     }
 
     @Test
@@ -350,6 +456,8 @@ struct DailyLogsTests {
         let payloadJSON = String(decoding: try JSONEncoder().encode(payload), as: UTF8.self)
 
         #expect(payload.meals.map(\.status) == ["logged_with_time", "logged_without_time", "skipped", "unrecorded"])
+        #expect(payload.timeline.count == 6)
+        #expect(payload.scoringRubric.sampleCount == 5)
         #expect(payload.showerEnabled == false)
         #expect(payload.bowelMovementEnabled == false)
         #expect(payload.comparisonContext.trailing7Days.recordedDays == 0)
@@ -512,6 +620,7 @@ struct DailyLogsTests {
     func refreshDailyInsightNarrativeUsesPersistedNarrativeWithoutCallingAI() async {
         let today = Date().startOfDay
         let yesterday = today.adding(days: -1)
+        let recordedTimeZone = TimeZone.autoupdatingCurrent.identifier
         let preferences = UserPreferences(
             healthKitSyncEnabled: false,
             visibleHomeSections: [.sleep, .meals, .showers]
@@ -533,23 +642,71 @@ struct DailyLogsTests {
                 "meals": .init(score: 88, maxScore: 100, detail: "AI 餐食", included: true),
                 "shower": .init(score: 80, maxScore: 100, detail: "AI 洗澡", included: true),
                 "bowelMovement": .init(score: 0, maxScore: 100, detail: "AI 排便未纳入", included: false)
-            ]
+            ],
+            scoringVersion: DailyInsightNarrative.currentScoringVersion,
+            sampleCount: 5
         )
-        let record = DailyRecord(
+        let unsignedRecord = DailyRecord(
             date: yesterday,
             sleepRecord: SleepRecord(
                 bedtimePreviousNight: yesterday.adding(days: -1).settingTime(hour: 23, minute: 20),
                 wakeTimeCurrentDay: yesterday.settingTime(hour: 7, minute: 15),
-                source: .manual
+                source: .manual,
+                timeZoneIdentifier: recordedTimeZone
             ),
             meals: [
-                MealEntry(mealKind: .breakfast, status: .logged, time: yesterday.settingTime(hour: 8, minute: 0))
+                MealEntry(
+                    mealKind: .breakfast,
+                    status: .logged,
+                    time: yesterday.settingTime(hour: 8, minute: 0),
+                    timeZoneIdentifier: recordedTimeZone
+                )
             ],
             showers: [],
             bowelMovements: [],
             sexualActivities: [],
             sunTimes: nil,
             aiInsightNarrative: persistedNarrative
+        )
+        let mergedRecordForSignature = DailyRecord(
+            date: unsignedRecord.date,
+            sleepRecord: SleepRecord(
+                bedtimePreviousNight: unsignedRecord.sleepRecord.bedtimePreviousNight,
+                wakeTimeCurrentDay: unsignedRecord.sleepRecord.wakeTimeCurrentDay,
+                targetBedtime: preferences.bedtimeSchedule.target(for: unsignedRecord.date),
+                source: unsignedRecord.sleepRecord.source,
+                timeZoneIdentifier: recordedTimeZone
+            ),
+            meals: [
+                unsignedRecord.meals[0],
+                MealEntry(mealKind: .lunch, status: .empty),
+                MealEntry(mealKind: .dinner, status: .empty)
+            ],
+            showers: unsignedRecord.showers,
+            bowelMovements: unsignedRecord.bowelMovements,
+            sexualActivities: unsignedRecord.sexualActivities,
+            sunTimes: unsignedRecord.sunTimes,
+            aiInsightNarrative: persistedNarrative
+        )
+        let payload = DailyInsightAnalyzer.makePayload(
+            record: mergedRecordForSignature,
+            preferences: preferences,
+            language: preferences.appLanguage,
+            locale: preferences.appLanguage.locale ?? Locale.autoupdatingCurrent,
+            history: [mergedRecordForSignature]
+        )
+        let signature = try! payload.stableSignature()
+        var signedNarrative = persistedNarrative
+        signedNarrative.payloadSignature = signature
+        let record = DailyRecord(
+            date: unsignedRecord.date,
+            sleepRecord: unsignedRecord.sleepRecord,
+            meals: unsignedRecord.meals,
+            showers: unsignedRecord.showers,
+            bowelMovements: unsignedRecord.bowelMovements,
+            sexualActivities: unsignedRecord.sexualActivities,
+            sunTimes: unsignedRecord.sunTimes,
+            aiInsightNarrative: signedNarrative
         )
         let aiService = MockAIInsightNarrativeService(responses: [
             DailyInsightNarrative(
@@ -588,6 +745,89 @@ struct DailyLogsTests {
         #expect(aiService.callCount == 0)
         #expect(viewModel.activeDailyInsightNarrative?.headline == "已缓存的 AI")
         #expect(viewModel.displayedDailyInsightReport?.overallScore == 90)
+    }
+
+    @Test @MainActor
+    func refreshDailyInsightNarrativeRegeneratesWhenPersistedSignatureIsStale() async {
+        let today = Date().startOfDay
+        let yesterday = today.adding(days: -1)
+        let preferences = UserPreferences(
+            healthKitSyncEnabled: false,
+            visibleHomeSections: [.sleep, .meals, .showers]
+        )
+        let user = UserAccount(
+            userID: "stale-ai-user",
+            displayName: "Tester",
+            email: nil,
+            authMode: .guest,
+            createdAt: today.adding(days: -30)
+        )
+        let staleNarrative = DailyInsightNarrative(
+            headline: "旧评分",
+            summary: "签名已经过期",
+            bullets: ["旧 1", "旧 2"],
+            overallScore: 77,
+            components: [
+                "sleep": .init(score: 78, maxScore: 100, detail: "旧睡眠", included: true),
+                "meals": .init(score: 75, maxScore: 100, detail: "旧餐食", included: true),
+                "shower": .init(score: 70, maxScore: 100, detail: "旧洗澡", included: true),
+                "bowelMovement": .init(score: 0, maxScore: 100, detail: "旧排便", included: false)
+            ],
+            scoringVersion: DailyInsightNarrative.currentScoringVersion,
+            sampleCount: 5,
+            payloadSignature: "stale-signature"
+        )
+        let record = DailyRecord(
+            date: yesterday,
+            sleepRecord: SleepRecord(
+                bedtimePreviousNight: yesterday.adding(days: -1).settingTime(hour: 23, minute: 50),
+                wakeTimeCurrentDay: yesterday.settingTime(hour: 8, minute: 10),
+                source: .manual
+            ),
+            meals: [MealEntry(mealKind: .breakfast, status: .logged, time: yesterday.settingTime(hour: 8, minute: 40))],
+            showers: [],
+            bowelMovements: [],
+            sexualActivities: [],
+            sunTimes: nil,
+            aiInsightNarrative: staleNarrative
+        )
+        let aiService = MockAIInsightNarrativeService(responses: [
+            DailyInsightNarrative(
+                headline: "新评分",
+                summary: "已按新签名重新生成",
+                bullets: ["新 1", "新 2"],
+                overallScore: 85,
+                components: [
+                    "sleep": .init(score: 87, maxScore: 100, detail: "新睡眠", included: true),
+                    "meals": .init(score: 84, maxScore: 100, detail: "新餐食", included: true),
+                    "shower": .init(score: 78, maxScore: 100, detail: "新洗澡", included: true),
+                    "bowelMovement": .init(score: 0, maxScore: 100, detail: "新排便", included: false)
+                ]
+            )
+        ])
+        let viewModel = AppViewModel(
+            authService: MockAuthService(user: user),
+            repository: InMemoryDailyRecordRepository(records: [yesterday.storageKey(): record]),
+            preferencesStore: MockPreferencesStore(preferences: preferences),
+            photoStorageService: MockPhotoStorageService(),
+            sunTimesService: MockSunTimesService(),
+            weatherService: MockWeatherService(),
+            healthSyncAdapter: MockHealthSyncAdapter(sleepRecord: nil),
+            cloudSyncService: NoopCloudSyncService(),
+            aiInsightNarrativeService: aiService,
+            openAIKeyStore: MockOpenAIKeyStore(key: "test-key"),
+            locationService: LocationService(),
+            selectedDate: yesterday,
+            dailyRecord: DailyRecord.empty(for: yesterday, preferences: preferences),
+            preferences: preferences
+        )
+
+        await viewModel.bootstrap()
+        await viewModel.refreshDailyInsightNarrative()
+
+        #expect(aiService.callCount == 1)
+        #expect(viewModel.activeDailyInsightNarrative?.headline == "新评分")
+        #expect(viewModel.displayedDailyInsightReport?.overallScore == 85)
     }
 
     @Test @MainActor

@@ -646,6 +646,7 @@ struct OpenMeteoWeatherService: WeatherService {
             URLQueryItem(name: "latitude", value: String(coordinate.latitude)),
             URLQueryItem(name: "longitude", value: String(coordinate.longitude)),
             URLQueryItem(name: "current", value: "temperature_2m,weather_code"),
+            URLQueryItem(name: "daily", value: "temperature_2m_max,temperature_2m_min"),
             URLQueryItem(name: "timezone", value: "auto")
         ]
         guard let url = components?.url else { return nil }
@@ -657,11 +658,15 @@ struct OpenMeteoWeatherService: WeatherService {
         }
 
         let payload = try JSONDecoder().decode(OpenMeteoCurrentWeatherResponse.self, from: data)
-        guard let current = payload.current else { return nil }
+        guard let current = payload.current,
+              let low = payload.daily?.temperature2mMin.first,
+              let high = payload.daily?.temperature2mMax.first else { return nil }
         return WeatherSnapshot(
             conditionDescription: current.conditionDescription,
             symbolName: current.symbolName,
-            temperatureCelsius: current.temperature2m
+            temperatureCelsius: current.temperature2m,
+            lowTemperatureCelsius: low,
+            highTemperatureCelsius: high
         )
     }
 }
@@ -711,7 +716,18 @@ private struct OpenMeteoCurrentWeatherResponse: Decodable {
         }
     }
 
+    struct Daily: Decodable {
+        let temperature2mMax: [Double]
+        let temperature2mMin: [Double]
+
+        enum CodingKeys: String, CodingKey {
+            case temperature2mMax = "temperature_2m_max"
+            case temperature2mMin = "temperature_2m_min"
+        }
+    }
+
     let current: Current?
+    let daily: Daily?
 }
 
 final class LocationService: NSObject, ObservableObject, @unchecked Sendable {
@@ -892,8 +908,9 @@ enum AnalyticsCalculator {
             let upper = min(calendar.startOfDay(for: customRange.upperBound), clampedToday)
             return lower...upper
         }
-        let lower = clampedToday.adding(days: -(range.dayCount - 1))
-        return lower...clampedToday
+        let endDate = clampedToday.adding(days: -1)
+        let lower = endDate.adding(days: -(range.dayCount - 1))
+        return lower...endDate
     }
 
     static func build(
@@ -1011,12 +1028,6 @@ enum AnalyticsCalculator {
                     )
                 }
         } ?? []
-        let comparisonRecords: [DailyRecord] = comparisonBounds.map { bounds in
-            records
-                .filter { $0.date >= bounds.lowerBound && $0.date <= bounds.upperBound }
-                .sorted { $0.date < $1.date }
-        } ?? []
-
         let averageSleepHours = currentDays.compactMap(\.sleepHours).averageOptional
         let averageBedtimeMinutes = averageBedtimeClockMinutes(currentDays.compactMap(\.bedtimeMinutes))
         let averageWakeMinutes = currentDays.compactMap(\.wakeMinutes).averageOptional
@@ -1072,8 +1083,11 @@ enum AnalyticsCalculator {
                         minutes: clockMinutes(time, timeZoneIdentifier: meal.timeZoneIdentifier)
                     )
                 }
+                let currentLoggedCount = currentEntries.filter { record, meal in
+                    meal.effectiveStatus(on: record.date) == .logged
+                }.count
                 let tracked = Double(currentEntries.count)
-                let logged = Double(currentPoints.count)
+                let logged = Double(currentLoggedCount)
                 return MealAnalyticsSeries(
                     key: sample.slotKey,
                     title: sample.displayTitle,

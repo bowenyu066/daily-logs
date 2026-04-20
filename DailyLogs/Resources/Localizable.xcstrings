@@ -1,6 +1,9 @@
 {
   "sourceLanguage" : "zh-Hans",
   "strings" : {
+    "--" : {
+
+    },
     "%.1f 次/周" : {
       "localizations" : {
         "en" : {
@@ -45,6 +48,12 @@
     },
     "%@ · %@" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · %2$@"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "new",
@@ -71,6 +80,12 @@
     },
     "%@ 到 %@，共 %.1f 小时" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ to %2$@, %.1f hours total"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "new",
@@ -81,6 +96,12 @@
     },
     "%@是昨天最主要的参考项，目前整体分数在 %d 分。" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ was yesterday's main driver, with the overall score landing at %2$d."
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "new",
@@ -109,6 +130,12 @@
         }
       }
     },
+    "%d分" : {
+
+    },
+    "%d小时" : {
+
+    },
     "%d小时%d分" : {
       "localizations" : {
         "en" : {
@@ -124,6 +151,25 @@
           }
         }
       }
+    },
+    "+1" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "+1"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "+1"
+          }
+        }
+      }
+    },
+    "7-9 小时且入睡时间接近目标，记录完整时可拿高分。" : {
+
     },
     "7天" : {
       "localizations" : {
@@ -225,7 +271,11 @@
         }
       }
     },
+    "AI 请求会经你的云端代理转发；新评分会固定保存，除非相关记录后来被改动。" : {
+
+    },
     "AI 请求会经你的云端代理转发。" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -469,6 +519,9 @@
         }
       }
     },
+    "三餐记录完整、时间清楚、时间线合理时可拿高分。" : {
+
+    },
     "主要加分项是%@，目前最值得再留意的是%@。" : {
       "localizations" : {
         "en" : {
@@ -695,6 +748,9 @@
         }
       }
     },
+    "仅从现在开始生效" : {
+
+    },
     "仅记录时间" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -727,6 +783,9 @@
           }
         }
       }
+    },
+    "仅记录有无但没写时间，仍算完成，只扣少量完整度分。" : {
+
     },
     "今天是" : {
       "extractionState" : "stale",
@@ -948,6 +1007,7 @@
       }
     },
     "入睡变化" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1072,6 +1132,12 @@
           }
         }
       }
+    },
+    "凌晨截止前的记录会被算到前一天。" : {
+
+    },
+    "减少 %@" : {
+
     },
     "初始化失败：" : {
       "localizations" : {
@@ -1243,6 +1309,12 @@
         }
       }
     },
+    "午夜模式" : {
+
+    },
+    "午夜模式如何生效？" : {
+
+    },
     "午餐" : {
       "localizations" : {
         "en" : {
@@ -1259,6 +1331,9 @@
         }
       }
     },
+    "华氏度" : {
+
+    },
     "卡片" : {
       "localizations" : {
         "en" : {
@@ -1274,6 +1349,9 @@
           }
         }
       }
+    },
+    "历史分数" : {
+
     },
     "历史样本还不够，暂时只参考当天表现。" : {
       "localizations" : {
@@ -1300,6 +1378,12 @@
           }
         }
       }
+    },
+    "变早 %@" : {
+
+    },
+    "变晚 %@" : {
+
     },
     "只需迁移一次。其他设备会通过 iCloud 钥匙串自动拿到密钥。" : {
       "localizations" : {
@@ -1369,6 +1453,12 @@
         }
       }
     },
+    "含备注" : {
+
+    },
+    "含照片" : {
+
+    },
     "启用加密同步失败：" : {
       "localizations" : {
         "en" : {
@@ -1378,6 +1468,25 @@
           }
         }
       }
+    },
+    "启用后，凌晨 4 点前的记录会自动归到前一天，适合经常跨零点记录。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "When enabled, records before 4 AM are assigned to the previous day, which is helpful if you often log after midnight."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "启用后，凌晨 4 点前的记录会自动归到前一天，适合经常跨零点记录。"
+          }
+        }
+      }
+    },
+    "启用该项目且有明确记录时，可给 8-10 分。" : {
+
     },
     "周一" : {
       "localizations" : {
@@ -1507,6 +1616,25 @@
         }
       }
     },
+    "四个部分按固定满分评分后，按总分折算到 0-100。" : {
+
+    },
+    "固定为凌晨 4 点" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fixed at 4 AM"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "固定为凌晨 4 点"
+          }
+        }
+      }
+    },
     "图表" : {
       "localizations" : {
         "en" : {
@@ -1538,6 +1666,9 @@
           }
         }
       }
+    },
+    "增加 %@" : {
+
     },
     "备注" : {
       "localizations" : {
@@ -1586,6 +1717,9 @@
           }
         }
       }
+    },
+    "如果该项目未启用，必须 excluded，不得纳入总分。" : {
+
     },
     "完成" : {
       "localizations" : {
@@ -1660,6 +1794,12 @@
     },
     "已记录 %d/%d 个餐次" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$d/%2$d meals logged"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "new",
@@ -1667,6 +1807,9 @@
           }
         }
       }
+    },
+    "带圆环的是已经固定下来的 AI 评分。" : {
+
     },
     "平均入睡" : {
       "localizations" : {
@@ -1903,6 +2046,9 @@
         }
       }
     },
+    "当前会分析你所选日期的睡眠、餐食、洗澡和排便，并尽量按整天时间轴来理解。" : {
+
+    },
     "当前位置" : {
       "localizations" : {
         "en" : {
@@ -1920,6 +2066,7 @@
       }
     },
     "当前只分析昨天的睡眠、餐食、洗澡和排便。" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1993,6 +2140,12 @@
         }
       }
     },
+    "当日分数" : {
+
+    },
+    "必须结合起床时间和整天时间线判断，不能凭空批评用户没吃早餐。若起床已接近中午，跳过早餐只能算轻微影响或合理。" : {
+
+    },
     "性生活" : {
       "localizations" : {
         "en" : {
@@ -2024,6 +2177,9 @@
           }
         }
       }
+    },
+    "总睡眠 %.1f 小时" : {
+
     },
     "我" : {
       "localizations" : {
@@ -2057,6 +2213,9 @@
         }
       }
     },
+    "截止时间" : {
+
+    },
     "拍照" : {
       "localizations" : {
         "en" : {
@@ -2072,6 +2231,9 @@
           }
         }
       }
+    },
+    "持平" : {
+
     },
     "按你当前所在时区换算显示同一时刻。" : {
       "extractionState" : "stale",
@@ -2148,6 +2310,9 @@
         }
       }
     },
+    "摄氏度" : {
+
+    },
     "数据" : {
       "localizations" : {
         "en" : {
@@ -2163,6 +2328,9 @@
           }
         }
       }
+    },
+    "新的稳定版 AI 评分会从现在开始逐天积累。" : {
+
     },
     "无记录" : {
       "localizations" : {
@@ -2227,6 +2395,12 @@
           }
         }
       }
+    },
+    "时长明显不足、严重偏离目标或记录残缺时，才给低分。" : {
+
+    },
+    "时长稍短/稍长，或作息与目标相差 30-120 分钟，拿中间分。" : {
+
     },
     "时间" : {
       "localizations" : {
@@ -2367,6 +2541,7 @@
       }
     },
     "昨天的观察" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2413,6 +2588,7 @@
       }
     },
     "昨日分数" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2485,6 +2661,12 @@
           }
         }
       }
+    },
+    "更新之前日期的数据" : {
+
+    },
+    "更新午夜模式失败：" : {
+
     },
     "更新餐食失败：" : {
       "localizations" : {
@@ -2796,6 +2978,9 @@
         }
       }
     },
+    "没有记录时给保守中低分，不做重罚。" : {
+
+    },
     "洗澡" : {
       "localizations" : {
         "en" : {
@@ -3056,6 +3241,9 @@
           }
         }
       }
+    },
+    "温度单位" : {
+
     },
     "游客模式" : {
       "localizations" : {
@@ -3399,6 +3587,9 @@
         }
       }
     },
+    "睡眠总时长" : {
+
+    },
     "睡眠时段" : {
       "localizations" : {
         "en" : {
@@ -3482,6 +3673,7 @@
       }
     },
     "睡眠趋势" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -3598,7 +3790,11 @@
         }
       }
     },
+    "等你至少记录一天后，这里就会出现当日评分和 AI 洞察。" : {
+
+    },
     "等你至少记录一天后，这里就会出现昨日评分和 AI 洞察。" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -3958,6 +4154,7 @@
       }
     },
     "起床变化" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -4253,6 +4450,9 @@
           }
         }
       }
+    },
+    "这一天的观察" : {
+
     },
     "这台设备已受端到端加密保护" : {
       "extractionState" : "stale",
