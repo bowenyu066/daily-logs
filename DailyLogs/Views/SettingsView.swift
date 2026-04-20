@@ -19,7 +19,7 @@ struct SettingsView: View {
                 AppTheme.background.ignoresSafeArea()
 
                 ScrollView(.vertical, showsIndicators: false) {
-                    VStack(alignment: .leading, spacing: 18) {
+                    VStack(alignment: .leading, spacing: 20) {
                         accountCard
                         preferencesCard
                         dataAndSyncCard
@@ -130,36 +130,22 @@ struct SettingsView: View {
     // MARK: - Preferences
 
     private var preferencesCard: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        VStack(alignment: .leading, spacing: 22) {
             SectionHeader(title: NSLocalizedString("偏好", comment: ""), subtitle: nil)
-                .padding(.bottom, 14)
+                .padding(.bottom, 2)
 
             appearanceRow
-            rowDivider
             languageRow
-            rowDivider
             bedtimeRow
-            rowDivider
             timeDisplayRow
-            rowDivider
             temperatureRow
-            rowDivider
             midnightModeRow
-            rowDivider
             locationRow
-            rowDivider
             homeSectionsRow
-            rowDivider
             defaultMealsRow
         }
-        .padding(22)
+        .padding(24)
         .appCardStyle()
-    }
-
-    private var rowDivider: some View {
-        Divider()
-            .background(AppTheme.border)
-            .padding(.vertical, 2)
     }
 
     private var appearanceRow: some View {
@@ -372,17 +358,15 @@ struct SettingsView: View {
     // MARK: - Data & Sync
 
     private var dataAndSyncCard: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        VStack(alignment: .leading, spacing: 22) {
             SectionHeader(title: NSLocalizedString("数据与同步", comment: ""), subtitle: nil)
-                .padding(.bottom, 14)
+                .padding(.bottom, 2)
 
             healthKitRow
-            rowDivider
             aiInsightsRow
-            rowDivider
             cloudEncryptionSection
         }
-        .padding(22)
+        .padding(24)
         .appCardStyle()
     }
 
