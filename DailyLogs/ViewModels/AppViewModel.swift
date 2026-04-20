@@ -128,7 +128,12 @@ final class AppViewModel: ObservableObject {
     }
 
     var availableStartDate: Date {
-        user?.createdAt.startOfDay ?? logicalToday
+        [
+            user?.createdAt.startOfDay,
+            allRecords.map(\.date.startOfDay).min()
+        ]
+        .compactMap { $0 }
+        .min() ?? logicalToday
     }
 
     var availableDateRange: ClosedRange<Date> {
@@ -181,7 +186,7 @@ final class AppViewModel: ObservableObject {
 
     var activeDailyInsightNarrative: DailyInsightNarrative? {
         guard let targetDate = dailyInsightTargetDate else { return nil }
-        return currentNarrative(for: targetDate)
+        return localizedNarrative(validatedNarrative(for: targetDate))
     }
 
     var dailyInsightReport: DailyInsightReport? {
@@ -209,7 +214,7 @@ final class AppViewModel: ObservableObject {
     }
 
     func activeDailyInsightNarrative(for date: Date) -> DailyInsightNarrative? {
-        validatedNarrative(for: date)
+        localizedNarrative(validatedNarrative(for: date))
     }
 
     func insightReport(for date: Date) -> DailyInsightReport? {
@@ -224,7 +229,7 @@ final class AppViewModel: ObservableObject {
 
     func displayedDailyInsightReport(for date: Date) -> DailyInsightReport? {
         guard let baseReport = insightReport(for: date),
-              let narrative = validatedNarrative(for: date),
+              let narrative = localizedNarrative(validatedNarrative(for: date)),
               narrative.hasAIScoring else {
             return insightReport(for: date)
         }
@@ -312,12 +317,13 @@ final class AppViewModel: ObservableObject {
             return
         }
         if !force, let cachedNarrative = validatedNarrative(for: targetDate) {
-            dailyInsightNarrative = cachedNarrative
+            let resolvedNarrative = await backfillEnglishTranslationIfNeeded(for: cachedNarrative, date: targetDate)
+            dailyInsightNarrative = resolvedNarrative
             dailyInsightNarrativeDate = targetDate.startOfDay
             return
         }
 
-        guard let payload = insightPayload(for: targetDate) else { return }
+        guard let payload = canonicalInsightPayload(for: targetDate) else { return }
 
         isGeneratingDailyInsightNarrative = true
         if !isAutomatic {
@@ -325,8 +331,10 @@ final class AppViewModel: ObservableObject {
         }
         do {
             var narrative = try await aiInsightNarrativeService.generateNarrative(from: payload)
+            narrative.sourceLanguageCode = AppLanguage.zhHans.aiNarrativeLanguageCode()
             narrative.payloadSignature = try payload.stableSignature()
             narrative.scoringVersion = DailyInsightNarrative.currentScoringVersion
+            narrative = await backfillEnglishTranslationIfNeeded(for: narrative, date: targetDate)
             try persistDailyInsightNarrative(narrative, for: targetDate)
             dailyInsightNarrative = narrative
             dailyInsightNarrativeDate = targetDate.startOfDay
@@ -542,7 +550,7 @@ final class AppViewModel: ObservableObject {
     func updateAppLanguage(_ language: AppLanguage) async {
         preferences.appLanguage = language
         applyCurrentLanguage()
-        persistPreferences()
+        persistPreferences(invalidateInsights: false)
         await syncPreferencesToCloudIfNeeded()
     }
 
@@ -1041,11 +1049,13 @@ final class AppViewModel: ObservableObject {
         }
     }
 
-    private func persistPreferences() {
+    private func persistPreferences(invalidateInsights: Bool = true) {
         do {
             preferences.locationPermissionState = locationService.permissionState
             try preferencesStore.savePreferences(preferences, userID: user?.userID)
-            invalidateDailyInsightNarrative()
+            if invalidateInsights {
+                invalidateDailyInsightNarrative()
+            }
         } catch {
             errorMessage = NSLocalizedString("保存偏好失败：", comment: "") + error.localizedDescription
         }
@@ -1065,6 +1075,17 @@ final class AppViewModel: ObservableObject {
         return record(for: date)?.aiInsightNarrative
     }
 
+    private func canonicalInsightPayload(for date: Date) -> DailyInsightPayload? {
+        let resolvedRecord = record(for: date) ?? DailyRecord.empty(for: date, preferences: preferences)
+        return DailyInsightAnalyzer.makePayload(
+            record: mergedRecord(resolvedRecord, with: preferences),
+            preferences: preferences,
+            language: .zhHans,
+            locale: Locale(identifier: "zh-Hans"),
+            history: allRecords.map { mergedRecord($0, with: preferences) }
+        )
+    }
+
     private func insightPayload(for date: Date) -> DailyInsightPayload? {
         let resolvedRecord = record(for: date) ?? DailyRecord.empty(for: date, preferences: preferences)
         let locale = preferences.appLanguage.locale ?? Locale.autoupdatingCurrent
@@ -1081,12 +1102,38 @@ final class AppViewModel: ObservableObject {
         guard let narrative = currentNarrative(for: date),
               narrative.hasAIScoring,
               narrative.scoringVersion >= DailyInsightNarrative.currentScoringVersion,
-              let payload = insightPayload(for: date),
+              let payload = canonicalInsightPayload(for: date),
               let signature = try? payload.stableSignature(),
               narrative.payloadSignature == signature else {
             return nil
         }
         return narrative
+    }
+
+    private func localizedNarrative(_ narrative: DailyInsightNarrative?) -> DailyInsightNarrative? {
+        narrative?.localized(
+            for: preferences.appLanguage,
+            locale: preferences.appLanguage.locale ?? Locale.autoupdatingCurrent
+        )
+    }
+
+    private func backfillEnglishTranslationIfNeeded(
+        for narrative: DailyInsightNarrative,
+        date: Date
+    ) async -> DailyInsightNarrative {
+        let englishCode = AppLanguage.en.aiNarrativeLanguageCode()
+        guard narrative.localizedTexts?[englishCode] == nil else {
+            return narrative
+        }
+
+        do {
+            let englishText = try await aiInsightNarrativeService.translateNarrative(narrative, to: .en)
+            let updatedNarrative = narrative.addingLocalizedText(englishText, for: englishCode)
+            try persistDailyInsightNarrative(updatedNarrative, for: date)
+            return updatedNarrative
+        } catch {
+            return narrative
+        }
     }
 
     private func record(for date: Date) -> DailyRecord? {

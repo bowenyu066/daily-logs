@@ -50,6 +50,12 @@ struct DailyInsightNarrative: Codable, Equatable {
         var included: Bool?
     }
 
+    struct LocalizedText: Codable, Equatable {
+        var headline: String
+        var summary: String
+        var bullets: [String]
+    }
+
     var headline: String
     var summary: String
     var bullets: [String]
@@ -59,6 +65,8 @@ struct DailyInsightNarrative: Codable, Equatable {
     var scoringVersion: Int
     var sampleCount: Int
     var payloadSignature: String?
+    var sourceLanguageCode: String
+    var localizedTexts: [String: LocalizedText]?
 
     enum CodingKeys: String, CodingKey {
         case headline
@@ -70,6 +78,8 @@ struct DailyInsightNarrative: Codable, Equatable {
         case scoringVersion
         case sampleCount
         case payloadSignature
+        case sourceLanguageCode
+        case localizedTexts
     }
 
     init(
@@ -81,7 +91,9 @@ struct DailyInsightNarrative: Codable, Equatable {
         generatedAt: Date = .now,
         scoringVersion: Int = DailyInsightNarrative.currentScoringVersion,
         sampleCount: Int = 1,
-        payloadSignature: String? = nil
+        payloadSignature: String? = nil,
+        sourceLanguageCode: String = "zh-Hans",
+        localizedTexts: [String: LocalizedText]? = nil
     ) {
         self.headline = headline
         self.summary = summary
@@ -92,6 +104,8 @@ struct DailyInsightNarrative: Codable, Equatable {
         self.scoringVersion = scoringVersion
         self.sampleCount = sampleCount
         self.payloadSignature = payloadSignature
+        self.sourceLanguageCode = sourceLanguageCode
+        self.localizedTexts = localizedTexts
     }
 
     init(from decoder: any Decoder) throws {
@@ -105,10 +119,34 @@ struct DailyInsightNarrative: Codable, Equatable {
         scoringVersion = try container.decodeIfPresent(Int.self, forKey: .scoringVersion) ?? 1
         sampleCount = try container.decodeIfPresent(Int.self, forKey: .sampleCount) ?? 1
         payloadSignature = try container.decodeIfPresent(String.self, forKey: .payloadSignature)
+        sourceLanguageCode = try container.decodeIfPresent(String.self, forKey: .sourceLanguageCode) ?? "zh-Hans"
+        localizedTexts = try container.decodeIfPresent([String: LocalizedText].self, forKey: .localizedTexts)
     }
 
     var hasAIScoring: Bool {
         overallScore != nil || !(components ?? [:]).isEmpty
+    }
+
+    func localized(for language: AppLanguage, locale: Locale = .autoupdatingCurrent) -> DailyInsightNarrative {
+        let targetLanguageCode = language.aiNarrativeLanguageCode(locale: locale)
+        guard targetLanguageCode != sourceLanguageCode,
+              let localized = localizedTexts?[targetLanguageCode] else {
+            return self
+        }
+
+        var copy = self
+        copy.headline = localized.headline
+        copy.summary = localized.summary
+        copy.bullets = localized.bullets
+        return copy
+    }
+
+    func addingLocalizedText(_ localizedText: LocalizedText, for languageCode: String) -> DailyInsightNarrative {
+        var copy = self
+        var variants = copy.localizedTexts ?? [:]
+        variants[languageCode] = localizedText
+        copy.localizedTexts = variants
+        return copy
     }
 }
 
@@ -377,7 +415,7 @@ enum DailyInsightAnalyzer {
                 bedtimeLocal: record.sleepRecord.bedtimePreviousNight?.displayClockTime(in: sleepTimeZone),
                 wakeISO8601: record.sleepRecord.wakeTimeCurrentDay?.displayISO8601,
                 wakeLocal: record.sleepRecord.wakeTimeCurrentDay?.displayClockTime(in: sleepTimeZone),
-                targetBedtime: record.sleepRecord.targetBedtime?.displayTime,
+                targetBedtime: record.sleepRecord.targetBedtime?.canonicalDisplayTime,
                 durationHours: record.sleepRecord.duration.map { ($0 / 3600 * 10).rounded() / 10 },
                 hasStageData: record.sleepRecord.hasStageData,
                 timeZoneIdentifier: record.sleepRecord.timeZoneIdentifier,
@@ -1061,12 +1099,17 @@ struct OpenAIKeychainStore: OpenAIKeyStoring, Sendable {
 protocol AIInsightNarrativeGenerating: Sendable {
     var isConfigured: Bool { get }
     func generateNarrative(from payload: DailyInsightPayload) async throws -> DailyInsightNarrative
+    func translateNarrative(_ narrative: DailyInsightNarrative, to language: AppLanguage) async throws -> DailyInsightNarrative.LocalizedText
 }
 
 struct NoopAIInsightNarrativeService: AIInsightNarrativeGenerating, Sendable {
     var isConfigured: Bool { false }
 
     func generateNarrative(from payload: DailyInsightPayload) async throws -> DailyInsightNarrative {
+        throw AIInsightServiceError.missingAPIKey
+    }
+
+    func translateNarrative(_ narrative: DailyInsightNarrative, to language: AppLanguage) async throws -> DailyInsightNarrative.LocalizedText {
         throw AIInsightServiceError.missingAPIKey
     }
 }
@@ -1179,6 +1222,21 @@ struct OpenAIResponsesInsightService: AIInsightNarrativeGenerating, Sendable {
             )
         }
     }
+
+    func translateNarrative(_ narrative: DailyInsightNarrative, to language: AppLanguage) async throws -> DailyInsightNarrative.LocalizedText {
+        guard let apiKey = keyStore.loadAPIKey(), !apiKey.isEmpty else {
+            throw AIInsightServiceError.missingAPIKey
+        }
+
+        return try await performTranslationRequest(
+            endpointURL: URL(string: "https://api.openai.com/v1/responses")!,
+            authorizationHeader: "Bearer \(apiKey)",
+            narrative: narrative,
+            targetLanguage: language,
+            model: model,
+            session: session
+        )
+    }
 }
 
 struct CloudAIInsightService: AIInsightNarrativeGenerating, Sendable {
@@ -1223,6 +1281,24 @@ struct CloudAIInsightService: AIInsightNarrativeGenerating, Sendable {
             )
         }
     }
+
+    func translateNarrative(_ narrative: DailyInsightNarrative, to language: AppLanguage) async throws -> DailyInsightNarrative.LocalizedText {
+        guard let endpointURL = configuration.endpointURL else {
+            throw AIInsightServiceError.missingProxyURL
+        }
+        guard let idToken = try await authTokenProvider(), !idToken.isEmpty else {
+            throw AIInsightServiceError.missingAuthToken
+        }
+
+        return try await performTranslationRequest(
+            endpointURL: endpointURL,
+            authorizationHeader: "Bearer \(idToken)",
+            narrative: narrative,
+            targetLanguage: language,
+            model: model,
+            session: session
+        )
+    }
 }
 
 struct HybridAIInsightNarrativeService: AIInsightNarrativeGenerating, Sendable {
@@ -1246,6 +1322,13 @@ struct HybridAIInsightNarrativeService: AIInsightNarrativeGenerating, Sendable {
             return try await customKeyService.generateNarrative(from: payload)
         }
         return try await cloudService.generateNarrative(from: payload)
+    }
+
+    func translateNarrative(_ narrative: DailyInsightNarrative, to language: AppLanguage) async throws -> DailyInsightNarrative.LocalizedText {
+        if customKeyService.isConfigured {
+            return try await customKeyService.translateNarrative(narrative, to: language)
+        }
+        return try await cloudService.translateNarrative(narrative, to: language)
     }
 }
 
@@ -1274,6 +1357,39 @@ private func performNarrativeRequest(
     }
 
     return try parseNarrative(from: data)
+}
+
+private func performTranslationRequest(
+    endpointURL: URL,
+    authorizationHeader: String,
+    narrative: DailyInsightNarrative,
+    targetLanguage: AppLanguage,
+    model: String,
+    session: URLSession
+) async throws -> DailyInsightNarrative.LocalizedText {
+    var request = URLRequest(url: endpointURL)
+    request.httpMethod = "POST"
+    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    request.setValue(authorizationHeader, forHTTPHeaderField: "Authorization")
+
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = [.sortedKeys]
+    request.httpBody = try encoder.encode(
+        makeTranslationRequestBody(
+            from: narrative,
+            targetLanguage: targetLanguage,
+            model: model
+        )
+    )
+
+    let (data, response) = try await session.data(for: request)
+    guard let httpResponse = response as? HTTPURLResponse,
+          200..<300 ~= httpResponse.statusCode else {
+        let statusCode = (response as? HTTPURLResponse)?.statusCode ?? -1
+        throw parseNarrativeRequestError(statusCode: statusCode, data: data)
+    }
+
+    return try parseLocalizedNarrativeText(from: data)
 }
 
 private func fetchFirebaseIDToken() async throws -> String? {
@@ -1326,6 +1442,34 @@ private func parseNarrative(from data: Data) throws -> DailyInsightNarrative {
         throw AIInsightServiceError.missingScores
     }
     return narrative
+}
+
+private func parseLocalizedNarrativeText(from data: Data) throws -> DailyInsightNarrative.LocalizedText {
+    let decoder = JSONDecoder()
+    if let localizedText = try? decoder.decode(DailyInsightNarrative.LocalizedText.self, from: data) {
+        return localizedText
+    }
+
+    if let envelope = try? decoder.decode(OpenAIResponseEnvelope.self, from: data) {
+        if let parsed = envelope.output?
+            .flatMap({ $0.content ?? [] })
+            .compactMap(\.parsedLocalizedText)
+            .first {
+            return parsed
+        }
+        if let text = envelope.extractedText, !text.isEmpty {
+            let jsonText = extractJSONObject(from: text)
+            if let jsonData = jsonText.data(using: .utf8),
+               let localizedText = try? decoder.decode(DailyInsightNarrative.LocalizedText.self, from: jsonData) {
+                return localizedText
+            }
+        }
+        if let refusal = envelope.extractedRefusal, !refusal.isEmpty {
+            throw AIInsightServiceError.providerError(refusal)
+        }
+    }
+
+    throw AIInsightServiceError.invalidResponse
 }
 
 private func parseNarrativeRequestError(statusCode: Int, data: Data) -> AIInsightServiceError {
@@ -1422,6 +1566,42 @@ private func makeRequestBody(from payload: DailyInsightPayload, model: String) t
             format: OpenAIResponsesRequestBody.SchemaConfiguration(
                 name: "daily_insight_narrative",
                 schema: makeNarrativeSchema()
+            )
+        )
+    )
+}
+
+private func makeTranslationRequestBody(
+    from narrative: DailyInsightNarrative,
+    targetLanguage: AppLanguage,
+    model: String
+) -> OpenAIResponsesRequestBody {
+    let input = TranslationRequestPayload(
+        sourceLanguage: narrative.sourceLanguageCode,
+        targetLanguage: targetLanguage.translationDisplayName,
+        headline: narrative.headline,
+        summary: narrative.summary,
+        bullets: narrative.bullets
+    )
+
+    return OpenAIResponsesRequestBody(
+        model: model,
+        instructions: """
+        You are translating short lifestyle score copy for a journaling app.
+        Translate the user-facing text into the requested target language only.
+        Preserve meaning, tone, brevity, and bullet count.
+        Do not add new information, do not remove information, and do not change the number of bullets.
+        Return valid JSON that matches the schema exactly.
+        """,
+        input: String(
+            data: (try? JSONEncoder().encode(input)) ?? Data(),
+            encoding: .utf8
+        ) ?? "{}",
+        store: false,
+        text: OpenAIResponsesRequestBody.TextConfiguration(
+            format: OpenAIResponsesRequestBody.SchemaConfiguration(
+                name: "daily_insight_translation",
+                schema: makeLocalizedNarrativeSchema()
             )
         )
     )
@@ -1548,6 +1728,37 @@ private func makeNarrativeSchema() -> JSONValue {
     ])
 }
 
+private func makeLocalizedNarrativeSchema() -> JSONValue {
+    .object([
+        "type": .string("object"),
+        "properties": .object([
+            "headline": .object([
+                "type": .string("string"),
+                "minLength": .number(1)
+            ]),
+            "summary": .object([
+                "type": .string("string"),
+                "minLength": .number(1)
+            ]),
+            "bullets": .object([
+                "type": .string("array"),
+                "items": .object([
+                    "type": .string("string"),
+                    "minLength": .number(1)
+                ]),
+                "minItems": .number(1),
+                "maxItems": .number(4)
+            ])
+        ]),
+        "required": .array([
+            .string("headline"),
+            .string("summary"),
+            .string("bullets")
+        ]),
+        "additionalProperties": .bool(false)
+    ])
+}
+
 private func componentSchema() -> JSONValue {
     .object([
         "type": .string("object"),
@@ -1609,7 +1820,24 @@ private struct OpenAIResponseEnvelope: Decodable {
             var type: String?
             var text: String?
             var parsed: DailyInsightNarrative?
+            var parsedLocalizedText: DailyInsightNarrative.LocalizedText?
             var refusal: String?
+
+            private enum CodingKeys: String, CodingKey {
+                case type
+                case text
+                case parsed
+                case refusal
+            }
+
+            init(from decoder: any Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                type = try container.decodeIfPresent(String.self, forKey: .type)
+                text = try container.decodeIfPresent(String.self, forKey: .text)
+                parsed = try container.decodeIfPresent(DailyInsightNarrative.self, forKey: .parsed)
+                parsedLocalizedText = try container.decodeIfPresent(DailyInsightNarrative.LocalizedText.self, forKey: .parsed)
+                refusal = try container.decodeIfPresent(String.self, forKey: .refusal)
+            }
         }
 
         var content: [ContentItem]?
@@ -1742,13 +1970,163 @@ extension DailyInsightPayload {
     func stableSignature() throws -> String {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
-        let data = try encoder.encode(self)
+        let data = try encoder.encode(signatureSeed)
         let digest = SHA256.hash(data: data)
         return digest.map { String(format: "%02x", $0) }.joined()
     }
+
+    private var signatureSeed: SignatureSeed {
+        SignatureSeed(
+            analysisDate: analysisDate,
+            appTimeZoneIdentifier: appTimeZoneIdentifier,
+            sleep: SignatureSeed.Sleep(
+                source: sleep.source,
+                bedtimeISO8601: sleep.bedtimeISO8601,
+                wakeISO8601: sleep.wakeISO8601,
+                targetBedtime: sleep.targetBedtime,
+                durationHours: sleep.durationHours,
+                hasStageData: sleep.hasStageData,
+                timeZoneIdentifier: sleep.timeZoneIdentifier,
+                note: sleep.note
+            ),
+            meals: meals.enumerated().map { index, meal in
+                SignatureSeed.Meal(
+                    index: index,
+                    status: meal.status,
+                    timeISO8601: meal.timeISO8601,
+                    hasPhoto: meal.hasPhoto,
+                    note: meal.note
+                )
+            },
+            showerEnabled: showerEnabled,
+            showers: showers.map {
+                SignatureSeed.Event(
+                    status: $0.status,
+                    timeISO8601: $0.timeISO8601,
+                    note: $0.note
+                )
+            },
+            bowelMovementEnabled: bowelMovementEnabled,
+            bowelMovements: bowelMovements.map {
+                SignatureSeed.Event(
+                    status: $0.status,
+                    timeISO8601: $0.timeISO8601,
+                    note: $0.note
+                )
+            },
+            comparisonContext: SignatureSeed.HistoryContext(
+                trailing7Days: SignatureSeed.HistoryWindowSummary(from: comparisonContext.trailing7Days),
+                trailing30Days: SignatureSeed.HistoryWindowSummary(from: comparisonContext.trailing30Days)
+            ),
+            scoringRubric: SignatureSeed.ScoringRubric(
+                sampleCount: scoringRubric.sampleCount,
+                sections: scoringRubric.sections.map {
+                    SignatureSeed.RubricSection(key: $0.key, maxScore: $0.maxScore)
+                }
+            )
+        )
+    }
+
+    private struct SignatureSeed: Encodable {
+        struct Sleep: Encodable {
+            var source: String
+            var bedtimeISO8601: String?
+            var wakeISO8601: String?
+            var targetBedtime: String?
+            var durationHours: Double?
+            var hasStageData: Bool
+            var timeZoneIdentifier: String?
+            var note: String?
+        }
+
+        struct Meal: Encodable {
+            var index: Int
+            var status: String
+            var timeISO8601: String?
+            var hasPhoto: Bool
+            var note: String?
+        }
+
+        struct Event: Encodable {
+            var status: String?
+            var timeISO8601: String?
+            var note: String?
+        }
+
+        struct StatisticSummary: Encodable {
+            var average: Double?
+            var standardDeviation: Double?
+        }
+
+        struct HistoryWindowSummary: Encodable {
+            var windowDays: Int
+            var recordedDays: Int
+            var sleepDurationHours: StatisticSummary
+            var mealCompletionRate: StatisticSummary
+            var timedMealLoggingRate: StatisticSummary
+            var showerCount: StatisticSummary
+            var bowelMovementCount: StatisticSummary
+            var bedtimeDeviationMinutes: StatisticSummary
+
+            init(from source: DailyInsightPayload.HistoryWindowSummary) {
+                windowDays = source.windowDays
+                recordedDays = source.recordedDays
+                sleepDurationHours = StatisticSummary(
+                    average: source.sleepDurationHours.average,
+                    standardDeviation: source.sleepDurationHours.standardDeviation
+                )
+                mealCompletionRate = StatisticSummary(
+                    average: source.mealCompletionRate.average,
+                    standardDeviation: source.mealCompletionRate.standardDeviation
+                )
+                timedMealLoggingRate = StatisticSummary(
+                    average: source.timedMealLoggingRate.average,
+                    standardDeviation: source.timedMealLoggingRate.standardDeviation
+                )
+                showerCount = StatisticSummary(
+                    average: source.showerCount.average,
+                    standardDeviation: source.showerCount.standardDeviation
+                )
+                bowelMovementCount = StatisticSummary(
+                    average: source.bowelMovementCount.average,
+                    standardDeviation: source.bowelMovementCount.standardDeviation
+                )
+                bedtimeDeviationMinutes = StatisticSummary(
+                    average: source.bedtimeDeviationMinutes.average,
+                    standardDeviation: source.bedtimeDeviationMinutes.standardDeviation
+                )
+            }
+        }
+
+        struct HistoryContext: Encodable {
+            var trailing7Days: HistoryWindowSummary
+            var trailing30Days: HistoryWindowSummary
+        }
+
+        struct RubricSection: Encodable {
+            var key: String
+            var maxScore: Int
+        }
+
+        struct ScoringRubric: Encodable {
+            var sampleCount: Int
+            var sections: [RubricSection]
+        }
+
+        var analysisDate: String
+        var appTimeZoneIdentifier: String
+        var sleep: Sleep
+        var meals: [Meal]
+        var showerEnabled: Bool
+        var showers: [Event]
+        var bowelMovementEnabled: Bool
+        var bowelMovements: [Event]
+        var comparisonContext: HistoryContext
+        var scoringRubric: ScoringRubric
+    }
 }
 
-private extension AppLanguage {
+extension AppLanguage {
     var displayNameForPrompt: String {
         switch self {
         case .system:
@@ -1759,6 +2137,36 @@ private extension AppLanguage {
             "English"
         }
     }
+
+    var translationDisplayName: String {
+        switch self {
+        case .system:
+            Locale.autoupdatingCurrent.identifier.hasPrefix("zh") ? "Simplified Chinese" : "English"
+        case .zhHans:
+            "Simplified Chinese"
+        case .en:
+            "English"
+        }
+    }
+
+    func aiNarrativeLanguageCode(locale: Locale = .autoupdatingCurrent) -> String {
+        switch self {
+        case .system:
+            locale.identifier.hasPrefix("zh") ? "zh-Hans" : "en"
+        case .zhHans:
+            "zh-Hans"
+        case .en:
+            "en"
+        }
+    }
+}
+
+private struct TranslationRequestPayload: Encodable {
+    var sourceLanguage: String
+    var targetLanguage: String
+    var headline: String
+    var summary: String
+    var bullets: [String]
 }
 
 private extension Sequence where Element: Hashable {

@@ -510,15 +510,16 @@ struct DailyLogsTests {
     }
 
     @Test @MainActor
-    func aiInsightCalendarRangeExcludesLogicalToday() throws {
+    func aiInsightCalendarRangeExcludesLogicalToday() async throws {
         let today = Date().startOfDay
         let yesterday = today.adding(days: -1)
-        let twoDaysAgo = today.adding(days: -2)
-        let user = UserProfile(
+        let tenDaysAgo = today.adding(days: -10)
+        let user = UserAccount(
             userID: "tester",
             displayName: "Tester",
-            authProvider: .apple,
-            createdAt: twoDaysAgo
+            email: nil,
+            authMode: .apple,
+            createdAt: tenDaysAgo
         )
         let repository = InMemoryDailyRecordRepository(records: [
             yesterday.storageKey(): DailyRecord.empty(for: yesterday, preferences: UserPreferences()),
@@ -533,13 +534,15 @@ struct DailyLogsTests {
             weatherService: MockWeatherService(),
             healthSyncAdapter: MockHealthSyncAdapter(sleepRecord: nil),
             cloudSyncService: NoopCloudSyncService(),
-            aiInsightNarrativeService: MockAIInsightNarrativeService(responses: []),
+            aiInsightNarrativeService: NoopAIInsightNarrativeService(),
             openAIKeyStore: MockOpenAIKeyStore(),
             locationService: LocationService(),
             selectedDate: today,
             dailyRecord: DailyRecord.empty(for: today, preferences: UserPreferences()),
             preferences: UserPreferences()
         )
+
+        await viewModel.bootstrap()
 
         let range = try #require(viewModel.aiInsightCalendarDateRange)
         #expect(range.upperBound == yesterday)
@@ -634,6 +637,49 @@ struct DailyLogsTests {
         #expect(payloadJSON.contains("\"overallScore\"") == false)
         #expect(payloadJSON.contains("\"scoreBreakdown\"") == false)
         #expect(payloadJSON.contains("\"localSummary\"") == false)
+    }
+
+    @Test
+    func dailyInsightPayloadSignatureIsStableAcrossLanguages() throws {
+        let day = Calendar.current.date(from: DateComponents(year: 2026, month: 3, day: 20))!
+        let preferences = UserPreferences(
+            appLanguage: .en,
+            visibleHomeSections: [.sleep, .meals, .showers]
+        )
+        let record = DailyRecord(
+            date: day,
+            sleepRecord: SleepRecord(
+                bedtimePreviousNight: day.adding(days: -1).settingTime(hour: 0, minute: 5),
+                wakeTimeCurrentDay: day.settingTime(hour: 7, minute: 10),
+                source: .manual
+            ),
+            meals: [
+                MealEntry(mealKind: .breakfast, status: .logged, time: day.settingTime(hour: 8, minute: 0)),
+                MealEntry(mealKind: .lunch, status: .logged),
+                MealEntry(mealKind: .dinner, status: .skipped)
+            ],
+            showers: [ShowerEntry(time: day.settingTime(hour: 21, minute: 0))],
+            bowelMovements: [],
+            sexualActivities: [],
+            sunTimes: nil
+        )
+
+        let zhPayload = DailyInsightAnalyzer.makePayload(
+            record: record,
+            preferences: preferences,
+            language: .zhHans,
+            locale: Locale(identifier: "zh-Hans"),
+            history: [record]
+        )
+        let enPayload = DailyInsightAnalyzer.makePayload(
+            record: record,
+            preferences: preferences,
+            language: .en,
+            locale: Locale(identifier: "en_US"),
+            history: [record]
+        )
+
+        #expect(try zhPayload.stableSignature() == enPayload.stableSignature())
     }
 
     @Test
@@ -757,9 +803,10 @@ struct DailyLogsTests {
                 ]
             )
         ])
+        let repository = InMemoryDailyRecordRepository(records: [yesterday.storageKey(): record])
         let viewModel = AppViewModel(
             authService: MockAuthService(user: user),
-            repository: InMemoryDailyRecordRepository(records: [yesterday.storageKey(): record]),
+            repository: repository,
             preferencesStore: MockPreferencesStore(preferences: preferences),
             photoStorageService: MockPhotoStorageService(),
             sunTimesService: MockSunTimesService(),
@@ -787,7 +834,11 @@ struct DailyLogsTests {
     }
 
     @Test @MainActor
-    func refreshDailyInsightNarrativeUsesPersistedNarrativeWithoutCallingAI() async {
+    func refreshDailyInsightNarrativeUsesPersistedNarrativeWithoutRegeneratingScores() async {
+        let originalLanguage = AppViewModel.persistedProcessLanguage()
+        defer { restorePersistedProcessLanguage(originalLanguage) }
+        AppViewModel.applyProcessLocale(.zhHans)
+
         let today = Date().startOfDay
         let yesterday = today.adding(days: -1)
         let recordedTimeZone = TimeZone.autoupdatingCurrent.identifier
@@ -861,8 +912,8 @@ struct DailyLogsTests {
         let payload = DailyInsightAnalyzer.makePayload(
             record: mergedRecordForSignature,
             preferences: preferences,
-            language: preferences.appLanguage,
-            locale: preferences.appLanguage.locale ?? Locale.autoupdatingCurrent,
+            language: .zhHans,
+            locale: Locale(identifier: "zh-Hans"),
             history: [mergedRecordForSignature]
         )
         let signature = try! payload.stableSignature()
@@ -891,6 +942,12 @@ struct DailyLogsTests {
                     "bowelMovement": .init(score: 0, maxScore: 100, detail: "x", included: false)
                 ]
             )
+        ], translationResponses: [
+            DailyInsightNarrative.LocalizedText(
+                headline: "Cached AI",
+                summary: "Direct cache hit",
+                bullets: ["cached bullet 1", "cached bullet 2"]
+            )
         ])
         let viewModel = AppViewModel(
             authService: MockAuthService(user: user),
@@ -913,8 +970,97 @@ struct DailyLogsTests {
         await viewModel.refreshDailyInsightNarrative()
 
         #expect(aiService.callCount == 0)
+        #expect(aiService.translationCallCount == 1)
         #expect(viewModel.activeDailyInsightNarrative?.headline == "已缓存的 AI")
         #expect(viewModel.displayedDailyInsightReport?.overallScore == 90)
+    }
+
+    @Test @MainActor
+    func dailyInsightLanguageSwitchUsesCachedScoreAndStoredTranslation() async {
+        let originalLanguage = AppViewModel.persistedProcessLanguage()
+        defer { restorePersistedProcessLanguage(originalLanguage) }
+        AppViewModel.applyProcessLocale(.zhHans)
+
+        let today = Date().startOfDay
+        let yesterday = today.adding(days: -1)
+        var preferences = UserPreferences(
+            healthKitSyncEnabled: false,
+            visibleHomeSections: [.sleep, .meals, .showers]
+        )
+        preferences.appLanguage = .zhHans
+        let user = UserAccount(
+            userID: "language-switch-user",
+            displayName: "Tester",
+            email: nil,
+            authMode: .guest,
+            createdAt: today.adding(days: -30)
+        )
+        let record = DailyRecord(
+            date: yesterday,
+            sleepRecord: SleepRecord(
+                bedtimePreviousNight: yesterday.adding(days: -1).settingTime(hour: 23, minute: 20),
+                wakeTimeCurrentDay: yesterday.settingTime(hour: 7, minute: 15),
+                source: .manual,
+                timeZoneIdentifier: TimeZone.autoupdatingCurrent.identifier
+            ),
+            meals: [
+                MealEntry(
+                    mealKind: .breakfast,
+                    status: .logged,
+                    time: yesterday.settingTime(hour: 8, minute: 0),
+                    timeZoneIdentifier: TimeZone.autoupdatingCurrent.identifier
+                )
+            ],
+            showers: [],
+            bowelMovements: [],
+            sexualActivities: [],
+            sunTimes: nil
+        )
+        let aiService = MockAIInsightNarrativeService(
+            responses: [sampleAINarrative(headline: "中文版评分", overallScore: 84)],
+            translationResponses: [
+                DailyInsightNarrative.LocalizedText(
+                    headline: "English score",
+                    summary: "English summary",
+                    bullets: ["English bullet 1", "English bullet 2"]
+                )
+            ]
+        )
+        let repository = InMemoryDailyRecordRepository(records: [yesterday.storageKey(): record])
+        let viewModel = AppViewModel(
+            authService: MockAuthService(user: user),
+            repository: repository,
+            preferencesStore: MockPreferencesStore(preferences: preferences),
+            photoStorageService: MockPhotoStorageService(),
+            sunTimesService: MockSunTimesService(),
+            weatherService: MockWeatherService(),
+            healthSyncAdapter: MockHealthSyncAdapter(sleepRecord: nil),
+            cloudSyncService: NoopCloudSyncService(),
+            aiInsightNarrativeService: aiService,
+            openAIKeyStore: MockOpenAIKeyStore(key: "test-key"),
+            locationService: LocationService(),
+            selectedDate: yesterday,
+            dailyRecord: DailyRecord.empty(for: yesterday, preferences: preferences),
+            preferences: preferences
+        )
+
+        await viewModel.bootstrap()
+        await viewModel.refreshDailyInsightNarrative()
+        #expect(aiService.callCount == 1)
+        #expect(aiService.translationCallCount == 1)
+        #expect(viewModel.activeDailyInsightNarrative?.headline == "中文版评分")
+
+        await viewModel.updateAppLanguage(.en)
+        await viewModel.refreshDailyInsightNarrative()
+        #expect(aiService.callCount == 1)
+        #expect(aiService.translationCallCount == 1)
+        #expect(viewModel.activeDailyInsightNarrative?.headline == "English score")
+
+        await viewModel.updateAppLanguage(.zhHans)
+        await viewModel.refreshDailyInsightNarrative()
+        #expect(aiService.callCount == 1)
+        #expect(aiService.translationCallCount == 1)
+        #expect(viewModel.activeDailyInsightNarrative?.headline == "中文版评分")
     }
 
     @Test @MainActor
@@ -2147,6 +2293,18 @@ private func sampleInsightPayload() -> DailyInsightPayload {
     )
 }
 
+@MainActor
+private func restorePersistedProcessLanguage(_ language: AppLanguage?) {
+    if let language {
+        AppViewModel.applyProcessLocale(language)
+    } else {
+        UserDefaults.standard.removeObject(forKey: "dailylogs.appLanguage")
+        UserDefaults.standard.removeObject(forKey: "AppleLanguages")
+        UserDefaults.standard.removeObject(forKey: "AppleLocale")
+        UserDefaults.standard.synchronize()
+    }
+}
+
 private func sampleAINarrative(headline: String, overallScore: Int) -> DailyInsightNarrative {
     DailyInsightNarrative(
         headline: headline,
@@ -2257,15 +2415,26 @@ private final class MockOpenAIKeyStore: OpenAIKeyStoring, @unchecked Sendable {
 private final class MockAIInsightNarrativeService: AIInsightNarrativeGenerating, @unchecked Sendable {
     private let lock = NSLock()
     private let responses: [DailyInsightNarrative]
+    private let translationResponses: [DailyInsightNarrative.LocalizedText]
     private var nextIndex = 0
+    private var nextTranslationIndex = 0
     private var storedCallCount = 0
+    private var storedTranslationCallCount = 0
 
-    init(responses: [DailyInsightNarrative]) {
+    init(
+        responses: [DailyInsightNarrative],
+        translationResponses: [DailyInsightNarrative.LocalizedText] = []
+    ) {
         self.responses = responses
+        self.translationResponses = translationResponses
     }
 
     var callCount: Int {
         lock.withLock { storedCallCount }
+    }
+
+    var translationCallCount: Int {
+        lock.withLock { storedTranslationCallCount }
     }
 
     var isConfigured: Bool { true }
@@ -2276,6 +2445,24 @@ private final class MockAIInsightNarrativeService: AIInsightNarrativeGenerating,
             let response = responses[min(nextIndex, responses.count - 1)]
             if nextIndex < responses.count - 1 {
                 nextIndex += 1
+            }
+            return response
+        }
+    }
+
+    func translateNarrative(_ narrative: DailyInsightNarrative, to language: AppLanguage) async throws -> DailyInsightNarrative.LocalizedText {
+        lock.withLock {
+            storedTranslationCallCount += 1
+            guard !translationResponses.isEmpty else {
+                return DailyInsightNarrative.LocalizedText(
+                    headline: narrative.headline,
+                    summary: narrative.summary,
+                    bullets: narrative.bullets
+                )
+            }
+            let response = translationResponses[min(nextTranslationIndex, translationResponses.count - 1)]
+            if nextTranslationIndex < translationResponses.count - 1 {
+                nextTranslationIndex += 1
             }
             return response
         }

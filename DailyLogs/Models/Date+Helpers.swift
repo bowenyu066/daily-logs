@@ -138,4 +138,10 @@ extension DateComponents {
         let date = calendar.date(from: normalized) ?? .now
         return date.formatted(date: .omitted, time: .shortened)
     }
+
+    var canonicalDisplayTime: String {
+        let hour = hour ?? 0
+        let minute = minute ?? 0
+        return String(format: "%02d:%02d", hour, minute)
+    }
 }
