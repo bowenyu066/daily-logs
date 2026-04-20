@@ -1248,6 +1248,31 @@ struct DailyLogsTests {
         }
     }
 
+    @Test
+    func cloudAIInsightServiceSurfacesUpstreamTimeoutError() async {
+        let payload = sampleInsightPayload()
+        let data = """
+        {
+          "error": "openai_upstream_timeout",
+          "timeoutMs": 55000
+        }
+        """.data(using: .utf8)!
+        let session = makeMockSession(responseData: data, statusCode: 504)
+        let service = CloudAIInsightService(
+            configuration: AIProxyConfiguration(endpointURL: URL(string: "https://example.com/proxy")),
+            session: session,
+            model: "gpt-5.4-mini",
+            authTokenProvider: { "mock-token" }
+        )
+
+        do {
+            _ = try await service.generateNarrative(from: payload)
+            Issue.record("Expected upstream timeout error to be thrown.")
+        } catch {
+            #expect(error.localizedDescription == "云端 AI 响应超时，请稍后重试。")
+        }
+    }
+
     @Test @MainActor
     func refreshDailyInsightNarrativeForceBypassesValidNarrativeCache() async {
         let today = Date().startOfDay

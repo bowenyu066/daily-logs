@@ -1485,6 +1485,8 @@ private func parseNarrativeRequestError(statusCode: Int, data: Data) -> AIInsigh
             return .providerError(NSLocalizedString("云端 AI 的限流检查失败，请稍后再试。", comment: ""))
         case .string("missing_openai_key"):
             return .providerError(NSLocalizedString("云端 AI 还没有配置可用的模型密钥。", comment: ""))
+        case .string("openai_upstream_timeout"):
+            return .providerError(NSLocalizedString("云端 AI 响应超时，请稍后重试。", comment: ""))
         case .string("openai_proxy_failed"):
             return .providerError(NSLocalizedString("云端 AI 代理调用上游失败，请稍后再试。", comment: ""))
         case .string(let code):
@@ -1503,6 +1505,8 @@ private func parseNarrativeRequestError(statusCode: Int, data: Data) -> AIInsigh
         return .invalidAuthToken
     case 429:
         return .providerError(NSLocalizedString("AI 服务当前比较繁忙，请稍后再试。", comment: ""))
+    case 504:
+        return .providerError(NSLocalizedString("云端 AI 响应超时，请稍后重试。", comment: ""))
     default:
         return .requestFailed(statusCode: statusCode, message: nil)
     }

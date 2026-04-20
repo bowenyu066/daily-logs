@@ -14,12 +14,13 @@ const auth = getAuth();
 // real generations so automatic generation plus manual retries do not exhaust it.
 const DAILY_LIMIT = Number.parseInt(process.env.DAILY_AI_REQUEST_LIMIT || "40", 10);
 const OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses";
+const OPENAI_UPSTREAM_TIMEOUT_MS = Number.parseInt(process.env.OPENAI_UPSTREAM_TIMEOUT_MS || "55000", 10);
 
 exports.proxyOpenAIResponses = onRequest(
   {
     region: "us-central1",
     secrets: ["OPENAI_API_KEY"],
-    timeoutSeconds: 30
+    timeoutSeconds: 60
   },
   async (req, res) => {
     if (req.method !== "POST") {
@@ -94,7 +95,8 @@ exports.proxyOpenAIResponses = onRequest(
           "Content-Type": "application/json",
           "Authorization": `Bearer ${apiKey}`
         },
-        body: JSON.stringify(req.body)
+        body: JSON.stringify(req.body),
+        signal: AbortSignal.timeout(OPENAI_UPSTREAM_TIMEOUT_MS)
       });
 
       const responseText = await upstreamResponse.text();
@@ -103,6 +105,13 @@ exports.proxyOpenAIResponses = onRequest(
       res.send(responseText);
     } catch (error) {
       logger("forwardOpenAI", error);
+      if (error?.name === "TimeoutError" || error?.name === "AbortError") {
+        res.status(504).json({
+          error: "openai_upstream_timeout",
+          timeoutMs: OPENAI_UPSTREAM_TIMEOUT_MS
+        });
+        return;
+      }
       res.status(502).json({ error: "openai_proxy_failed" });
     }
   }
