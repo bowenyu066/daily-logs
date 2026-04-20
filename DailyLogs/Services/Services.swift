@@ -582,7 +582,9 @@ final class LocalDailyRecordRepository: DailyRecordRepository {
         }
 
         if record.aiInsightNarrative?.hasAIScoring == true { score += 2 }
+        if record.locationName?.isEmpty == false { score += 1 }
         if record.sunTimes != nil { score += 1 }
+        if record.weatherSnapshot != nil { score += 1 }
         return score
     }
 }
@@ -928,62 +930,10 @@ enum AnalyticsCalculator {
             today: resolvedToday,
             calendar: calendar
         )
-        let chartFiltered = records.filter { $0.date >= chartBounds.lowerBound && $0.date <= chartBounds.upperBound }
-        let chartRecordMap = Dictionary(uniqueKeysWithValues: chartFiltered.map { ($0.date.startOfDay, $0) })
-        let daySpan = calendar.dateComponents([.day], from: chartBounds.lowerBound, to: chartBounds.upperBound).day ?? 0
-        let totalDays = max(1, daySpan + 1)
-        let days = stride(from: 0, through: totalDays - 1, by: 1).map { offset -> AnalyticsDayPoint in
-            let date = chartBounds.lowerBound.adding(days: offset)
-            guard let record = chartRecordMap[date] else {
-                return AnalyticsDayPoint(
-                    date: date,
-                    sleepHours: nil,
-                    bedtimeMinutes: nil,
-                    wakeMinutes: nil,
-                    sleepStartMinutes: nil,
-                    sleepEndMinutes: nil,
-                    loggedMeals: 0,
-                    trackedMeals: 0,
-                    showers: 0,
-                    bowelMovements: 0,
-                    sexualActivities: 0,
-                    sexualActivitiesMasturbation: 0
-                )
-            }
-
-            let loggedMeals = record.meals.filter { $0.effectiveStatus(on: record.date) == .logged }.count
-            let sleepStartMinutes = record.sleepRecord.bedtimePreviousNight.map {
-                chartMinutes($0, timeZoneIdentifier: record.sleepRecord.timeZoneIdentifier)
-            }
-            let sleepEndMinutes = record.sleepRecord.wakeTimeCurrentDay.map {
-                chartMinutes($0, timeZoneIdentifier: record.sleepRecord.timeZoneIdentifier)
-            }
-
-            let stageDurations = record.sleepRecord.hasStageData ? record.sleepRecord.stageDurations : [:]
-
-            return AnalyticsDayPoint(
-                date: date,
-                sleepHours: record.sleepRecord.duration.map { $0 / 3600 },
-                bedtimeMinutes: record.sleepRecord.bedtimePreviousNight.map {
-                    clockMinutes($0, timeZoneIdentifier: record.sleepRecord.timeZoneIdentifier)
-                },
-                wakeMinutes: record.sleepRecord.wakeTimeCurrentDay.map {
-                    clockMinutes($0, timeZoneIdentifier: record.sleepRecord.timeZoneIdentifier)
-                },
-                sleepStartMinutes: sleepStartMinutes,
-                sleepEndMinutes: sleepEndMinutes,
-                loggedMeals: loggedMeals,
-                trackedMeals: record.meals.count,
-                showers: record.showers.count,
-                lightSleepHours: stageDurations[.light].map { $0 / 3600 },
-                deepSleepHours: stageDurations[.deep].map { $0 / 3600 },
-                remSleepHours: stageDurations[.rem].map { $0 / 3600 },
-                awakeSleepHours: stageDurations[.awake].map { $0 / 3600 },
-                bowelMovements: record.bowelMovements.count,
-                sexualActivities: record.sexualActivities.count,
-                sexualActivitiesMasturbation: record.sexualActivities.filter(\.isMasturbation).count
-                )
-            }
+        let visibleDays = dateRange(in: chartBounds, calendar: calendar)
+        let totalDays = max(1, visibleDays.count)
+        let chartDayMap = aggregateDayPoints(from: records, within: chartBounds, calendar: calendar)
+        let days = visibleDays.map { chartDayMap[$0] ?? emptyDayPoint(for: $0) }
 
         let comparisonUpperBound = chartBounds.lowerBound.adding(days: -1)
         let comparisonLowerBound = comparisonUpperBound.adding(days: -(totalDays - 1))
@@ -993,40 +943,9 @@ enum AnalyticsCalculator {
         ) ? comparisonLowerBound...comparisonUpperBound : nil
 
         let currentDays = days
-        let currentRecords = chartFiltered.sorted { $0.date < $1.date }
         let comparisonDays: [AnalyticsDayPoint] = comparisonBounds.map { bounds in
-            records
-                .filter { $0.date >= bounds.lowerBound && $0.date <= bounds.upperBound }
-                .sorted { $0.date < $1.date }
-                .map { record in
-                    let stageDurations = record.sleepRecord.hasStageData ? record.sleepRecord.stageDurations : [:]
-                    return AnalyticsDayPoint(
-                        date: record.date,
-                        sleepHours: record.sleepRecord.duration.map { $0 / 3600 },
-                        bedtimeMinutes: record.sleepRecord.bedtimePreviousNight.map {
-                            clockMinutes($0, timeZoneIdentifier: record.sleepRecord.timeZoneIdentifier)
-                        },
-                        wakeMinutes: record.sleepRecord.wakeTimeCurrentDay.map {
-                            clockMinutes($0, timeZoneIdentifier: record.sleepRecord.timeZoneIdentifier)
-                        },
-                        sleepStartMinutes: record.sleepRecord.bedtimePreviousNight.map {
-                            chartMinutes($0, timeZoneIdentifier: record.sleepRecord.timeZoneIdentifier)
-                        },
-                        sleepEndMinutes: record.sleepRecord.wakeTimeCurrentDay.map {
-                            chartMinutes($0, timeZoneIdentifier: record.sleepRecord.timeZoneIdentifier)
-                        },
-                        loggedMeals: record.meals.filter { $0.effectiveStatus(on: record.date) == .logged }.count,
-                        trackedMeals: record.meals.count,
-                        showers: record.showers.count,
-                        lightSleepHours: stageDurations[.light].map { $0 / 3600 },
-                        deepSleepHours: stageDurations[.deep].map { $0 / 3600 },
-                        remSleepHours: stageDurations[.rem].map { $0 / 3600 },
-                        awakeSleepHours: stageDurations[.awake].map { $0 / 3600 },
-                        bowelMovements: record.bowelMovements.count,
-                        sexualActivities: record.sexualActivities.count,
-                        sexualActivitiesMasturbation: record.sexualActivities.filter(\.isMasturbation).count
-                    )
-                }
+            let comparisonMap = aggregateDayPoints(from: records, within: bounds, calendar: calendar)
+            return dateRange(in: bounds, calendar: calendar).map { comparisonMap[$0] ?? emptyDayPoint(for: $0) }
         } ?? []
         let averageSleepHours = currentDays.compactMap(\.sleepHours).averageOptional
         let averageBedtimeMinutes = averageBedtimeClockMinutes(currentDays.compactMap(\.bedtimeMinutes))
@@ -1035,24 +954,8 @@ enum AnalyticsCalculator {
         let previousAverageBedtimeMinutes = averageBedtimeClockMinutes(comparisonDays.compactMap(\.bedtimeMinutes))
         let previousAverageWakeMinutes = comparisonDays.compactMap(\.wakeMinutes).averageOptional
 
-        let showerRecords = historicalRecordsStartingAtFirstMatch(in: currentRecords) { !$0.showers.isEmpty }
-        let averageShowers = showerRecords.map { Double($0.showers.count) }.averageOptional
-
-        let defaultMealEntries = currentRecords.flatMap { record in
-            record.meals.filter { [.breakfast, .lunch, .dinner].contains($0.mealKind) }.map { (record, $0) }
-        }
-        let defaultTrackedMeals = Double(defaultMealEntries.count)
-        let defaultLoggedMeals = Double(defaultMealEntries.filter { pair in
-            pair.1.effectiveStatus(on: pair.0.date) == .logged
-        }.count)
-        let defaultMealCompletionRate = defaultTrackedMeals > 0 ? defaultLoggedMeals / defaultTrackedMeals : nil
-
-        let chartGroupedMeals = Dictionary(grouping: chartFiltered.flatMap { record in
-            record.meals.map { (record, $0) }
-        }, by: { $0.1.slotKey })
-        let currentGroupedMeals = Dictionary(grouping: currentRecords.flatMap { record in
-            record.meals.map { (record, $0) }
-        }, by: { $0.1.slotKey })
+        let showerDays = historicalDayPointsStartingAtFirstMatch(in: currentDays) { $0.showers > 0 }
+        let averageShowers = showerDays.map { Double($0.showers) }.averageOptional
 
         let defaultMealKeys = Set(defaultMealSlots.map { slot in
             switch slot.kind {
@@ -1063,37 +966,46 @@ enum AnalyticsCalculator {
             }
         })
 
-        let mealSeries = chartGroupedMeals.values
+        let mealSamples = records.flatMap { record in
+            record.meals.compactMap { meal -> (slotKey: String, title: String, date: Date, isLogged: Bool, minutes: Double?, id: String)? in
+                let anchorDate = meal.time.map {
+                    actualDisplayDate(for: $0, timeZoneIdentifier: meal.timeZoneIdentifier)
+                } ?? record.date.startOfDay
+                guard chartBounds.contains(anchorDate) else { return nil }
+                return (
+                    slotKey: meal.slotKey,
+                    title: meal.displayTitle,
+                    date: anchorDate,
+                    isLogged: meal.effectiveStatus(on: record.date) == .logged,
+                    minutes: meal.time.map { clockMinutes($0, timeZoneIdentifier: meal.timeZoneIdentifier) },
+                    id: "\(anchorDate.storageKey())-\(meal.slotKey)-\(meal.id.uuidString)"
+                )
+            }
+        }
+        let defaultMealSamples = mealSamples.filter { defaultMealKeys.contains($0.slotKey) }
+        let defaultTrackedMeals = Double(defaultMealSamples.count)
+        let defaultLoggedMeals = Double(defaultMealSamples.filter(\.isLogged).count)
+        let defaultMealCompletionRate = defaultTrackedMeals > 0 ? defaultLoggedMeals / defaultTrackedMeals : nil
+
+        let mealSeries = Dictionary(grouping: mealSamples, by: \.slotKey).values
             .compactMap { entries -> MealAnalyticsSeries? in
-                guard let sample = entries.first?.1 else { return nil }
-                let chartPoints = entries.compactMap { record, meal -> AnalyticsScatterPoint? in
-                    guard meal.effectiveStatus(on: record.date) == .logged, let time = meal.time else { return nil }
+                guard let sample = entries.first else { return nil }
+                let chartPoints = entries.compactMap { entry -> AnalyticsScatterPoint? in
+                    guard entry.isLogged, let minutes = entry.minutes else { return nil }
                     return AnalyticsScatterPoint(
-                        id: "\(record.date.storageKey())-\(meal.slotKey)",
-                        date: record.date,
-                        minutes: clockMinutes(time, timeZoneIdentifier: meal.timeZoneIdentifier)
+                        id: entry.id,
+                        date: entry.date,
+                        minutes: minutes
                     )
                 }
-                let currentEntries = currentGroupedMeals[sample.slotKey] ?? []
-                let currentPoints = currentEntries.compactMap { record, meal -> AnalyticsScatterPoint? in
-                    guard meal.effectiveStatus(on: record.date) == .logged, let time = meal.time else { return nil }
-                    return AnalyticsScatterPoint(
-                        id: "\(record.date.storageKey())-\(meal.slotKey)",
-                        date: record.date,
-                        minutes: clockMinutes(time, timeZoneIdentifier: meal.timeZoneIdentifier)
-                    )
-                }
-                let currentLoggedCount = currentEntries.filter { record, meal in
-                    meal.effectiveStatus(on: record.date) == .logged
-                }.count
-                let tracked = Double(currentEntries.count)
-                let logged = Double(currentLoggedCount)
+                let tracked = Double(entries.count)
+                let logged = Double(entries.filter(\.isLogged).count)
                 return MealAnalyticsSeries(
                     key: sample.slotKey,
-                    title: sample.displayTitle,
+                    title: sample.title,
                     showsAverage: defaultMealKeys.contains(sample.slotKey),
                     completionRate: tracked > 0 ? logged / tracked : 0,
-                    averageMinutes: currentPoints.map(\.minutes).averageOptional,
+                    averageMinutes: chartPoints.map(\.minutes).averageOptional,
                     points: chartPoints.sorted { $0.date < $1.date }
                 )
             }
@@ -1101,22 +1013,24 @@ enum AnalyticsCalculator {
                 mealSortRank(for: lhs.key, title: lhs.title) < mealSortRank(for: rhs.key, title: rhs.title)
             }
 
-        let showerPoints = chartFiltered.flatMap { record in
+        let showerPoints = records.flatMap { record in
             record.showers.enumerated().compactMap { index, shower -> AnalyticsScatterPoint? in
                 guard let time = shower.time else { return nil }
+                let anchorDate = actualDisplayDate(for: time, timeZoneIdentifier: shower.timeZoneIdentifier)
+                guard chartBounds.contains(anchorDate) else { return nil }
                 return AnalyticsScatterPoint(
-                    id: "\(record.date.storageKey())-shower-\(index)",
-                    date: record.date,
+                    id: "\(anchorDate.storageKey())-shower-\(record.date.storageKey())-\(index)",
+                    date: anchorDate,
                     minutes: clockMinutes(time, timeZoneIdentifier: shower.timeZoneIdentifier)
                 )
             }
         }
-        let averageShowerMinutes = showerRecords
-            .flatMap(\.showers)
-            .compactMap { entry in
-                guard let time = entry.time else { return nil }
-                return clockMinutes(time, timeZoneIdentifier: entry.timeZoneIdentifier)
+        let averageShowerMinutes = showerPoints
+            .filter { point in
+                guard let firstShowerDay = showerDays.first?.date else { return false }
+                return point.date >= firstShowerDay
             }
+            .map(\.minutes)
             .averageOptional
 
         let averageLightSleepHours = currentDays.compactMap(\.lightSleepHours).averageOptional
@@ -1126,42 +1040,48 @@ enum AnalyticsCalculator {
         let previousAverageDeepSleepHours = comparisonDays.compactMap(\.deepSleepHours).averageOptional
         let previousAverageREMSleepHours = comparisonDays.compactMap(\.remSleepHours).averageOptional
 
-        // Bowel movement analytics
-        let bowelMovementPoints = chartFiltered.flatMap { record in
+        let bowelMovementPoints = records.flatMap { record in
             record.bowelMovements.enumerated().compactMap { index, entry -> AnalyticsScatterPoint? in
                 guard let time = entry.time else { return nil }
+                let anchorDate = actualDisplayDate(for: time, timeZoneIdentifier: entry.timeZoneIdentifier)
+                guard chartBounds.contains(anchorDate) else { return nil }
                 return AnalyticsScatterPoint(
-                    id: "\(record.date.storageKey())-bm-\(index)",
-                    date: record.date,
+                    id: "\(anchorDate.storageKey())-bm-\(record.date.storageKey())-\(index)",
+                    date: anchorDate,
                     minutes: clockMinutes(time, timeZoneIdentifier: entry.timeZoneIdentifier)
                 )
             }
         }
-        let bowelMovementRecords = historicalRecordsStartingAtFirstMatch(in: currentRecords) { !$0.bowelMovements.isEmpty }
-        let averageBowelMovements = bowelMovementRecords.map { Double($0.bowelMovements.count) }.averageOptional
-        let averageBowelMovementMinutes = bowelMovementRecords
-            .flatMap(\.bowelMovements)
-            .compactMap { entry in
-                guard let time = entry.time else { return nil }
-                return clockMinutes(time, timeZoneIdentifier: entry.timeZoneIdentifier)
+        let bowelMovementDays = historicalDayPointsStartingAtFirstMatch(in: currentDays) { $0.bowelMovements > 0 }
+        let averageBowelMovements = bowelMovementDays.map { Double($0.bowelMovements) }.averageOptional
+        let averageBowelMovementMinutes = bowelMovementPoints
+            .filter { point in
+                guard let firstBowelDay = bowelMovementDays.first?.date else { return false }
+                return point.date >= firstBowelDay
             }
+            .map(\.minutes)
             .averageOptional
 
-        // Sexual activity analytics (weekly aggregation)
-        let saRecords = chartFiltered.flatMap { record in
-            record.sexualActivities.map { (record.date, $0) }
+        let sexualActivitySamples = records.flatMap { record in
+            record.sexualActivities.compactMap { entry -> (date: Date, isMasturbation: Bool)? in
+                let anchorDate = entry.time.map {
+                    actualDisplayDate(for: $0, timeZoneIdentifier: entry.timeZoneIdentifier)
+                } ?? entry.date.startOfDay
+                guard chartBounds.contains(anchorDate) else { return nil }
+                return (date: anchorDate, isMasturbation: entry.isMasturbation)
+            }
         }
         let isoCalendar: Calendar = {
             var cal = Calendar(identifier: .iso8601)
             cal.firstWeekday = 2
             return cal
         }()
-        let groupedByWeek = Dictionary(grouping: saRecords) { pair in
-            isoCalendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: pair.0)
+        let groupedByWeek = Dictionary(grouping: sexualActivitySamples) { pair in
+            isoCalendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: pair.date)
         }
         let sexualActivityWeeklyData: [SexualActivityWeekPoint] = groupedByWeek.compactMap { key, entries in
             guard let weekStart = isoCalendar.date(from: key) else { return nil }
-            let masturbationCount = entries.filter { $0.1.isMasturbation }.count
+            let masturbationCount = entries.filter(\.isMasturbation).count
             let formatter = DateFormatter()
             formatter.dateFormat = "M/d"
             return SexualActivityWeekPoint(
@@ -1172,10 +1092,13 @@ enum AnalyticsCalculator {
             )
         }.sorted { $0.weekStart < $1.weekStart }
 
-        let historicalSexualActivityRecords = historicalRecordsStartingAtFirstMatch(in: currentRecords) { !$0.sexualActivities.isEmpty }
-        let historicalSexualActivityDates = historicalSexualActivityRecords.flatMap { record in
-            record.sexualActivities.map { _ in record.date }
-        }
+        let sexualActivityDays = historicalDayPointsStartingAtFirstMatch(in: currentDays) { $0.sexualActivities > 0 }
+        let historicalSexualActivityDates = sexualActivitySamples
+            .filter { sample in
+                guard let firstSexDay = sexualActivityDays.first?.date else { return false }
+                return sample.date >= firstSexDay
+            }
+            .map(\.date)
         let averageSexualActivity: Double? = averageSexualActivityPerWeek(
             activityDates: historicalSexualActivityDates,
             upperBound: chartBounds.upperBound,
@@ -1242,16 +1165,162 @@ enum AnalyticsCalculator {
         return normalized
     }
 
-    private static func availableLowerBound(for records: [DailyRecord], fallback: Date) -> Date {
-        records.map(\.date).min() ?? fallback
+    private static func actualDisplayDate(for timestamp: Date, timeZoneIdentifier: String? = nil) -> Date {
+        var calendar = Calendar.current
+        if let timeZoneIdentifier, let timeZone = TimeZone(identifier: timeZoneIdentifier) {
+            calendar.timeZone = timeZone
+        }
+        return calendar.startOfDay(for: timestamp)
     }
 
-    private static func historicalRecordsStartingAtFirstMatch(
-        in records: [DailyRecord],
-        matches: (DailyRecord) -> Bool
-    ) -> [DailyRecord] {
-        guard let startDate = records.first(where: matches)?.date else { return [] }
-        return records.filter { $0.date >= startDate }
+    private static func dateRange(in bounds: ClosedRange<Date>, calendar: Calendar = .current) -> [Date] {
+        let daySpan = calendar.dateComponents([.day], from: bounds.lowerBound, to: bounds.upperBound).day ?? 0
+        return stride(from: 0, through: max(0, daySpan), by: 1).map { offset in
+            bounds.lowerBound.adding(days: offset, calendar: calendar)
+        }
+    }
+
+    private static func emptyDayPoint(for date: Date) -> AnalyticsDayPoint {
+        AnalyticsDayPoint(
+            date: date,
+            sleepHours: nil,
+            bedtimeMinutes: nil,
+            wakeMinutes: nil,
+            sleepStartMinutes: nil,
+            sleepEndMinutes: nil,
+            loggedMeals: 0,
+            trackedMeals: 0,
+            showers: 0,
+            bowelMovements: 0,
+            sexualActivities: 0,
+            sexualActivitiesMasturbation: 0
+        )
+    }
+
+    private static func aggregateDayPoints(
+        from records: [DailyRecord],
+        within bounds: ClosedRange<Date>,
+        calendar: Calendar = .current
+    ) -> [Date: AnalyticsDayPoint] {
+        var points = Dictionary(uniqueKeysWithValues: dateRange(in: bounds, calendar: calendar).map { ($0, emptyDayPoint(for: $0)) })
+
+        for record in records {
+            let logicalDate = record.date.startOfDay
+
+            if let bedtime = record.sleepRecord.bedtimePreviousNight {
+                let anchorDate = actualDisplayDate(for: bedtime, timeZoneIdentifier: record.sleepRecord.timeZoneIdentifier)
+                if var point = points[anchorDate] {
+                    point.bedtimeMinutes = clockMinutes(bedtime, timeZoneIdentifier: record.sleepRecord.timeZoneIdentifier)
+                    points[anchorDate] = point
+                }
+            }
+
+            let sleepAnchorDate = record.sleepRecord.wakeTimeCurrentDay.map {
+                actualDisplayDate(for: $0, timeZoneIdentifier: record.sleepRecord.timeZoneIdentifier)
+            } ?? logicalDate
+            if var point = points[sleepAnchorDate] {
+                let stageDurations = record.sleepRecord.hasStageData ? record.sleepRecord.stageDurations : [:]
+                point.sleepHours = record.sleepRecord.duration.map { $0 / 3600 }
+                point.wakeMinutes = record.sleepRecord.wakeTimeCurrentDay.map {
+                    clockMinutes($0, timeZoneIdentifier: record.sleepRecord.timeZoneIdentifier)
+                }
+                point.sleepStartMinutes = record.sleepRecord.bedtimePreviousNight.map {
+                    chartMinutes($0, timeZoneIdentifier: record.sleepRecord.timeZoneIdentifier)
+                }
+                point.sleepEndMinutes = record.sleepRecord.wakeTimeCurrentDay.map {
+                    chartMinutes($0, timeZoneIdentifier: record.sleepRecord.timeZoneIdentifier)
+                }
+                point.lightSleepHours = stageDurations[.light].map { $0 / 3600 }
+                point.deepSleepHours = stageDurations[.deep].map { $0 / 3600 }
+                point.remSleepHours = stageDurations[.rem].map { $0 / 3600 }
+                point.awakeSleepHours = stageDurations[.awake].map { $0 / 3600 }
+                points[sleepAnchorDate] = point
+            }
+
+            for meal in record.meals {
+                let anchorDate = meal.time.map {
+                    actualDisplayDate(for: $0, timeZoneIdentifier: meal.timeZoneIdentifier)
+                } ?? logicalDate
+                guard var point = points[anchorDate] else { continue }
+                point.trackedMeals += 1
+                if meal.effectiveStatus(on: record.date) == .logged {
+                    point.loggedMeals += 1
+                }
+                points[anchorDate] = point
+            }
+
+            for shower in record.showers {
+                let anchorDate = shower.time.map {
+                    actualDisplayDate(for: $0, timeZoneIdentifier: shower.timeZoneIdentifier)
+                } ?? logicalDate
+                guard var point = points[anchorDate] else { continue }
+                point.showers += 1
+                points[anchorDate] = point
+            }
+
+            for bowelMovement in record.bowelMovements {
+                let anchorDate = bowelMovement.time.map {
+                    actualDisplayDate(for: $0, timeZoneIdentifier: bowelMovement.timeZoneIdentifier)
+                } ?? logicalDate
+                guard var point = points[anchorDate] else { continue }
+                point.bowelMovements += 1
+                points[anchorDate] = point
+            }
+
+            for activity in record.sexualActivities {
+                let anchorDate = activity.time.map {
+                    actualDisplayDate(for: $0, timeZoneIdentifier: activity.timeZoneIdentifier)
+                } ?? activity.date.startOfDay
+                guard var point = points[anchorDate] else { continue }
+                point.sexualActivities += 1
+                if activity.isMasturbation {
+                    point.sexualActivitiesMasturbation += 1
+                }
+                points[anchorDate] = point
+            }
+        }
+
+        return points
+    }
+
+    private static func availableLowerBound(for records: [DailyRecord], fallback: Date) -> Date {
+        let candidates = records.flatMap { record -> [Date] in
+            var dates = [record.date.startOfDay]
+            if let bedtime = record.sleepRecord.bedtimePreviousNight {
+                dates.append(actualDisplayDate(for: bedtime, timeZoneIdentifier: record.sleepRecord.timeZoneIdentifier))
+            }
+            if let wakeTime = record.sleepRecord.wakeTimeCurrentDay {
+                dates.append(actualDisplayDate(for: wakeTime, timeZoneIdentifier: record.sleepRecord.timeZoneIdentifier))
+            }
+            dates += record.meals.compactMap {
+                guard let time = $0.time else { return nil }
+                return actualDisplayDate(for: time, timeZoneIdentifier: $0.timeZoneIdentifier)
+            }
+            dates += record.showers.compactMap {
+                guard let time = $0.time else { return nil }
+                return actualDisplayDate(for: time, timeZoneIdentifier: $0.timeZoneIdentifier)
+            }
+            dates += record.bowelMovements.compactMap {
+                guard let time = $0.time else { return nil }
+                return actualDisplayDate(for: time, timeZoneIdentifier: $0.timeZoneIdentifier)
+            }
+            dates += record.sexualActivities.map {
+                if let time = $0.time {
+                    return actualDisplayDate(for: time, timeZoneIdentifier: $0.timeZoneIdentifier)
+                }
+                return $0.date.startOfDay
+            }
+            return dates
+        }
+        return candidates.min() ?? fallback
+    }
+
+    private static func historicalDayPointsStartingAtFirstMatch(
+        in days: [AnalyticsDayPoint],
+        matches: (AnalyticsDayPoint) -> Bool
+    ) -> [AnalyticsDayPoint] {
+        guard let startDate = days.first(where: matches)?.date else { return [] }
+        return days.filter { $0.date >= startDate }
     }
 
     private static func averageSexualActivityPerWeek(

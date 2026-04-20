@@ -571,7 +571,9 @@ final class FirebaseCloudSyncService: CloudSyncService, Sendable {
         total += record.bowelMovements.count * 2
         total += record.sexualActivities.count * 2
         if record.aiInsightNarrative?.hasAIScoring == true { total += 2 }
+        if record.locationName?.isEmpty == false { total += 1 }
         if record.sunTimes != nil { total += 2 }
+        if record.weatherSnapshot != nil { total += 1 }
         return total
     }
 

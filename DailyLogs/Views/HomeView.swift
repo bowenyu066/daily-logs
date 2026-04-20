@@ -319,7 +319,7 @@ struct HomeView: View {
                 VStack(alignment: .leading, spacing: 10) {
                     HStack(spacing: 14) {
                         Label {
-                            Text(appViewModel.currentLocationName ?? NSLocalizedString("当前位置", comment: ""))
+                            Text(appViewModel.currentLocationName ?? "--")
                                 .font(.system(size: 15, weight: .semibold, design: .rounded))
                                 .foregroundStyle(AppTheme.primaryText)
                                 .lineLimit(1)
@@ -360,16 +360,14 @@ struct HomeView: View {
                         }
                     }
 
-                    if let weatherSummary = appViewModel.currentWeatherSummary() {
-                        Label {
-                            Text(weatherSummary)
-                                .font(.system(size: 14, weight: .medium, design: .rounded))
-                                .foregroundStyle(AppTheme.secondaryText)
-                        } icon: {
-                            Image(systemName: appViewModel.currentWeather?.symbolName ?? "cloud.sun.fill")
-                                .font(.system(size: 14, weight: .semibold))
-                                .foregroundStyle(AppTheme.sunriseAccent)
-                        }
+                    Label {
+                        Text(appViewModel.currentWeatherSummary())
+                            .font(.system(size: 14, weight: .medium, design: .rounded))
+                            .foregroundStyle(AppTheme.secondaryText)
+                    } icon: {
+                        Image(systemName: appViewModel.currentWeather?.symbolName ?? "cloud.sun.fill")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(AppTheme.sunriseAccent)
                     }
                 }
             }

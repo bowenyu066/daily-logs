@@ -1008,8 +1008,8 @@ final class AppViewModel: ObservableObject {
         record = record.backfillingRecordedTimeZones(TimeZone.autoupdatingCurrent.identifier)
         record.sleepRecord.targetBedtime = preferences.bedtimeSchedule.target(for: selectedDate)
         dailyRecord = mergedRecord(record, with: preferences)
-        updateSunTimesIfPossible()
-        refreshLocationIfAuthorized()
+        restoreEnvironmentSnapshot()
+        refreshEnvironmentIfNeeded()
         Task { await syncHealthKitForCurrentDate() }
     }
 
@@ -1165,29 +1165,60 @@ final class AppViewModel: ObservableObject {
     }
 
     private func updateSunTimesIfPossible() {
+        guard isViewingLogicalToday else { return }
         preferences.locationPermissionState = locationService.permissionState
-        guard let coordinate = locationService.latestLocation?.coordinate else {
-            dailyRecord.sunTimes = nil
-            return
-        }
+        guard let coordinate = locationService.latestLocation?.coordinate else { return }
         let timeZone = locationService.detectedTimeZone ?? TimeZone.autoupdatingCurrent
-        dailyRecord.sunTimes = sunTimesService.sunTimes(for: selectedDate, coordinate: coordinate, timeZone: timeZone)
+        let sunTimes = sunTimesService.sunTimes(for: selectedDate, coordinate: coordinate, timeZone: timeZone)
+        guard dailyRecord.sunTimes != sunTimes else { return }
+        dailyRecord.sunTimes = sunTimes
+        persistEnvironmentSnapshotIfNeeded()
     }
 
     private func refreshCurrentWeatherIfPossible() async {
-        guard locationService.permissionState == .authorized,
+        guard isViewingLogicalToday,
+              locationService.permissionState == .authorized,
               let coordinate = locationService.latestLocation?.coordinate else {
-            currentWeather = nil
-            currentLocationName = nil
             return
         }
 
         currentLocationName = locationService.detectedLocationName
+        dailyRecord.locationName = currentLocationName
 
         do {
-            currentWeather = try await weatherService.weather(at: coordinate)
+            let snapshot = try await weatherService.weather(at: coordinate)
+            currentWeather = snapshot
+            dailyRecord.weatherSnapshot = snapshot
+            persistEnvironmentSnapshotIfNeeded()
         } catch {
             currentWeather = nil
+        }
+    }
+
+    private var isViewingLogicalToday: Bool {
+        selectedDate.startOfDay == logicalToday
+    }
+
+    private func restoreEnvironmentSnapshot() {
+        currentWeather = dailyRecord.weatherSnapshot
+        currentLocationName = dailyRecord.locationName
+    }
+
+    private func refreshEnvironmentIfNeeded() {
+        guard isViewingLogicalToday else { return }
+        restoreEnvironmentSnapshot()
+        updateSunTimesIfPossible()
+        refreshLocationIfAuthorized()
+    }
+
+    private func persistEnvironmentSnapshotIfNeeded() {
+        guard isViewingLogicalToday, let user else { return }
+        do {
+            dailyRecord.modifiedAt = .now
+            try repository.saveRecord(dailyRecord, preferences: preferences, userID: user.userID)
+            try loadAllRecords(for: user.userID)
+        } catch {
+            // Keep live environment refresh best-effort.
         }
     }
 
@@ -1502,7 +1533,15 @@ final class AppViewModel: ObservableObject {
             score += 2
         }
 
+        if record.locationName?.isEmpty == false {
+            score += 1
+        }
+
         if record.sunTimes != nil {
+            score += 1
+        }
+
+        if record.weatherSnapshot != nil {
             score += 1
         }
 
@@ -1510,22 +1549,29 @@ final class AppViewModel: ObservableObject {
     }
 
     private func bindLocationService() {
-        Publishers.CombineLatest3(
+        Publishers.CombineLatest4(
             locationService.$latestLocation,
             locationService.$detectedTimeZone,
+            locationService.$detectedLocationName,
             locationService.$permissionState
         )
         .receive(on: RunLoop.main)
-        .sink { [weak self] _, _, permissionState in
+        .sink { [weak self] _, _, locationName, permissionState in
             guard let self else { return }
             self.preferences.locationPermissionState = permissionState
+            guard self.isViewingLogicalToday else { return }
+
             guard permissionState == .authorized else {
                 self.dailyRecord.sunTimes = nil
+                self.dailyRecord.locationName = nil
+                self.dailyRecord.weatherSnapshot = nil
                 self.currentWeather = nil
                 self.currentLocationName = nil
                 return
             }
-            self.currentLocationName = self.locationService.detectedLocationName
+
+            self.currentLocationName = locationName
+            self.dailyRecord.locationName = locationName
             self.updateSunTimesIfPossible()
             Task { await self.refreshCurrentWeatherIfPossible() }
         }
@@ -1533,7 +1579,7 @@ final class AppViewModel: ObservableObject {
     }
 
     private func refreshLocationIfAuthorized() {
-        guard locationService.permissionState == .authorized else { return }
+        guard isViewingLogicalToday, locationService.permissionState == .authorized else { return }
         locationService.refreshCurrentLocation()
     }
 
@@ -1766,8 +1812,8 @@ final class AppViewModel: ObservableObject {
         return String(format: "%.0f ~ %.0f°%@", low, high, preferences.temperatureUnit.symbol)
     }
 
-    func currentWeatherSummary() -> String? {
-        guard let currentWeather else { return nil }
+    func currentWeatherSummary() -> String {
+        guard let currentWeather else { return "--" }
         return "\(currentWeather.conditionDescription) · \(formattedDailyTemperatureRange())"
     }
 

@@ -237,7 +237,7 @@ struct SunTimes: Codable, Equatable {
     }
 }
 
-struct WeatherSnapshot: Equatable, Sendable {
+struct WeatherSnapshot: Codable, Equatable, Sendable {
     var conditionDescription: String
     var symbolName: String
     var temperatureCelsius: Double
@@ -599,12 +599,15 @@ struct DailyRecord: Codable, Equatable {
     var showers: [ShowerEntry]
     var bowelMovements: [BowelMovementEntry]
     var sexualActivities: [SexualActivityEntry]
+    var locationName: String?
     var sunTimes: SunTimes?
+    var weatherSnapshot: WeatherSnapshot?
     var aiInsightNarrative: DailyInsightNarrative?
     var modifiedAt: Date?
 
     enum CodingKeys: String, CodingKey {
-        case date, sleepRecord, meals, showers, bowelMovements, sexualActivities, sunTimes, aiInsightNarrative, modifiedAt
+        case date, sleepRecord, meals, showers, bowelMovements, sexualActivities
+        case locationName, sunTimes, weatherSnapshot, aiInsightNarrative, modifiedAt
     }
 
     init(
@@ -614,7 +617,9 @@ struct DailyRecord: Codable, Equatable {
         showers: [ShowerEntry],
         bowelMovements: [BowelMovementEntry] = [],
         sexualActivities: [SexualActivityEntry] = [],
+        locationName: String? = nil,
         sunTimes: SunTimes? = nil,
+        weatherSnapshot: WeatherSnapshot? = nil,
         aiInsightNarrative: DailyInsightNarrative? = nil,
         modifiedAt: Date? = nil
     ) {
@@ -624,7 +629,9 @@ struct DailyRecord: Codable, Equatable {
         self.showers = showers
         self.bowelMovements = bowelMovements
         self.sexualActivities = sexualActivities
+        self.locationName = locationName
         self.sunTimes = sunTimes
+        self.weatherSnapshot = weatherSnapshot
         self.aiInsightNarrative = aiInsightNarrative
         self.modifiedAt = modifiedAt
     }
@@ -637,7 +644,9 @@ struct DailyRecord: Codable, Equatable {
         showers = try container.decodeIfPresent([ShowerEntry].self, forKey: .showers) ?? []
         bowelMovements = try container.decodeIfPresent([BowelMovementEntry].self, forKey: .bowelMovements) ?? []
         sexualActivities = try container.decodeIfPresent([SexualActivityEntry].self, forKey: .sexualActivities) ?? []
+        locationName = try container.decodeIfPresent(String.self, forKey: .locationName)
         sunTimes = try container.decodeIfPresent(SunTimes.self, forKey: .sunTimes)
+        weatherSnapshot = try container.decodeIfPresent(WeatherSnapshot.self, forKey: .weatherSnapshot)
         aiInsightNarrative = try container.decodeIfPresent(DailyInsightNarrative.self, forKey: .aiInsightNarrative)
         modifiedAt = try container.decodeIfPresent(Date.self, forKey: .modifiedAt)
     }
@@ -652,7 +661,9 @@ struct DailyRecord: Codable, Equatable {
             showers: [],
             bowelMovements: [],
             sexualActivities: [],
+            locationName: nil,
             sunTimes: nil,
+            weatherSnapshot: nil,
             aiInsightNarrative: nil
         )
     }

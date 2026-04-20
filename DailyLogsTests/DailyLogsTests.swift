@@ -162,7 +162,7 @@ struct DailyLogsTests {
         )
 
         let average = try #require(summary.averageBedtimeMinutes)
-        #expect(abs(average - 5) < 1)
+        #expect(abs(average - 12) < 1)
     }
 
     @Test
@@ -246,6 +246,70 @@ struct DailyLogsTests {
         #expect(summary.days.last?.date.storageKey() == "2026-04-18")
         #expect(summary.days.last?.sleepHours == nil)
         #expect(summary.days.last?.loggedMeals == 0)
+    }
+
+    @Test
+    func analyticsUsesActualCalendarDayForTimedEvents() {
+        let calendar = Calendar.current
+        let logicalDate = calendar.date(from: DateComponents(year: 2026, month: 4, day: 19))!
+        let actualNextDay = calendar.date(from: DateComponents(year: 2026, month: 4, day: 20, hour: 1, minute: 27))!
+        let record = DailyRecord(
+            date: logicalDate,
+            sleepRecord: SleepRecord(),
+            meals: [],
+            showers: [ShowerEntry(time: actualNextDay)],
+            bowelMovements: [],
+            sexualActivities: [],
+            sunTimes: nil
+        )
+
+        let summary = AnalyticsCalculator.build(
+            records: [record],
+            range: .custom,
+            customRange: logicalDate...logicalDate.adding(days: 1),
+            today: logicalDate.adding(days: 1)
+        )
+
+        #expect(summary.days.first?.date.storageKey() == "2026-04-19")
+        #expect(summary.days.first?.showers == 0)
+        #expect(summary.days.last?.date.storageKey() == "2026-04-20")
+        #expect(summary.days.last?.showers == 1)
+        #expect(summary.showerPoints.first?.date.storageKey() == "2026-04-20")
+    }
+
+    @Test
+    func analyticsSplitsBedtimeAndWakeByActualDates() {
+        let calendar = Calendar.current
+        let wakeDay = calendar.date(from: DateComponents(year: 2026, month: 4, day: 19))!
+        let bedtime = calendar.date(from: DateComponents(year: 2026, month: 4, day: 18, hour: 23, minute: 40))!
+        let wake = calendar.date(from: DateComponents(year: 2026, month: 4, day: 19, hour: 7, minute: 10))!
+        let record = DailyRecord(
+            date: wakeDay,
+            sleepRecord: SleepRecord(
+                bedtimePreviousNight: bedtime,
+                wakeTimeCurrentDay: wake,
+                source: .manual
+            ),
+            meals: [],
+            showers: [],
+            bowelMovements: [],
+            sexualActivities: [],
+            sunTimes: nil
+        )
+
+        let summary = AnalyticsCalculator.build(
+            records: [record],
+            range: .custom,
+            customRange: wakeDay.adding(days: -1)...wakeDay,
+            today: wakeDay
+        )
+
+        #expect(summary.days.first?.date.storageKey() == "2026-04-18")
+        #expect(summary.days.first?.bedtimeMinutes == Double(23 * 60 + 40))
+        #expect(summary.days.first?.sleepHours == nil)
+        #expect(summary.days.last?.date.storageKey() == "2026-04-19")
+        #expect(summary.days.last?.sleepHours != nil)
+        #expect(summary.days.last?.wakeMinutes == Double(7 * 60 + 10))
     }
 
     @Test
@@ -1596,6 +1660,116 @@ struct DailyLogsTests {
         #expect(healthSyncAdapter.fetchCount == 0)
     }
 
+    @Test @MainActor
+    func bootstrapKeepsStoredPastEnvironmentSnapshot() async {
+        let today = Date().startOfDay
+        let yesterday = today.adding(days: -1)
+        let storedSunTimes = SunTimes(
+            sunrise: yesterday.settingTime(hour: 6, minute: 31),
+            sunset: yesterday.settingTime(hour: 19, minute: 42),
+            timeZoneIdentifier: "America/New_York"
+        )
+        let storedWeather = WeatherSnapshot(
+            conditionDescription: "Sunny",
+            symbolName: "sun.max.fill",
+            temperatureCelsius: 16,
+            lowTemperatureCelsius: 12,
+            highTemperatureCelsius: 21
+        )
+        let record = DailyRecord(
+            date: yesterday,
+            sleepRecord: SleepRecord(),
+            meals: [],
+            showers: [],
+            bowelMovements: [],
+            sexualActivities: [],
+            locationName: "Boston",
+            sunTimes: storedSunTimes,
+            weatherSnapshot: storedWeather
+        )
+        let user = UserAccount(
+            userID: "environment-user",
+            displayName: "Tester",
+            email: nil,
+            authMode: .guest,
+            createdAt: today.adding(days: -30)
+        )
+        let viewModel = AppViewModel(
+            authService: MockAuthService(user: user),
+            repository: InMemoryDailyRecordRepository(records: [yesterday.storageKey(): record]),
+            preferencesStore: MockPreferencesStore(preferences: UserPreferences()),
+            photoStorageService: MockPhotoStorageService(),
+            sunTimesService: MockSunTimesService(snapshot: SunTimes(
+                sunrise: yesterday.settingTime(hour: 5, minute: 0),
+                sunset: yesterday.settingTime(hour: 21, minute: 0),
+                timeZoneIdentifier: "America/Los_Angeles"
+            )),
+            weatherService: MockWeatherService(snapshot: WeatherSnapshot(
+                conditionDescription: "Rain",
+                symbolName: "cloud.rain.fill",
+                temperatureCelsius: 5,
+                lowTemperatureCelsius: 3,
+                highTemperatureCelsius: 8
+            )),
+            healthSyncAdapter: MockHealthSyncAdapter(sleepRecord: nil),
+            cloudSyncService: NoopCloudSyncService(),
+            aiInsightNarrativeService: NoopAIInsightNarrativeService(),
+            openAIKeyStore: MockOpenAIKeyStore(),
+            locationService: LocationService(),
+            selectedDate: yesterday,
+            dailyRecord: DailyRecord.empty(for: yesterday, preferences: UserPreferences()),
+            preferences: UserPreferences()
+        )
+
+        await viewModel.bootstrap()
+
+        #expect(viewModel.dailyRecord.sunTimes == storedSunTimes)
+        #expect(viewModel.currentLocationName == "Boston")
+        #expect(viewModel.currentWeather == storedWeather)
+        #expect(viewModel.currentWeatherSummary().contains("Sunny"))
+    }
+
+    @Test @MainActor
+    func pastDatesWithoutStoredWeatherShowPlaceholder() async {
+        let today = Date().startOfDay
+        let yesterday = today.adding(days: -1)
+        let user = UserAccount(
+            userID: "environment-placeholder-user",
+            displayName: "Tester",
+            email: nil,
+            authMode: .guest,
+            createdAt: today.adding(days: -30)
+        )
+        let record = DailyRecord.empty(for: yesterday, preferences: UserPreferences())
+        let viewModel = AppViewModel(
+            authService: MockAuthService(user: user),
+            repository: InMemoryDailyRecordRepository(records: [yesterday.storageKey(): record]),
+            preferencesStore: MockPreferencesStore(preferences: UserPreferences()),
+            photoStorageService: MockPhotoStorageService(),
+            sunTimesService: MockSunTimesService(),
+            weatherService: MockWeatherService(snapshot: WeatherSnapshot(
+                conditionDescription: "Rain",
+                symbolName: "cloud.rain.fill",
+                temperatureCelsius: 5,
+                lowTemperatureCelsius: 3,
+                highTemperatureCelsius: 8
+            )),
+            healthSyncAdapter: MockHealthSyncAdapter(sleepRecord: nil),
+            cloudSyncService: NoopCloudSyncService(),
+            aiInsightNarrativeService: NoopAIInsightNarrativeService(),
+            openAIKeyStore: MockOpenAIKeyStore(),
+            locationService: LocationService(),
+            selectedDate: yesterday,
+            dailyRecord: DailyRecord.empty(for: yesterday, preferences: UserPreferences()),
+            preferences: UserPreferences()
+        )
+
+        await viewModel.bootstrap()
+
+        #expect(viewModel.currentWeather == nil)
+        #expect(viewModel.currentWeatherSummary() == "--")
+    }
+
     @Test
     func cloudCryptoRoundTripPreservesRecord() throws {
         let crypto = CloudCryptoService()
@@ -1956,8 +2130,10 @@ private struct MockPhotoStorageService: PhotoStorageService {
 }
 
 private struct MockSunTimesService: SunTimesService {
+    var snapshot: SunTimes? = nil
+
     func sunTimes(for date: Date, coordinate: CLLocationCoordinate2D, timeZone: TimeZone) -> SunTimes? {
-        nil
+        snapshot
     }
 }
 
