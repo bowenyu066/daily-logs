@@ -110,6 +110,10 @@ struct HomeView: View {
                 ShowerEditorSheet(
                     initialValue: shower,
                     baseDate: appViewModel.selectedDate,
+                    fallbackTime: appViewModel.suggestedEventTimestamp(
+                        for: appViewModel.selectedDate,
+                        recordedTimeZoneIdentifier: shower.timeZoneIdentifier
+                    ),
                     isEditable: appViewModel.canEditSelectedDate,
                     onSave: { updated in
                         Task { await appViewModel.saveShower(updated) }
@@ -125,11 +129,16 @@ struct HomeView: View {
             .sheet(isPresented: $showingNewShower) {
                 ShowerEditorSheet(
                     initialValue: ShowerEntry(
-                        time: appViewModel.selectedDate.anchoringCurrentClockTime(
-                            in: appViewModel.displayedTimeZone(for: nil)
+                        time: appViewModel.suggestedEventTimestamp(
+                            for: appViewModel.selectedDate,
+                            recordedTimeZoneIdentifier: nil
                         )
                     ),
                     baseDate: appViewModel.selectedDate,
+                    fallbackTime: appViewModel.suggestedEventTimestamp(
+                        for: appViewModel.selectedDate,
+                        recordedTimeZoneIdentifier: nil
+                    ),
                     isEditable: appViewModel.canEditSelectedDate,
                     onSave: { updated in
                         Task { await appViewModel.saveShower(updated) }
@@ -144,6 +153,10 @@ struct HomeView: View {
                 BowelMovementEditorSheet(
                     initialValue: entry,
                     baseDate: appViewModel.selectedDate,
+                    fallbackTime: appViewModel.suggestedEventTimestamp(
+                        for: appViewModel.selectedDate,
+                        recordedTimeZoneIdentifier: entry.timeZoneIdentifier
+                    ),
                     isEditable: appViewModel.canEditSelectedDate,
                     onSave: { updated in
                         Task { await appViewModel.saveBowelMovement(updated) }
@@ -159,11 +172,16 @@ struct HomeView: View {
             .sheet(isPresented: $showingNewBowelMovement) {
                 BowelMovementEditorSheet(
                     initialValue: BowelMovementEntry(
-                        time: appViewModel.selectedDate.anchoringCurrentClockTime(
-                            in: appViewModel.displayedTimeZone(for: nil)
+                        time: appViewModel.suggestedEventTimestamp(
+                            for: appViewModel.selectedDate,
+                            recordedTimeZoneIdentifier: nil
                         )
                     ),
                     baseDate: appViewModel.selectedDate,
+                    fallbackTime: appViewModel.suggestedEventTimestamp(
+                        for: appViewModel.selectedDate,
+                        recordedTimeZoneIdentifier: nil
+                    ),
                     isEditable: appViewModel.canEditSelectedDate,
                     onSave: { updated in
                         Task { await appViewModel.saveBowelMovement(updated) }
@@ -178,6 +196,10 @@ struct HomeView: View {
                 SexualActivityEditorSheet(
                     initialValue: entry,
                     baseDate: appViewModel.selectedDate,
+                    fallbackTime: appViewModel.suggestedEventTimestamp(
+                        for: appViewModel.selectedDate,
+                        recordedTimeZoneIdentifier: entry.timeZoneIdentifier
+                    ),
                     isEditable: appViewModel.canEditSelectedDate,
                     onSave: { updated in
                         Task { await appViewModel.saveSexualActivity(updated) }
@@ -194,11 +216,16 @@ struct HomeView: View {
                 SexualActivityEditorSheet(
                     initialValue: SexualActivityEntry(
                         date: appViewModel.selectedDate,
-                        time: appViewModel.selectedDate.anchoringCurrentClockTime(
-                            in: appViewModel.displayedTimeZone(for: nil)
+                        time: appViewModel.suggestedEventTimestamp(
+                            for: appViewModel.selectedDate,
+                            recordedTimeZoneIdentifier: nil
                         )
                     ),
                     baseDate: appViewModel.selectedDate,
+                    fallbackTime: appViewModel.suggestedEventTimestamp(
+                        for: appViewModel.selectedDate,
+                        recordedTimeZoneIdentifier: nil
+                    ),
                     isEditable: appViewModel.canEditSelectedDate,
                     onSave: { updated in
                         Task { await appViewModel.saveSexualActivity(updated) }

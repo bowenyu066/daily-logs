@@ -20,12 +20,12 @@ struct ShowerEditorSheet: View {
     init(
         initialValue: ShowerEntry,
         baseDate: Date,
+        fallbackTime: Date,
         isEditable: Bool,
         onSave: @escaping (ShowerEntry) -> Void,
         onDelete: (() -> Void)?
     ) {
-        let fallbackTime = initialValue.time ?? baseDate.anchoringCurrentClockTime()
-        _draftTime = State(initialValue: fallbackTime)
+        _draftTime = State(initialValue: initialValue.time ?? fallbackTime)
         _logsExistenceOnly = State(initialValue: initialValue.time == nil)
         _draftNote = State(initialValue: initialValue.note ?? "")
         self.entryID = initialValue.id
@@ -73,7 +73,7 @@ struct ShowerEditorSheet: View {
                 RecordNoteSection(note: $draftNote)
                     .disabled(!isEditable)
 
-                if let onDelete {
+                if onDelete != nil {
                     Button(NSLocalizedString("删除记录", comment: ""), role: .destructive) {
                         showingDeleteConfirmation = true
                     }
@@ -128,10 +128,10 @@ struct ShowerEditorSheet: View {
     }
 
     private var normalizedTime: Date {
-        let timeZone = appViewModel.displayedTimeZone(for: recordedTimeZoneIdentifier)
-        var calendar = Calendar.current
-        calendar.timeZone = timeZone
-        let components = calendar.dateComponents([.hour, .minute], from: draftTime)
-        return baseDate.settingTime(hour: components.hour ?? 12, minute: components.minute ?? 0, in: timeZone)
+        appViewModel.normalizedEventTimestamp(
+            from: draftTime,
+            baseDate: baseDate,
+            recordedTimeZoneIdentifier: recordedTimeZoneIdentifier
+        )
     }
 }

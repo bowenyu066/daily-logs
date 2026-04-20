@@ -21,12 +21,13 @@ struct SexualActivityEditorSheet: View {
     init(
         initialValue: SexualActivityEntry,
         baseDate: Date,
+        fallbackTime: Date,
         isEditable: Bool,
         onSave: @escaping (SexualActivityEntry) -> Void,
         onDelete: (() -> Void)?
     ) {
         _dateOnly = State(initialValue: initialValue.time == nil)
-        _draftTime = State(initialValue: initialValue.time ?? baseDate.anchoringCurrentClockTime())
+        _draftTime = State(initialValue: initialValue.time ?? fallbackTime)
         _isMasturbation = State(initialValue: initialValue.isMasturbation)
         _draftNote = State(initialValue: initialValue.note ?? "")
         self.entryID = initialValue.id
@@ -82,7 +83,7 @@ struct SexualActivityEditorSheet: View {
                 RecordNoteSection(note: $draftNote)
                     .disabled(!isEditable)
 
-                if let onDelete {
+                if onDelete != nil {
                     Button(NSLocalizedString("删除记录", comment: ""), role: .destructive) {
                         showingDeleteConfirmation = true
                     }
@@ -120,7 +121,7 @@ struct SexualActivityEditorSheet: View {
 
                 Button(NSLocalizedString("保存", comment: "")) {
                     let timeZone = appViewModel.displayedTimeZone(for: recordedTimeZoneIdentifier)
-                    let resolvedTime: Date? = dateOnly ? nil : normalizedTime(in: timeZone)
+                    let resolvedTime: Date? = dateOnly ? nil : normalizedTime
                     onSave(
                         SexualActivityEntry(
                             id: entryID,
@@ -140,10 +141,11 @@ struct SexualActivityEditorSheet: View {
         }
     }
 
-    private func normalizedTime(in timeZone: TimeZone) -> Date {
-        var calendar = Calendar.current
-        calendar.timeZone = timeZone
-        let components = calendar.dateComponents([.hour, .minute], from: draftTime)
-        return baseDate.settingTime(hour: components.hour ?? 12, minute: components.minute ?? 0, in: timeZone)
+    private var normalizedTime: Date {
+        appViewModel.normalizedEventTimestamp(
+            from: draftTime,
+            baseDate: baseDate,
+            recordedTimeZoneIdentifier: recordedTimeZoneIdentifier
+        )
     }
 }

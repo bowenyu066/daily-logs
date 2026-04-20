@@ -1267,7 +1267,15 @@ private func fetchFirebaseIDToken() async throws -> String? {
 }
 
 private func parseNarrative(from data: Data) throws -> DailyInsightNarrative {
+    if let narrative = tryDirectNarrative(from: data) {
+        return narrative
+    }
+
     let decoded = try JSONDecoder().decode(OpenAIResponseEnvelope.self, from: data)
+    if let narrative = decoded.extractedNarrative {
+        return narrative
+    }
+
     guard let text = decoded.extractedText, !text.isEmpty else {
         throw AIInsightServiceError.emptyResponse
     }
@@ -1284,6 +1292,28 @@ private func parseNarrative(from data: Data) throws -> DailyInsightNarrative {
         #endif
         throw AIInsightServiceError.missingScores
     }
+    return narrative
+}
+
+private func tryDirectNarrative(from data: Data) -> DailyInsightNarrative? {
+    let decoder = JSONDecoder()
+
+    if let narrative = try? decoder.decode(DailyInsightNarrative.self, from: data),
+       narrative.hasAIScoring {
+        return narrative
+    }
+
+    guard let rawText = String(data: data, encoding: .utf8) else {
+        return nil
+    }
+
+    let jsonText = extractJSONObject(from: rawText)
+    guard let jsonData = jsonText.data(using: .utf8),
+          let narrative = try? decoder.decode(DailyInsightNarrative.self, from: jsonData),
+          narrative.hasAIScoring else {
+        return nil
+    }
+
     return narrative
 }
 
@@ -1509,17 +1539,31 @@ private struct OpenAIResponseEnvelope: Decodable {
         struct ContentItem: Decodable {
             var type: String?
             var text: String?
+            var parsed: DailyInsightNarrative?
         }
 
         var content: [ContentItem]?
     }
 
     var outputText: String?
+    var outputParsed: DailyInsightNarrative?
     var output: [OutputItem]?
 
     enum CodingKeys: String, CodingKey {
         case outputText = "output_text"
+        case outputParsed = "output_parsed"
         case output
+    }
+
+    var extractedNarrative: DailyInsightNarrative? {
+        if let outputParsed, outputParsed.hasAIScoring {
+            return outputParsed
+        }
+
+        return output?
+            .flatMap { $0.content ?? [] }
+            .compactMap(\.parsed)
+            .first(where: \.hasAIScoring)
     }
 
     var extractedText: String? {

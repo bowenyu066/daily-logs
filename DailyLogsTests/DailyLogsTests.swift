@@ -376,6 +376,75 @@ struct DailyLogsTests {
         #expect(rendered.contains("+1"))
     }
 
+    @Test @MainActor
+    func resolvedEventTimestampShiftsEarlyMorningIntoNextCalendarDay() {
+        let logicalDate = Calendar.current.date(from: DateComponents(year: 2026, month: 4, day: 19))!
+        let timeZoneIdentifier = TimeZone.autoupdatingCurrent.identifier
+        let preferences = UserPreferences(
+            midnightMode: MidnightModeSettings(isEnabled: true, cutoffHour: 4, effectiveFrom: nil)
+        )
+        let viewModel = AppViewModel(
+            authService: MockAuthService(user: nil),
+            repository: InMemoryDailyRecordRepository(records: [:]),
+            preferencesStore: MockPreferencesStore(preferences: preferences),
+            photoStorageService: MockPhotoStorageService(),
+            sunTimesService: MockSunTimesService(),
+            weatherService: MockWeatherService(),
+            healthSyncAdapter: MockHealthSyncAdapter(sleepRecord: nil),
+            cloudSyncService: NoopCloudSyncService(),
+            aiInsightNarrativeService: MockAIInsightNarrativeService(responses: []),
+            openAIKeyStore: MockOpenAIKeyStore(key: nil),
+            locationService: LocationService(),
+            selectedDate: logicalDate,
+            dailyRecord: DailyRecord.empty(for: logicalDate, preferences: preferences),
+            preferences: preferences
+        )
+
+        let resolved = viewModel.resolvedEventTimestamp(
+            for: logicalDate,
+            hour: 1,
+            minute: 27,
+            recordedTimeZoneIdentifier: timeZoneIdentifier
+        )
+
+        #expect(resolved.storageKey(in: .autoupdatingCurrent) == "2026-04-20")
+        #expect(viewModel.displayedClockTime(for: resolved, recordedTimeZoneIdentifier: timeZoneIdentifier).contains("+1"))
+    }
+
+    @Test @MainActor
+    func resolvedEventTimestampKeepsOlderDatesUnshiftedWhenMidnightModeStartsLater() {
+        let logicalDate = Calendar.current.date(from: DateComponents(year: 2026, month: 4, day: 18))!
+        let effectiveFrom = Calendar.current.date(from: DateComponents(year: 2026, month: 4, day: 20, hour: 1, minute: 0))!
+        let preferences = UserPreferences(
+            midnightMode: MidnightModeSettings(isEnabled: true, cutoffHour: 4, effectiveFrom: effectiveFrom)
+        )
+        let viewModel = AppViewModel(
+            authService: MockAuthService(user: nil),
+            repository: InMemoryDailyRecordRepository(records: [:]),
+            preferencesStore: MockPreferencesStore(preferences: preferences),
+            photoStorageService: MockPhotoStorageService(),
+            sunTimesService: MockSunTimesService(),
+            weatherService: MockWeatherService(),
+            healthSyncAdapter: MockHealthSyncAdapter(sleepRecord: nil),
+            cloudSyncService: NoopCloudSyncService(),
+            aiInsightNarrativeService: MockAIInsightNarrativeService(responses: []),
+            openAIKeyStore: MockOpenAIKeyStore(key: nil),
+            locationService: LocationService(),
+            selectedDate: logicalDate,
+            dailyRecord: DailyRecord.empty(for: logicalDate, preferences: preferences),
+            preferences: preferences
+        )
+
+        let resolved = viewModel.resolvedEventTimestamp(
+            for: logicalDate,
+            hour: 1,
+            minute: 27,
+            recordedTimeZoneIdentifier: TimeZone.autoupdatingCurrent.identifier
+        )
+
+        #expect(resolved.storageKey(in: .autoupdatingCurrent) == "2026-04-18")
+    }
+
     @Test
     func dailyInsightReportOnlyIncludesEnabledOptionalSections() throws {
         let day = Calendar.current.date(from: DateComponents(year: 2026, month: 3, day: 20))!
@@ -828,6 +897,51 @@ struct DailyLogsTests {
         #expect(aiService.callCount == 1)
         #expect(viewModel.activeDailyInsightNarrative?.headline == "新评分")
         #expect(viewModel.displayedDailyInsightReport?.overallScore == 85)
+    }
+
+    @Test
+    func openAIResponsesInsightServiceParsesDirectJSONResponse() async throws {
+        let payload = sampleInsightPayload()
+        let narrative = sampleAINarrative(headline: "直接 JSON", overallScore: 88)
+        let data = try JSONEncoder().encode(narrative)
+        let session = makeMockSession(responseData: data)
+        let service = OpenAIResponsesInsightService(
+            keyStore: MockOpenAIKeyStore(key: "test-key"),
+            session: session,
+            model: "gpt-5.4-mini"
+        )
+
+        let resolved = try await service.generateNarrative(from: payload)
+
+        #expect(resolved.headline == "直接 JSON")
+        #expect(resolved.overallScore == 88)
+        #expect(resolved.sampleCount == 5)
+    }
+
+    @Test
+    func openAIResponsesInsightServiceParsesStructuredParsedContent() async throws {
+        let payload = sampleInsightPayload()
+        let narrative = sampleAINarrative(headline: "结构化 parsed", overallScore: 91)
+        let envelope = ParsedNarrativeEnvelope(
+            output: [
+                .init(content: [
+                    .init(type: "output_text", text: nil, parsed: narrative)
+                ])
+            ]
+        )
+        let data = try JSONEncoder().encode(envelope)
+        let session = makeMockSession(responseData: data)
+        let service = OpenAIResponsesInsightService(
+            keyStore: MockOpenAIKeyStore(key: "test-key"),
+            session: session,
+            model: "gpt-5.4-mini"
+        )
+
+        let resolved = try await service.generateNarrative(from: payload)
+
+        #expect(resolved.headline == "结构化 parsed")
+        #expect(resolved.overallScore == 91)
+        #expect(resolved.sampleCount == 5)
     }
 
     @Test @MainActor
@@ -1658,6 +1772,109 @@ private final class InMemoryDailyRecordRepository: DailyRecordRepository {
     func loadAllRecords(userID: String, preferences: UserPreferences) throws -> [DailyRecord] {
         Array(records.values)
     }
+}
+
+private func sampleInsightPayload() -> DailyInsightPayload {
+    let day = Calendar.current.date(from: DateComponents(year: 2026, month: 4, day: 19))!
+    let preferences = UserPreferences(healthKitSyncEnabled: false)
+    let record = DailyRecord(
+        date: day,
+        sleepRecord: SleepRecord(
+            bedtimePreviousNight: day.adding(days: -1).settingTime(hour: 23, minute: 40),
+            wakeTimeCurrentDay: day.settingTime(hour: 7, minute: 20),
+            source: .manual
+        ),
+        meals: [
+            MealEntry(mealKind: .breakfast, status: .logged, time: day.settingTime(hour: 8, minute: 10))
+        ],
+        showers: [ShowerEntry(time: day.settingTime(hour: 21, minute: 5))],
+        bowelMovements: [BowelMovementEntry(time: day.settingTime(hour: 8, minute: 0))],
+        sexualActivities: [],
+        sunTimes: nil
+    )
+
+    return DailyInsightAnalyzer.makePayload(
+        record: record,
+        preferences: preferences,
+        language: preferences.appLanguage,
+        locale: Locale(identifier: "en_US_POSIX"),
+        history: [record]
+    )
+}
+
+private func sampleAINarrative(headline: String, overallScore: Int) -> DailyInsightNarrative {
+    DailyInsightNarrative(
+        headline: headline,
+        summary: "sample summary",
+        bullets: ["sample bullet 1", "sample bullet 2"],
+        overallScore: overallScore,
+        components: [
+            "sleep": .init(score: 40, maxScore: 45, detail: "sleep", included: true),
+            "meals": .init(score: 30, maxScore: 35, detail: "meals", included: true),
+            "shower": .init(score: 9, maxScore: 10, detail: "shower", included: true),
+            "bowelMovement": .init(score: 9, maxScore: 10, detail: "bowel", included: true)
+        ]
+    )
+}
+
+private func makeMockSession(responseData: Data, statusCode: Int = 200) -> URLSession {
+    MockURLProtocol.handler = { request in
+        let response = HTTPURLResponse(
+            url: try #require(request.url),
+            statusCode: statusCode,
+            httpVersion: nil,
+            headerFields: ["Content-Type": "application/json"]
+        )!
+        return (response, responseData)
+    }
+
+    let configuration = URLSessionConfiguration.ephemeral
+    configuration.protocolClasses = [MockURLProtocol.self]
+    return URLSession(configuration: configuration)
+}
+
+private struct ParsedNarrativeEnvelope: Encodable {
+    struct OutputItem: Encodable {
+        struct ContentItem: Encodable {
+            let type: String
+            let text: String?
+            let parsed: DailyInsightNarrative?
+        }
+
+        let content: [ContentItem]
+    }
+
+    let output: [OutputItem]
+}
+
+private final class MockURLProtocol: URLProtocol, @unchecked Sendable {
+    nonisolated(unsafe) static var handler: (@Sendable (URLRequest) throws -> (HTTPURLResponse, Data))?
+
+    override class func canInit(with request: URLRequest) -> Bool {
+        true
+    }
+
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest {
+        request
+    }
+
+    override func startLoading() {
+        guard let handler = Self.handler else {
+            client?.urlProtocol(self, didFailWithError: URLError(.badServerResponse))
+            return
+        }
+
+        do {
+            let (response, data) = try handler(request)
+            client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+            client?.urlProtocol(self, didLoad: data)
+            client?.urlProtocolDidFinishLoading(self)
+        } catch {
+            client?.urlProtocol(self, didFailWithError: error)
+        }
+    }
+
+    override func stopLoading() {}
 }
 
 private struct MockWeatherService: WeatherService {

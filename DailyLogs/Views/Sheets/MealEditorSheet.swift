@@ -409,8 +409,10 @@ struct MealEditorSheet: View {
     }
 
     private var defaultLoggedTime: Date {
-        let timeZone = appViewModel.displayedTimeZone(for: draft.timeZoneIdentifier)
-        return baseDate.anchoringCurrentClockTime(in: timeZone)
+        appViewModel.suggestedEventTimestamp(
+            for: baseDate,
+            recordedTimeZoneIdentifier: draft.timeZoneIdentifier
+        )
     }
 
     private var timeAccent: Color {
@@ -512,13 +514,15 @@ struct MealEditorSheet: View {
 
     private func normalizedPickedDate(_ pickedDate: Date?) -> Date? {
         guard let pickedDate else { return nil }
+        let timeZone = appViewModel.displayedTimeZone(for: draft.timeZoneIdentifier)
         var calendar = Calendar.current
-        calendar.timeZone = appViewModel.displayedTimeZone(for: draft.timeZoneIdentifier)
+        calendar.timeZone = timeZone
         let components = calendar.dateComponents([.hour, .minute], from: pickedDate)
-        return baseDate.settingTime(
+        return appViewModel.resolvedEventTimestamp(
+            for: baseDate,
             hour: components.hour ?? 12,
             minute: components.minute ?? 0,
-            in: appViewModel.displayedTimeZone(for: draft.timeZoneIdentifier)
+            recordedTimeZoneIdentifier: draft.timeZoneIdentifier
         )
     }
 

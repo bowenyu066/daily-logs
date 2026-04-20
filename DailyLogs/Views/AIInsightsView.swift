@@ -24,10 +24,6 @@ struct AIInsightsView: View {
         selectedInsightDate?.startOfDay ?? appViewModel.dailyInsightTargetDate
     }
 
-    private var historyDates: [Date] {
-        appViewModel.scoredAIInsightDates
-    }
-
     private var resolvedLocale: Locale {
         appViewModel.preferences.appLanguage.locale ?? Locale.autoupdatingCurrent
     }
@@ -46,7 +42,6 @@ struct AIInsightsView: View {
                     ScrollView(.vertical, showsIndicators: false) {
                         VStack(spacing: 18) {
                             heroCard(report)
-                            historyCard
                             breakdownGrid(report)
                             insightNarrativeCard(report)
                             privacyCard
@@ -67,9 +62,12 @@ struct AIInsightsView: View {
             .navigationTitle(NSLocalizedString("AI 洞察", comment: ""))
             .navigationBarTitleDisplayMode(.inline)
             .sheet(isPresented: $showingDatePicker) {
-                DatePickerSheet(
+                AIInsightCalendarSheet(
                     selectedDate: resolvedInsightDate ?? appViewModel.dailyInsightTargetDate ?? appViewModel.logicalToday,
-                    allowedRange: appViewModel.availableDateRange
+                    allowedRange: appViewModel.availableDateRange,
+                    reportProvider: { date in
+                        appViewModel.displayedDailyInsightReport(for: date)
+                    }
                 ) { date in
                     selectedInsightDate = date.startOfDay
                 }
@@ -231,94 +229,6 @@ struct AIInsightsView: View {
             }
         }
         .frame(width: 112, height: 112)
-    }
-
-    private var historyCard: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack {
-                SectionHeader(
-                    title: NSLocalizedString("历史分数", comment: ""),
-                    subtitle: NSLocalizedString("带圆环的是已经固定下来的 AI 评分。", comment: "")
-                )
-                Spacer(minLength: 12)
-                Button {
-                    showingDatePicker = true
-                } label: {
-                    Image(systemName: "calendar")
-                        .font(.system(size: 15, weight: .bold))
-                        .foregroundStyle(AppTheme.accent)
-                        .frame(width: 38, height: 38)
-                        .background(AppTheme.accentSoft)
-                        .clipShape(Circle())
-                }
-                .buttonStyle(.plain)
-            }
-
-            if historyDates.isEmpty {
-                Text(NSLocalizedString("新的稳定版 AI 评分会从现在开始逐天积累。", comment: ""))
-                    .font(.system(size: 14, weight: .medium, design: .rounded))
-                    .foregroundStyle(AppTheme.secondaryText)
-            } else {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 12) {
-                        ForEach(historyDates, id: \.self) { date in
-                            if let score = appViewModel.displayedDailyInsightReport(for: date)?.overallScore {
-                                Button {
-                                    selectedInsightDate = date.startOfDay
-                                } label: {
-                                    historyRing(date: date, score: score, isSelected: resolvedInsightDate?.startOfDay == date.startOfDay)
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        }
-                    }
-                    .padding(.vertical, 2)
-                }
-            }
-        }
-        .padding(22)
-        .appCardStyle()
-    }
-
-    private func historyRing(date: Date, score: Int, isSelected: Bool) -> some View {
-        VStack(spacing: 8) {
-            ZStack {
-                Circle()
-                    .stroke(AppTheme.border, lineWidth: 8)
-
-                Circle()
-                    .trim(from: 0, to: CGFloat(max(0, min(score, 100))) / 100)
-                    .stroke(
-                        AngularGradient(
-                            colors: [
-                                Color(red: 0.98, green: 0.85, blue: 0.54),
-                                Color(red: 0.49, green: 0.91, blue: 0.78),
-                                AppTheme.accent
-                            ],
-                            center: .center
-                        ),
-                        style: StrokeStyle(lineWidth: 8, lineCap: .round)
-                    )
-                    .rotationEffect(.degrees(-90))
-
-                Text("\(score)")
-                    .font(.system(size: 16, weight: .bold, design: .rounded))
-                    .foregroundStyle(AppTheme.primaryText)
-            }
-            .frame(width: 58, height: 58)
-
-            Text(date, format: .dateTime.month().day())
-                .font(.system(size: 12, weight: .semibold, design: .rounded))
-                .foregroundStyle(AppTheme.secondaryText)
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 12)
-        .background(isSelected ? AppTheme.accentSoft : AppTheme.elevatedSurface)
-        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .stroke(isSelected ? AppTheme.accent.opacity(0.4) : AppTheme.border, lineWidth: 1)
-        )
     }
 
     private func breakdownGrid(_ report: DailyInsightReport) -> some View {
@@ -514,5 +424,189 @@ struct AIInsightsView: View {
                 .padding(.horizontal, 36)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+private struct AIInsightCalendarSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.locale) private var locale
+
+    @State private var draftDate: Date
+
+    let allowedRange: ClosedRange<Date>
+    let reportProvider: (Date) -> DailyInsightReport?
+    let onConfirm: (Date) -> Void
+
+    init(
+        selectedDate: Date,
+        allowedRange: ClosedRange<Date>,
+        reportProvider: @escaping (Date) -> DailyInsightReport?,
+        onConfirm: @escaping (Date) -> Void
+    ) {
+        _draftDate = State(initialValue: selectedDate.startOfDay)
+        self.allowedRange = allowedRange
+        self.reportProvider = reportProvider
+        self.onConfirm = onConfirm
+    }
+
+    private var selectedReport: DailyInsightReport? {
+        reportProvider(draftDate.startOfDay)
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(spacing: 20) {
+                    DatePicker(
+                        NSLocalizedString("选择日期", comment: ""),
+                        selection: $draftDate,
+                        in: allowedRange,
+                        displayedComponents: .date
+                    )
+                    .datePickerStyle(.graphical)
+                    .labelsHidden()
+                    .padding(12)
+                    .background(AppTheme.cardBackground)
+                    .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+
+                    if let selectedReport {
+                        AIInsightRingCalendarPreview(report: selectedReport, locale: locale)
+                    } else {
+                        Text(NSLocalizedString("还没有可分析的数据", comment: ""))
+                            .font(.system(size: 15, weight: .semibold, design: .rounded))
+                            .foregroundStyle(AppTheme.secondaryText)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 24)
+                            .background(AppTheme.cardBackground)
+                            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+                    }
+                }
+                .padding(18)
+            }
+            .background(AppTheme.background.ignoresSafeArea())
+            .navigationTitle(NSLocalizedString("选择日期", comment: ""))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button(NSLocalizedString("取消", comment: "")) { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(NSLocalizedString("确定", comment: "")) {
+                        onConfirm(draftDate.startOfDay)
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+}
+
+private struct AIInsightRingCalendarPreview: View {
+    let report: DailyInsightReport
+    let locale: Locale
+
+    private var rings: [CalendarRingMetric] {
+        let overall = CalendarRingMetric(
+            title: NSLocalizedString("当日分数", comment: ""),
+            score: report.overallScore,
+            maxScore: 100,
+            color: AppTheme.accent
+        )
+        let components = report.components.map {
+            CalendarRingMetric(
+                title: $0.kind.title,
+                score: $0.score,
+                maxScore: max($0.maxScore, 1),
+                color: color(for: $0.kind)
+            )
+        }
+        return [overall] + components
+    }
+
+    var body: some View {
+        VStack(spacing: 20) {
+            ZStack {
+                ForEach(Array(rings.enumerated()), id: \.offset) { index, ring in
+                    Circle()
+                        .stroke(ring.color.opacity(0.14), lineWidth: 12)
+                        .frame(width: ringSize(for: index), height: ringSize(for: index))
+
+                    Circle()
+                        .trim(from: 0, to: ring.progress)
+                        .stroke(
+                            ring.color,
+                            style: StrokeStyle(lineWidth: 12, lineCap: .round)
+                        )
+                        .rotationEffect(.degrees(-90))
+                        .frame(width: ringSize(for: index), height: ringSize(for: index))
+                }
+
+                VStack(spacing: 4) {
+                    Text("\(report.overallScore)")
+                        .font(.system(size: 34, weight: .bold, design: .rounded))
+                        .foregroundStyle(AppTheme.primaryText)
+
+                    Text(report.date.formattedDayTitle(locale: locale))
+                        .font(.system(size: 13, weight: .semibold, design: .rounded))
+                        .foregroundStyle(AppTheme.secondaryText)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 20)
+                }
+            }
+            .frame(height: 230)
+
+            VStack(spacing: 10) {
+                ForEach(rings) { ring in
+                    HStack(spacing: 10) {
+                        Circle()
+                            .fill(ring.color)
+                            .frame(width: 10, height: 10)
+
+                        Text(ring.title)
+                            .font(.system(size: 14, weight: .semibold, design: .rounded))
+                            .foregroundStyle(AppTheme.primaryText)
+
+                        Spacer()
+
+                        Text("\(ring.score)/\(ring.maxScore)")
+                            .font(.system(size: 14, weight: .bold, design: .rounded))
+                            .foregroundStyle(ring.color)
+                    }
+                }
+            }
+        }
+        .padding(22)
+        .background(AppTheme.cardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+    }
+
+    private func ringSize(for index: Int) -> CGFloat {
+        max(78, 208 - CGFloat(index * 28))
+    }
+
+    private func color(for kind: DailyInsightComponentKind) -> Color {
+        switch kind {
+        case .sleep:
+            Color(red: 0.35, green: 0.46, blue: 0.96)
+        case .meals:
+            Color(red: 0.98, green: 0.62, blue: 0.24)
+        case .shower:
+            Color(red: 0.22, green: 0.70, blue: 0.67)
+        case .bowelMovement:
+            Color(red: 0.71, green: 0.49, blue: 0.28)
+        }
+    }
+}
+
+private struct CalendarRingMetric: Identifiable {
+    let id = UUID()
+    let title: String
+    let score: Int
+    let maxScore: Int
+    let color: Color
+
+    var progress: CGFloat {
+        guard maxScore > 0 else { return 0 }
+        return CGFloat(max(0, min(Double(score) / Double(maxScore), 1)))
     }
 }

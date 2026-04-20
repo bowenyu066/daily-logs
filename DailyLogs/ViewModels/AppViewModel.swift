@@ -242,7 +242,7 @@ final class AppViewModel: ObservableObject {
             persistPreferences()
             applyCurrentLanguage()
             if let user {
-                selectedDate = max(selectedDate, user.createdAt.startOfDay)
+                selectedDate = min(max(selectedDate, user.createdAt.startOfDay), logicalToday)
                 analyticsCustomDateRange = defaultAnalyticsCustomRange(startingAt: user.createdAt)
                 try loadAllRecords(for: user.userID)
                 if shouldMigrateMidnightModeKeys {
@@ -278,6 +278,7 @@ final class AppViewModel: ObservableObject {
 
     func handleAppBecomingActive() async {
         refreshOpenAIConfigurationState()
+        await normalizeSelectedDateForCurrentDayBoundaryIfNeeded()
         await ensureAutomaticYesterdayInsightIfNeeded()
     }
 
@@ -1676,6 +1677,69 @@ final class AppViewModel: ObservableObject {
         return date.displayShortTime(in: timeZone) + nextDayDisplaySuffix(for: date, displayedTimeZone: timeZone)
     }
 
+    func suggestedEventTimestamp(
+        for logicalDate: Date,
+        recordedTimeZoneIdentifier: String?,
+        referenceDate: Date = .now
+    ) -> Date {
+        let timeZone = displayedTimeZone(for: recordedTimeZoneIdentifier)
+        var calendar = Calendar.current
+        calendar.timeZone = timeZone
+        let components = calendar.dateComponents([.hour, .minute], from: referenceDate)
+        return resolvedEventTimestamp(
+            for: logicalDate,
+            hour: components.hour ?? 12,
+            minute: components.minute ?? 0,
+            recordedTimeZoneIdentifier: recordedTimeZoneIdentifier
+        )
+    }
+
+    func resolvedEventTimestamp(
+        for logicalDate: Date,
+        hour: Int,
+        minute: Int,
+        recordedTimeZoneIdentifier: String?
+    ) -> Date {
+        let timeZone = displayedTimeZone(for: recordedTimeZoneIdentifier)
+        return resolvedTimestamp(for: logicalDate, hour: hour, minute: minute, timeZone: timeZone)
+    }
+
+    func normalizedEventTimestamp(
+        from displayedTime: Date,
+        baseDate: Date,
+        recordedTimeZoneIdentifier: String?
+    ) -> Date {
+        let timeZone = displayedTimeZone(for: recordedTimeZoneIdentifier)
+        var calendar = Calendar.current
+        calendar.timeZone = timeZone
+        let components = calendar.dateComponents([.hour, .minute], from: displayedTime)
+        return resolvedTimestamp(
+            for: baseDate,
+            hour: components.hour ?? 12,
+            minute: components.minute ?? 0,
+            timeZone: timeZone
+        )
+    }
+
+    func normalizedBedtimeTimestamp(
+        from displayedTime: Date,
+        baseDate: Date,
+        recordedTimeZoneIdentifier: String?
+    ) -> Date {
+        let timeZone = displayedTimeZone(for: recordedTimeZoneIdentifier)
+        var calendar = Calendar.current
+        calendar.timeZone = timeZone
+        let components = calendar.dateComponents([.hour, .minute], from: displayedTime)
+        let hour = components.hour ?? 23
+        let minute = components.minute ?? 30
+
+        if hour >= 12 {
+            return baseDate.adding(days: -1).settingTime(hour: hour, minute: minute, in: timeZone)
+        }
+
+        return resolvedTimestamp(for: baseDate, hour: hour, minute: minute, timeZone: timeZone)
+    }
+
     private func convertedTemperatureValue(from celsius: Double) -> Double {
         switch preferences.temperatureUnit {
         case .celsius:
@@ -1713,6 +1777,32 @@ final class AppViewModel: ObservableObject {
             return TimeZone.autoupdatingCurrent.identifier
         case .recorded:
             return recordedTimeZoneIdentifier ?? TimeZone.autoupdatingCurrent.identifier
+        }
+    }
+
+    private func resolvedTimestamp(for logicalDate: Date, hour: Int, minute: Int, timeZone: TimeZone) -> Date {
+        let sameDay = logicalDate.settingTime(hour: hour, minute: minute, in: timeZone)
+        guard preferences.midnightMode.isEnabled,
+              hour < MidnightModeSettings.fixedCutoffHour else {
+            return sameDay
+        }
+
+        let nextDay = logicalDate.adding(days: 1).settingTime(hour: hour, minute: minute, in: timeZone)
+        guard preferences.midnightMode.applies(to: nextDay) else {
+            return sameDay
+        }
+
+        return nextDay
+    }
+
+    private func normalizeSelectedDateForCurrentDayBoundaryIfNeeded() async {
+        let normalized = min(max(selectedDate.startOfDay, availableStartDate), logicalToday)
+        guard normalized != selectedDate.startOfDay else { return }
+        selectedDate = normalized
+        do {
+            try loadSelectedRecord()
+        } catch {
+            errorMessage = NSLocalizedString("加载记录失败：", comment: "") + error.localizedDescription
         }
     }
 

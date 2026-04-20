@@ -445,12 +445,6 @@ struct SettingsView: View {
                     .presentationCompactAdaptation(.popover)
             }
 
-            if appViewModel.preferences.midnightMode.isEnabled {
-                SettingsStaticRow(
-                    title: NSLocalizedString("截止时间", comment: ""),
-                    value: NSLocalizedString("固定为凌晨 4 点", comment: "")
-                )
-            }
         }
     }
 

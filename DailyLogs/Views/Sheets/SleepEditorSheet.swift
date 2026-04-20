@@ -128,22 +128,19 @@ struct SleepEditorSheet: View {
     }
 
     private var normalizedTime: Date {
-        let timeZone = appViewModel.displayedTimeZone(for: appViewModel.dailyRecord.sleepRecord.timeZoneIdentifier)
-        var calendar = Calendar.current
-        calendar.timeZone = timeZone
-        let components = calendar.dateComponents([.hour, .minute], from: selectedTime)
-        let hour = components.hour ?? 23
-        let minute = components.minute ?? 30
-
         switch target {
         case .bedtime:
-            if hour >= 12 {
-                return baseDate.adding(days: -1).settingTime(hour: hour, minute: minute, in: timeZone)
-            } else {
-                return baseDate.settingTime(hour: hour, minute: minute, in: timeZone)
-            }
+            return appViewModel.normalizedBedtimeTimestamp(
+                from: selectedTime,
+                baseDate: baseDate,
+                recordedTimeZoneIdentifier: appViewModel.dailyRecord.sleepRecord.timeZoneIdentifier
+            )
         case .wakeTime:
-            return baseDate.settingTime(hour: hour, minute: minute, in: timeZone)
+            return appViewModel.normalizedEventTimestamp(
+                from: selectedTime,
+                baseDate: baseDate,
+                recordedTimeZoneIdentifier: appViewModel.dailyRecord.sleepRecord.timeZoneIdentifier
+            )
         }
     }
 }
