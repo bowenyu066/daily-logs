@@ -909,7 +909,9 @@ extension UserPreferences {
     }
 
     func storageKey(for timestamp: Date, timeZoneIdentifier: String? = nil, fallbackTimeZone: TimeZone = .autoupdatingCurrent) -> String {
-        logicalDate(for: timestamp, timeZoneIdentifier: timeZoneIdentifier, fallbackTimeZone: fallbackTimeZone).storageKey()
+        let timeZone = TimeZone(identifier: timeZoneIdentifier ?? "") ?? fallbackTimeZone
+        let logicalDay = midnightMode.logicalDate(for: timestamp, timeZone: timeZone)
+        return logicalDay.storageKey(in: timeZone)
     }
 
     func currentLogicalDate(now: Date = .now, timeZone: TimeZone = .autoupdatingCurrent) -> Date {

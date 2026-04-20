@@ -57,15 +57,18 @@ service firebase.storage {
 The repository now includes a minimal Cloud Functions proxy in [firebase/functions/index.js](/Users/flyfishyu/Documents/2026/Dev Exps/Daily_logs/firebase/functions/index.js).
 
 1. Install the Firebase CLI and log in.
-2. In [firebase/functions/package.json](/Users/flyfishyu/Documents/2026/Dev Exps/Daily_logs/firebase/functions/package.json), install dependencies with your preferred Node package manager.
+2. Install dependencies in [firebase/functions/package.json](/Users/flyfishyu/Documents/2026/Dev Exps/Daily_logs/firebase/functions/package.json) with your preferred Node package manager.
+   Example:
+   `cd firebase/functions && npm install`
 3. Set the OpenAI secret:
    `firebase functions:secrets:set OPENAI_API_KEY`
-4. Deploy:
+4. From the repository root, deploy:
    `firebase deploy --only functions:proxyOpenAIResponses`
 5. Copy the deployed HTTPS URL into `AIProxyURL` in [DailyLogs/Resources/Info.plist](/Users/flyfishyu/Documents/2026/Dev Exps/Daily_logs/DailyLogs/Resources/Info.plist).
+   If you're updating an existing function and the URL hasn't changed, this step can be skipped.
 
 Behavior:
 
 - The function requires a Firebase Auth bearer token.
-- Requests are rate-limited per user per UTC day, default `5`.
+- Requests are rate-limited per user per UTC day, default `25`.
 - The OpenAI API key stays only in Functions secrets and is never sent to the client.

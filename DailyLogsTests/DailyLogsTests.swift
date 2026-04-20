@@ -1057,7 +1057,11 @@ struct DailyLogsTests {
             _ = try await service.generateNarrative(from: payload)
             Issue.record("Expected daily limit error to be thrown.")
         } catch {
-            #expect(error.localizedDescription == "今天的 AI 评分次数已用完（上限 5 次），请稍后再试。")
+            guard case let AIInsightServiceError.dailyLimitReached(limit) = error else {
+                Issue.record("Expected daily limit error, got: \(error)")
+                return
+            }
+            #expect(limit == 5)
         }
     }
 
@@ -1321,6 +1325,21 @@ struct DailyLogsTests {
 
         #expect(stored.storageKey(calendar: londonCalendar) == "2026-03-27")
         #expect(stored.storageKey(calendar: bostonCalendar) == "2026-03-27")
+    }
+
+    @Test
+    func userPreferencesStorageKeyUsesRecordedTimeZoneWhenFormatting() {
+        let formatter = ISO8601DateFormatter()
+        let preferences = UserPreferences()
+        let londonTimestamp = formatter.date(from: "2026-03-27T07:20:00Z")!
+
+        let key = preferences.storageKey(
+            for: londonTimestamp,
+            timeZoneIdentifier: "Europe/London",
+            fallbackTimeZone: TimeZone(identifier: "America/New_York")!
+        )
+
+        #expect(key == "2026-03-27")
     }
 
     @Test
