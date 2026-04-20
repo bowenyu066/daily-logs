@@ -509,6 +509,43 @@ struct DailyLogsTests {
         #expect(resolved.storageKey(in: .autoupdatingCurrent) == "2026-04-18")
     }
 
+    @Test @MainActor
+    func aiInsightCalendarRangeExcludesLogicalToday() throws {
+        let today = Date().startOfDay
+        let yesterday = today.adding(days: -1)
+        let twoDaysAgo = today.adding(days: -2)
+        let user = UserProfile(
+            userID: "tester",
+            displayName: "Tester",
+            authProvider: .apple,
+            createdAt: twoDaysAgo
+        )
+        let repository = InMemoryDailyRecordRepository(records: [
+            yesterday.storageKey(): DailyRecord.empty(for: yesterday, preferences: UserPreferences()),
+            today.storageKey(): DailyRecord.empty(for: today, preferences: UserPreferences())
+        ])
+        let viewModel = AppViewModel(
+            authService: MockAuthService(user: user),
+            repository: repository,
+            preferencesStore: MockPreferencesStore(preferences: UserPreferences()),
+            photoStorageService: MockPhotoStorageService(),
+            sunTimesService: MockSunTimesService(),
+            weatherService: MockWeatherService(),
+            healthSyncAdapter: MockHealthSyncAdapter(sleepRecord: nil),
+            cloudSyncService: NoopCloudSyncService(),
+            aiInsightNarrativeService: MockAIInsightNarrativeService(responses: []),
+            openAIKeyStore: MockOpenAIKeyStore(),
+            locationService: LocationService(),
+            selectedDate: today,
+            dailyRecord: DailyRecord.empty(for: today, preferences: UserPreferences()),
+            preferences: UserPreferences()
+        )
+
+        let range = try #require(viewModel.aiInsightCalendarDateRange)
+        #expect(range.upperBound == yesterday)
+        #expect(!range.contains(today))
+    }
+
     @Test
     func dailyInsightReportOnlyIncludesEnabledOptionalSections() throws {
         let day = Calendar.current.date(from: DateComponents(year: 2026, month: 3, day: 20))!

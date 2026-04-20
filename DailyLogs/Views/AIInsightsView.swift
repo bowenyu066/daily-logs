@@ -28,6 +28,10 @@ struct AIInsightsView: View {
         appViewModel.preferences.appLanguage.locale ?? Locale.autoupdatingCurrent
     }
 
+    private var insightCalendarRange: ClosedRange<Date>? {
+        appViewModel.aiInsightCalendarDateRange
+    }
+
     private var isDisplayingAIScoreForSelection: Bool {
         guard let resolvedInsightDate else { return false }
         return appViewModel.isDisplayingAIScoredInsight(for: resolvedInsightDate)
@@ -62,14 +66,19 @@ struct AIInsightsView: View {
             .navigationTitle(NSLocalizedString("AI 洞察", comment: ""))
             .navigationBarTitleDisplayMode(.inline)
             .sheet(isPresented: $showingDatePicker) {
-                AIInsightCalendarSheet(
-                    selectedDate: resolvedInsightDate ?? appViewModel.dailyInsightTargetDate ?? appViewModel.logicalToday,
-                    allowedRange: appViewModel.availableDateRange,
-                    reportProvider: { date in
-                        appViewModel.displayedDailyInsightReport(for: date)
+                if let insightCalendarRange {
+                    AIInsightCalendarSheet(
+                        selectedDate: min(
+                            resolvedInsightDate ?? appViewModel.dailyInsightTargetDate ?? insightCalendarRange.upperBound,
+                            insightCalendarRange.upperBound
+                        ),
+                        allowedRange: insightCalendarRange,
+                        reportProvider: { date in
+                            appViewModel.displayedDailyInsightReport(for: date)
+                        }
+                    ) { date in
+                        selectedInsightDate = date.startOfDay
                     }
-                ) { date in
-                    selectedInsightDate = date.startOfDay
                 }
             }
             .task(id: taskRefreshKey) {
@@ -130,17 +139,19 @@ struct AIInsightsView: View {
 
                 Spacer(minLength: 12)
 
-                Button {
-                    showingDatePicker = true
-                } label: {
-                    Image(systemName: "calendar")
-                        .font(.system(size: 16, weight: .bold))
-                        .foregroundStyle(.white)
-                        .frame(width: 40, height: 40)
-                        .background(.white.opacity(0.12))
-                        .clipShape(Circle())
+                if insightCalendarRange != nil {
+                    Button {
+                        showingDatePicker = true
+                    } label: {
+                        Image(systemName: "calendar")
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundStyle(.white)
+                            .frame(width: 40, height: 40)
+                            .background(.white.opacity(0.12))
+                            .clipShape(Circle())
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
             }
 
             HStack(spacing: 18) {

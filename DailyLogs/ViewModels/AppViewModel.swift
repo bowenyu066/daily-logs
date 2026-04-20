@@ -135,6 +135,12 @@ final class AppViewModel: ObservableObject {
         availableStartDate...logicalToday
     }
 
+    var aiInsightCalendarDateRange: ClosedRange<Date>? {
+        let upperBound = logicalToday.adding(days: -1)
+        guard availableStartDate <= upperBound else { return nil }
+        return availableStartDate...upperBound
+    }
+
     var analyticsSummary: AnalyticsSummary {
         AnalyticsCalculator.build(
             records: allRecords,
