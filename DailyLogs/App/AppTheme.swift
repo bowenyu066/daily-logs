@@ -36,22 +36,24 @@ enum AppTheme {
             ? UIColor(red: 0.66, green: 0.68, blue: 0.73, alpha: 1)
             : UIColor(red: 0.42, green: 0.42, blue: 0.45, alpha: 1)
     })
-    static let accent = Color(red: 0.20, green: 0.45, blue: 0.76)
+    static let accent = Color(red: 0.22, green: 0.44, blue: 0.72)
     static let accentSoft = Color(uiColor: UIColor { trait in
         trait.userInterfaceStyle == .dark
-            ? UIColor(red: 0.17, green: 0.24, blue: 0.34, alpha: 1)
-            : UIColor(red: 0.86, green: 0.91, blue: 0.97, alpha: 1)
+            ? UIColor(red: 0.16, green: 0.22, blue: 0.32, alpha: 1)
+            : UIColor(red: 0.88, green: 0.92, blue: 0.97, alpha: 1)
     })
     static let mealLoggedBackground = Color(uiColor: UIColor { trait in
         trait.userInterfaceStyle == .dark
-            ? UIColor(red: 0.17, green: 0.28, blue: 0.20, alpha: 1)
-            : UIColor(red: 0.85, green: 0.93, blue: 0.84, alpha: 1)
+            ? UIColor(red: 0.16, green: 0.26, blue: 0.19, alpha: 1)
+            : UIColor(red: 0.88, green: 0.94, blue: 0.87, alpha: 1)
     })
-    static let sunriseAccent = Color(red: 0.86, green: 0.56, blue: 0.16)
-    static let sleepAccent = Color(red: 0.45, green: 0.54, blue: 0.88)
-    static let wakeAccent = Color(red: 0.90, green: 0.66, blue: 0.26)
-    static let showerAccent = Color(red: 0.30, green: 0.63, blue: 0.80)
-    static let warning = Color(red: 0.83, green: 0.30, blue: 0.28)
+    static let sunriseAccent = Color(red: 0.84, green: 0.58, blue: 0.22)
+    static let sleepAccent = Color(red: 0.40, green: 0.50, blue: 0.84)
+    static let wakeAccent = Color(red: 0.88, green: 0.64, blue: 0.24)
+    static let showerAccent = Color(red: 0.28, green: 0.60, blue: 0.76)
+    static let bowelAccent = Color(red: 0.56, green: 0.44, blue: 0.30)
+    static let sexualAccent = Color(red: 0.78, green: 0.40, blue: 0.52)
+    static let warning = Color(red: 0.80, green: 0.28, blue: 0.26)
     static let border = Color(uiColor: UIColor { trait in
         trait.userInterfaceStyle == .dark
             ? UIColor(white: 1.0, alpha: 0.08)

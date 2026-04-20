@@ -21,12 +21,8 @@ struct SettingsView: View {
                 ScrollView(.vertical, showsIndicators: false) {
                     VStack(alignment: .leading, spacing: 18) {
                         accountCard
-                        preferenceCard
-                        aiInsightsCard
-                        cloudEncryptionCard
-                        homeSectionsCard
-                        defaultMealsCard
-                        healthKitCard
+                        preferencesCard
+                        dataAndSyncCard
                     }
                     .padding(.horizontal, 18)
                     .padding(.vertical, 16)
@@ -77,9 +73,10 @@ struct SettingsView: View {
         }
     }
 
+    // MARK: - Account
+
     private var accountCard: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            SectionHeader(title: NSLocalizedString("账号", comment: ""), subtitle: nil)
+        VStack(alignment: .leading, spacing: 18) {
             HStack(spacing: 14) {
                 Circle()
                     .fill(AppTheme.accentSoft)
@@ -130,75 +127,318 @@ struct SettingsView: View {
         .appCardStyle()
     }
 
-    private var preferenceCard: some View {
-        VStack(alignment: .leading, spacing: 16) {
+    // MARK: - Preferences
+
+    private var preferencesCard: some View {
+        VStack(alignment: .leading, spacing: 0) {
             SectionHeader(title: NSLocalizedString("偏好", comment: ""), subtitle: nil)
-            Menu {
-                ForEach(AppearanceMode.allCases) { mode in
-                    Button {
-                        Task { await appViewModel.updateAppearanceMode(mode) }
-                    } label: {
-                        HStack {
-                            Text(mode.title)
-                            if appViewModel.preferences.appearanceMode == mode {
-                                Image(systemName: "checkmark")
-                            }
-                        }
-                    }
-                }
-            } label: {
-                SettingsStaticRow(title: NSLocalizedString("外观", comment: ""), value: appViewModel.preferences.appearanceMode.title)
-            }
-            .buttonStyle(.plain)
+                .padding(.bottom, 14)
 
-            Menu {
-                ForEach(AppLanguage.allCases) { lang in
-                    Button {
-                        Task { await appViewModel.updateAppLanguage(lang) }
-                    } label: {
-                        HStack {
-                            Text(lang.title)
-                            if appViewModel.preferences.appLanguage == lang {
-                                Image(systemName: "checkmark")
-                            }
-                        }
-                    }
-                }
-            } label: {
-                SettingsStaticRow(title: NSLocalizedString("语言", comment: ""), value: appViewModel.preferences.appLanguage.title)
-            }
-            .buttonStyle(.plain)
-
-            SettingsRow(title: NSLocalizedString("目标入睡", comment: ""), value: appViewModel.bedtimeScheduleSummary()) {
-                showingTargetBedtime = true
-            }
-
-            timeDisplayModeSection
-            temperatureUnitSection
-            midnightModeSection
-
-            LocationPermissionToggleRow(
-                isOn: Binding(
-                    get: { appViewModel.preferences.locationPermissionState == .authorized },
-                    set: { isOn in
-                        if isOn {
-                            appViewModel.requestLocationAccess()
-                        } else if appViewModel.preferences.locationPermissionState == .authorized {
-                            if let url = URL(string: UIApplication.openSettingsURLString) {
-                                openURL(url)
-                            }
-                        }
-                    }
-                )
-            )
+            appearanceRow
+            rowDivider
+            languageRow
+            rowDivider
+            bedtimeRow
+            rowDivider
+            timeDisplayRow
+            rowDivider
+            temperatureRow
+            rowDivider
+            midnightModeRow
+            rowDivider
+            locationRow
+            rowDivider
+            homeSectionsRow
+            rowDivider
+            defaultMealsRow
         }
         .padding(22)
         .appCardStyle()
     }
 
-    private var cloudEncryptionCard: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            SectionHeader(title: NSLocalizedString("云端加密", comment: ""), subtitle: nil)
+    private var rowDivider: some View {
+        Divider()
+            .background(AppTheme.border)
+            .padding(.vertical, 2)
+    }
+
+    private var appearanceRow: some View {
+        Menu {
+            ForEach(AppearanceMode.allCases) { mode in
+                Button {
+                    Task { await appViewModel.updateAppearanceMode(mode) }
+                } label: {
+                    HStack {
+                        Text(mode.title)
+                        if appViewModel.preferences.appearanceMode == mode {
+                            Image(systemName: "checkmark")
+                        }
+                    }
+                }
+            }
+        } label: {
+            SettingsStaticRow(title: NSLocalizedString("外观", comment: ""), value: appViewModel.preferences.appearanceMode.title)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var languageRow: some View {
+        Menu {
+            ForEach(AppLanguage.allCases) { lang in
+                Button {
+                    Task { await appViewModel.updateAppLanguage(lang) }
+                } label: {
+                    HStack {
+                        Text(lang.title)
+                        if appViewModel.preferences.appLanguage == lang {
+                            Image(systemName: "checkmark")
+                        }
+                    }
+                }
+            }
+        } label: {
+            SettingsStaticRow(title: NSLocalizedString("语言", comment: ""), value: appViewModel.preferences.appLanguage.title)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var bedtimeRow: some View {
+        SettingsRow(title: NSLocalizedString("目标入睡", comment: ""), value: appViewModel.bedtimeScheduleSummary()) {
+            showingTargetBedtime = true
+        }
+    }
+
+    private var timeDisplayRow: some View {
+        Menu {
+            ForEach(TimeDisplayMode.allCases) { mode in
+                Button {
+                    Task { await appViewModel.updateTimeDisplayMode(mode) }
+                } label: {
+                    HStack {
+                        Text(mode.title)
+                        if appViewModel.preferences.timeDisplayMode == mode {
+                            Image(systemName: "checkmark")
+                        }
+                    }
+                }
+            }
+        } label: {
+            SettingsStaticRow(title: NSLocalizedString("时间展示方式", comment: ""), value: appViewModel.preferences.timeDisplayMode.title)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var temperatureRow: some View {
+        Menu {
+            ForEach(TemperatureUnitPreference.allCases) { unit in
+                Button {
+                    Task { await appViewModel.updateTemperatureUnit(unit) }
+                } label: {
+                    HStack {
+                        Text(unit.title)
+                        if appViewModel.preferences.temperatureUnit == unit {
+                            Image(systemName: "checkmark")
+                        }
+                    }
+                }
+            }
+        } label: {
+            SettingsStaticRow(title: NSLocalizedString("温度单位", comment: ""), value: appViewModel.preferences.temperatureUnit.title)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var midnightModeRow: some View {
+        HStack {
+            HStack(spacing: 6) {
+                Text(NSLocalizedString("午夜模式", comment: ""))
+                    .font(.system(size: 16, weight: .semibold, design: .rounded))
+                    .foregroundStyle(AppTheme.primaryText)
+
+                Button {
+                    showingMidnightModeInfoPopover.toggle()
+                } label: {
+                    Image(systemName: "questionmark.circle")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(AppTheme.secondaryText)
+                }
+                .buttonStyle(.plain)
+                .popover(
+                    isPresented: $showingMidnightModeInfoPopover,
+                    attachmentAnchor: .rect(.bounds),
+                    arrowEdge: .bottom
+                ) {
+                    midnightModeInfoPopover
+                        .presentationCompactAdaptation(.popover)
+                }
+            }
+
+            Spacer()
+            Toggle("", isOn: Binding(
+                get: { appViewModel.preferences.midnightMode.isEnabled },
+                set: { isOn in
+                    if isOn {
+                        pendingMidnightModeEnabled = true
+                        showingMidnightModeConfirmation = true
+                    } else {
+                        Task {
+                            await appViewModel.configureMidnightMode(
+                                enabled: false,
+                                applyToExistingRecords: false
+                            )
+                        }
+                    }
+                }
+            ))
+            .labelsHidden()
+            .tint(AppTheme.accent)
+        }
+        .padding(.vertical, 2)
+        .popover(
+            isPresented: $showingMidnightModeConfirmation,
+            attachmentAnchor: .rect(.bounds),
+            arrowEdge: .top
+        ) {
+            midnightModeConfirmationPopover
+                .presentationCompactAdaptation(.popover)
+        }
+    }
+
+    private var locationRow: some View {
+        LocationPermissionToggleRow(
+            isOn: Binding(
+                get: { appViewModel.preferences.locationPermissionState == .authorized },
+                set: { isOn in
+                    if isOn {
+                        appViewModel.requestLocationAccess()
+                    } else if appViewModel.preferences.locationPermissionState == .authorized {
+                        if let url = URL(string: UIApplication.openSettingsURLString) {
+                            openURL(url)
+                        }
+                    }
+                }
+            )
+        )
+    }
+
+    private var homeSectionsRow: some View {
+        Button {
+            showingHomeSections = true
+        } label: {
+            HStack {
+                Text(NSLocalizedString("自定义首页", comment: ""))
+                    .font(.system(size: 16, weight: .semibold, design: .rounded))
+                    .foregroundStyle(AppTheme.primaryText)
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(AppTheme.secondaryText)
+            }
+            .padding(.vertical, 2)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var defaultMealsRow: some View {
+        Button {
+            showingMealSlots = true
+        } label: {
+            HStack {
+                Text(NSLocalizedString("默认餐次", comment: ""))
+                    .font(.system(size: 16, weight: .semibold, design: .rounded))
+                    .foregroundStyle(AppTheme.primaryText)
+                Spacer()
+                Text(mealSlotsSummary)
+                    .font(.system(size: 14, weight: .medium, design: .rounded))
+                    .foregroundStyle(AppTheme.secondaryText)
+                    .lineLimit(1)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(AppTheme.secondaryText)
+            }
+            .padding(.vertical, 2)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var mealSlotsSummary: String {
+        let slots = appViewModel.preferences.defaultMealSlots
+        if slots.isEmpty { return "--" }
+        let count = slots.count
+        let formatKey = NSLocalizedString("%d 项", comment: "")
+        return String(format: formatKey, count)
+    }
+
+    // MARK: - Data & Sync
+
+    private var dataAndSyncCard: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            SectionHeader(title: NSLocalizedString("数据与同步", comment: ""), subtitle: nil)
+                .padding(.bottom, 14)
+
+            healthKitRow
+            rowDivider
+            aiInsightsRow
+            rowDivider
+            cloudEncryptionSection
+        }
+        .padding(22)
+        .appCardStyle()
+    }
+
+    private var healthKitRow: some View {
+        HStack {
+            Text(NSLocalizedString("HealthKit 同步", comment: ""))
+                .font(.system(size: 16, weight: .semibold, design: .rounded))
+                .foregroundStyle(AppTheme.primaryText)
+            Spacer()
+            Toggle("", isOn: Binding(
+                get: { appViewModel.preferences.healthKitSyncEnabled },
+                set: { enabled in
+                    Task { await appViewModel.toggleHealthKitSync(enabled) }
+                }
+            ))
+            .labelsHidden()
+            .tint(AppTheme.accent)
+        }
+        .padding(.vertical, 2)
+    }
+
+    private var aiInsightsRow: some View {
+        HStack(spacing: 10) {
+            Text(NSLocalizedString("AI 洞察", comment: ""))
+                .font(.system(size: 16, weight: .semibold, design: .rounded))
+                .foregroundStyle(AppTheme.primaryText)
+            Spacer()
+            Circle()
+                .fill(appViewModel.canGenerateAIInsights ? Color(red: 0.20, green: 0.63, blue: 0.60) : AppTheme.warning)
+                .frame(width: 8, height: 8)
+            Text(aiInsightsStatusText)
+                .font(.system(size: 14, weight: .medium, design: .rounded))
+                .foregroundStyle(AppTheme.secondaryText)
+                .lineLimit(1)
+                .minimumScaleFactor(0.85)
+        }
+        .padding(.vertical, 2)
+    }
+
+    @ViewBuilder
+    private var cloudEncryptionSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 10) {
+                Text(NSLocalizedString("云端加密", comment: ""))
+                    .font(.system(size: 16, weight: .semibold, design: .rounded))
+                    .foregroundStyle(AppTheme.primaryText)
+                Spacer()
+                Circle()
+                    .fill(cloudEncryptionAccent)
+                    .frame(width: 8, height: 8)
+                Text(cloudEncryptionTitle)
+                    .font(.system(size: 14, weight: .medium, design: .rounded))
+                    .foregroundStyle(AppTheme.secondaryText)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
+            }
 
             if !cloudEncryptionDescription.isEmpty {
                 Text(cloudEncryptionDescription)
@@ -207,42 +447,11 @@ struct SettingsView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            HStack(spacing: 10) {
-                Circle()
-                    .fill(cloudEncryptionAccent)
-                    .frame(width: 10, height: 10)
-                Text(cloudEncryptionTitle)
-                    .font(.system(size: 15, weight: .semibold, design: .rounded))
-                    .foregroundStyle(AppTheme.primaryText)
-                Spacer()
-            }
-
-            if appViewModel.user?.isGuest == true {
-                Text(NSLocalizedString("游客模式不使用云同步。", comment: ""))
-                    .font(.system(size: 14, weight: .medium, design: .rounded))
-                    .foregroundStyle(AppTheme.secondaryText)
-            } else {
+            if appViewModel.user?.isGuest != true {
                 actionButtons
             }
         }
-        .padding(22)
-        .appCardStyle()
-    }
-
-    private var aiInsightsCard: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            SectionHeader(title: NSLocalizedString("AI 洞察", comment: ""), subtitle: nil)
-            HStack(spacing: 10) {
-                Circle()
-                    .fill(appViewModel.canGenerateAIInsights ? Color(red: 0.20, green: 0.63, blue: 0.60) : AppTheme.warning)
-                    .frame(width: 10, height: 10)
-                Text(aiInsightsStatusText)
-                    .font(.system(size: 14, weight: .semibold, design: .rounded))
-                    .foregroundStyle(AppTheme.primaryText)
-            }
-        }
-        .padding(22)
-        .appCardStyle()
+        .padding(.vertical, 2)
     }
 
     private var aiInsightsStatusText: String {
@@ -259,23 +468,21 @@ struct SettingsView: View {
     private var actionButtons: some View {
         switch appViewModel.cloudEncryptionState {
         case .unavailable:
-            Text(NSLocalizedString("当前设备未启用云同步。", comment: ""))
-                .font(.system(size: 14, weight: .medium, design: .rounded))
-                .foregroundStyle(AppTheme.secondaryText)
+            EmptyView()
         case .disabled:
             primaryActionButton(
                 title: NSLocalizedString("立即升级为端到端加密", comment: ""),
                 action: { appViewModel.shouldPresentCloudMigration = true }
             )
+            .padding(.top, 6)
         case .locked:
-            VStack(spacing: 10) {
-                secondaryActionButton(
-                    title: NSLocalizedString("重新检查同步密钥", comment: ""),
-                    action: {
-                        Task { await appViewModel.refreshCloudEncryptionState() }
-                    }
-                )
-            }
+            secondaryActionButton(
+                title: NSLocalizedString("重新检查同步密钥", comment: ""),
+                action: {
+                    Task { await appViewModel.refreshCloudEncryptionState() }
+                }
+            )
+            .padding(.top, 6)
         case .unlocked:
             EmptyView()
         }
@@ -287,9 +494,9 @@ struct SettingsView: View {
                 .font(.system(size: 15, weight: .bold, design: .rounded))
                 .foregroundStyle(.white)
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, 14)
+                .padding(.vertical, 13)
                 .background(AppTheme.actionFill)
-                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
         .buttonStyle(.plain)
     }
@@ -300,11 +507,11 @@ struct SettingsView: View {
                 .font(.system(size: 15, weight: .semibold, design: .rounded))
                 .foregroundStyle(AppTheme.primaryText)
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, 14)
+                .padding(.vertical, 13)
                 .background(AppTheme.elevatedSurface)
-                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
                         .stroke(AppTheme.border, lineWidth: 1)
                 )
         }
@@ -346,107 +553,11 @@ struct SettingsView: View {
         case .locked:
             return AppTheme.warning
         case .unlocked:
-            return AppTheme.accent
+            return Color(red: 0.20, green: 0.63, blue: 0.60)
         }
     }
 
-    private var timeDisplayModeSection: some View {
-        Menu {
-            ForEach(TimeDisplayMode.allCases) { mode in
-                Button {
-                    Task { await appViewModel.updateTimeDisplayMode(mode) }
-                } label: {
-                    HStack {
-                        Text(mode.title)
-                        if appViewModel.preferences.timeDisplayMode == mode {
-                            Image(systemName: "checkmark")
-                        }
-                    }
-                }
-            }
-        } label: {
-            SettingsStaticRow(title: NSLocalizedString("时间展示方式", comment: ""), value: appViewModel.preferences.timeDisplayMode.title)
-        }
-        .buttonStyle(.plain)
-    }
-
-    private var temperatureUnitSection: some View {
-        Menu {
-            ForEach(TemperatureUnitPreference.allCases) { unit in
-                Button {
-                    Task { await appViewModel.updateTemperatureUnit(unit) }
-                } label: {
-                    HStack {
-                        Text(unit.title)
-                        if appViewModel.preferences.temperatureUnit == unit {
-                            Image(systemName: "checkmark")
-                        }
-                    }
-                }
-            }
-        } label: {
-            SettingsStaticRow(title: NSLocalizedString("温度单位", comment: ""), value: appViewModel.preferences.temperatureUnit.title)
-        }
-        .buttonStyle(.plain)
-    }
-
-    private var midnightModeSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                HStack(spacing: 6) {
-                    Text(NSLocalizedString("午夜模式", comment: ""))
-                        .font(.system(size: 16, weight: .semibold, design: .rounded))
-                        .foregroundStyle(AppTheme.primaryText)
-
-                    Button {
-                        showingMidnightModeInfoPopover.toggle()
-                    } label: {
-                        Image(systemName: "questionmark.circle")
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundStyle(AppTheme.secondaryText)
-                    }
-                    .buttonStyle(.plain)
-                    .popover(
-                        isPresented: $showingMidnightModeInfoPopover,
-                        attachmentAnchor: .rect(.bounds),
-                        arrowEdge: .bottom
-                    ) {
-                        midnightModeInfoPopover
-                            .presentationCompactAdaptation(.popover)
-                    }
-                }
-
-                Spacer()
-                Toggle("", isOn: Binding(
-                    get: { appViewModel.preferences.midnightMode.isEnabled },
-                    set: { isOn in
-                        if isOn {
-                            pendingMidnightModeEnabled = true
-                            showingMidnightModeConfirmation = true
-                        } else {
-                            Task {
-                                await appViewModel.configureMidnightMode(
-                                    enabled: false,
-                                    applyToExistingRecords: false
-                                )
-                            }
-                        }
-                    }
-                ))
-                .labelsHidden()
-                .tint(AppTheme.accent)
-            }
-            .popover(
-                isPresented: $showingMidnightModeConfirmation,
-                attachmentAnchor: .rect(.bounds),
-                arrowEdge: .top
-            ) {
-                midnightModeConfirmationPopover
-                    .presentationCompactAdaptation(.popover)
-            }
-
-        }
-    }
+    // MARK: - Midnight Mode Popovers
 
     private var midnightModeInfoPopover: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -528,89 +639,6 @@ struct SettingsView: View {
         .background(AppTheme.background)
     }
 
-    private var defaultMealsCard: some View {
-        Button {
-            showingMealSlots = true
-        } label: {
-            VStack(alignment: .leading, spacing: 14) {
-                HStack {
-                    Text(NSLocalizedString("默认餐次", comment: ""))
-                        .font(.system(size: 18, weight: .bold, design: .rounded))
-                        .foregroundStyle(AppTheme.primaryText)
-                    Spacer()
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(AppTheme.secondaryText)
-                }
-
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
-                        ForEach(appViewModel.preferences.defaultMealSlots) { slot in
-                            Text(slot.displayTitle)
-                                .font(.system(size: 15, weight: .semibold, design: .rounded))
-                                .foregroundStyle(AppTheme.primaryText)
-                                .padding(.horizontal, 14)
-                                .padding(.vertical, 10)
-                                .background(AppTheme.surface)
-                                .clipShape(Capsule())
-                                .overlay(
-                                    Capsule()
-                                        .stroke(AppTheme.border, lineWidth: 1)
-                                )
-                        }
-                    }
-                }
-            }
-        }
-        .buttonStyle(.plain)
-        .padding(18)
-        .appCardStyle()
-    }
-
-    private var healthKitCard: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            SectionHeader(
-                title: NSLocalizedString("Apple Health 睡眠", comment: ""),
-                subtitle: NSLocalizedString("自动从 Apple Health 同步睡眠数据（含阶段），替代手动输入。", comment: "")
-            )
-            HStack {
-                Text(NSLocalizedString("HealthKit 同步", comment: ""))
-                    .font(.system(size: 16, weight: .semibold, design: .rounded))
-                    .foregroundStyle(AppTheme.primaryText)
-                Spacer()
-                Toggle("", isOn: Binding(
-                    get: { appViewModel.preferences.healthKitSyncEnabled },
-                    set: { enabled in
-                        Task { await appViewModel.toggleHealthKitSync(enabled) }
-                    }
-                ))
-                .labelsHidden()
-                .tint(AppTheme.accent)
-            }
-        }
-        .padding(22)
-        .appCardStyle()
-    }
-
-    private var homeSectionsCard: some View {
-        Button {
-            showingHomeSections = true
-        } label: {
-            HStack {
-                Text(NSLocalizedString("自定义首页", comment: ""))
-                    .font(.system(size: 18, weight: .bold, design: .rounded))
-                    .foregroundStyle(AppTheme.primaryText)
-                Spacer()
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(AppTheme.secondaryText)
-            }
-        }
-        .buttonStyle(.plain)
-        .padding(22)
-        .appCardStyle()
-    }
-
     private var accountSubtitle: String {
         if appViewModel.user?.isGuest == true {
             return NSLocalizedString("游客模式，本地保存", comment: "")
@@ -636,9 +664,11 @@ private struct SettingsRow: View {
                     .foregroundStyle(AppTheme.primaryText)
                 Spacer()
                 Text(value)
-                    .font(.system(size: 15, weight: .medium, design: .rounded))
+                    .font(.system(size: 14, weight: .medium, design: .rounded))
                     .foregroundStyle(AppTheme.secondaryText)
+                    .lineLimit(1)
                 Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(AppTheme.secondaryText)
             }
             .padding(.vertical, 2)
@@ -658,7 +688,7 @@ private struct SettingsStaticRow: View {
                 .foregroundStyle(AppTheme.primaryText)
             Spacer()
             Text(value)
-                .font(.system(size: 15, weight: .medium, design: .rounded))
+                .font(.system(size: 14, weight: .medium, design: .rounded))
                 .foregroundStyle(AppTheme.secondaryText)
             Image(systemName: "chevron.up.chevron.down")
                 .font(.system(size: 11, weight: .bold))
@@ -732,7 +762,7 @@ struct HomeSectionCustomizationView: View {
                                 }
                             ))
                             .labelsHidden()
-                            .tint(.pink)
+                            .tint(AppTheme.sexualAccent)
                         }
                         .listRowBackground(AppTheme.surface)
                     }

@@ -751,7 +751,7 @@ struct HomeView: View {
                                 } label: {
                                     Image(systemName: "trash")
                                         .font(.system(size: 14, weight: .semibold))
-                                        .foregroundStyle(.red)
+                                        .foregroundStyle(AppTheme.warning)
                                 }
                                 .buttonStyle(.plain)
                                 .disabled(!appViewModel.canEditSelectedDate)
@@ -796,7 +796,7 @@ struct HomeView: View {
                 HStack(spacing: 8) {
                     Image(systemName: "leaf")
                         .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(.brown)
+                        .foregroundStyle(AppTheme.bowelAccent)
                     Text(NSLocalizedString("无记录", comment: ""))
                         .font(.system(size: 16, weight: .semibold, design: .rounded))
                         .foregroundStyle(AppTheme.secondaryText)
@@ -820,7 +820,7 @@ struct HomeView: View {
                                         )
                                     } ?? NSLocalizedString("已记录", comment: ""))
                                         .font(.system(size: 17, weight: .bold, design: .rounded))
-                                        .foregroundStyle(.brown)
+                                        .foregroundStyle(AppTheme.bowelAccent)
                                         .monospacedDigit()
                                 }
                                 .buttonStyle(.plain)
@@ -832,7 +832,7 @@ struct HomeView: View {
                                 } label: {
                                     Image(systemName: "trash")
                                         .font(.system(size: 14, weight: .semibold))
-                                        .foregroundStyle(.red)
+                                        .foregroundStyle(AppTheme.warning)
                                 }
                                 .buttonStyle(.plain)
                                 .disabled(!appViewModel.canEditSelectedDate)
@@ -877,7 +877,7 @@ struct HomeView: View {
                 HStack(spacing: 8) {
                     Image(systemName: "heart")
                         .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(.pink)
+                        .foregroundStyle(AppTheme.sexualAccent)
                     Text(NSLocalizedString("无记录", comment: ""))
                         .font(.system(size: 16, weight: .semibold, design: .rounded))
                         .foregroundStyle(AppTheme.secondaryText)
@@ -901,20 +901,20 @@ struct HomeView: View {
                                                 recordedTimeZoneIdentifier: entry.timeZoneIdentifier
                                             ))
                                                 .font(.system(size: 17, weight: .bold, design: .rounded))
-                                                .foregroundStyle(.pink)
+                                                .foregroundStyle(AppTheme.sexualAccent)
                                                 .monospacedDigit()
                                         } else {
                                             Text(NSLocalizedString("已记录", comment: ""))
                                                 .font(.system(size: 17, weight: .bold, design: .rounded))
-                                                .foregroundStyle(.pink)
+                                                .foregroundStyle(AppTheme.sexualAccent)
                                         }
                                         if entry.isMasturbation {
                                             Text(NSLocalizedString("自慰", comment: ""))
                                                 .font(.system(size: 12, weight: .semibold, design: .rounded))
-                                                .foregroundStyle(.pink.opacity(0.7))
+                                                .foregroundStyle(AppTheme.sexualAccent.opacity(0.8))
                                                 .padding(.horizontal, 8)
                                                 .padding(.vertical, 3)
-                                                .background(.pink.opacity(0.1))
+                                                .background(AppTheme.sexualAccent.opacity(0.12))
                                                 .clipShape(Capsule())
                                         }
                                     }
@@ -928,7 +928,7 @@ struct HomeView: View {
                                 } label: {
                                     Image(systemName: "trash")
                                         .font(.system(size: 14, weight: .semibold))
-                                        .foregroundStyle(.red)
+                                        .foregroundStyle(AppTheme.warning)
                                 }
                                 .buttonStyle(.plain)
                                 .disabled(!appViewModel.canEditSelectedDate)
