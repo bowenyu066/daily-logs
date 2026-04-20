@@ -557,12 +557,6 @@ private struct AIInsightRingCalendarPreview: View {
                     Text("\(report.overallScore)")
                         .font(.system(size: 42, weight: .bold, design: .rounded))
                         .foregroundStyle(AppTheme.primaryText)
-
-                    Text(report.date.formattedDayTitle(locale: locale))
-                        .font(.system(size: 15, weight: .semibold, design: .rounded))
-                        .foregroundStyle(AppTheme.secondaryText)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 28)
                 }
             }
             .frame(height: 280)
