@@ -1604,6 +1604,7 @@
       }
     },
     "尚未记录超过7天，请等待使用7天后再来浏览数据趋势哦" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2265,38 +2266,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "时间热力图"
-          }
-        }
-      }
-    },
-    "满7天后解锁数据趋势" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Unlock trends after 7 days"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "满7天后解锁数据趋势"
-          }
-        }
-      }
-    },
-    "满7天后解锁记忆页" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Unlock memories after 7 days"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "满7天后解锁记忆页"
           }
         }
       }
@@ -3164,6 +3133,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "游客模式显示本地评分。"
+          }
+        }
+      }
+    },
+    "满7天后解锁数据趋势" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unlock trends after 7 days"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "满7天后解锁数据趋势"
+          }
+        }
+      }
+    },
+    "满7天后解锁记忆页" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unlock memories after 7 days"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "满7天后解锁记忆页"
           }
         }
       }

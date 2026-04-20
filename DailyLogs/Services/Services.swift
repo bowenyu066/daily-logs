@@ -18,8 +18,8 @@ protocol AuthService {
 
 protocol DailyRecordRepository {
     func loadRecord(for date: Date, preferences: UserPreferences, userID: String) throws -> DailyRecord
-    func saveRecord(_ record: DailyRecord, userID: String) throws
-    func loadAllRecords(userID: String) throws -> [DailyRecord]
+    func saveRecord(_ record: DailyRecord, preferences: UserPreferences, userID: String) throws
+    func loadAllRecords(userID: String, preferences: UserPreferences) throws -> [DailyRecord]
 }
 
 protocol PreferencesStore {
@@ -34,6 +34,10 @@ protocol PhotoStorageService {
 
 protocol SunTimesService {
     func sunTimes(for date: Date, coordinate: CLLocationCoordinate2D, timeZone: TimeZone) -> SunTimes?
+}
+
+protocol WeatherService: Sendable {
+    func weather(at coordinate: CLLocationCoordinate2D) async throws -> WeatherSnapshot?
 }
 
 @MainActor
@@ -502,7 +506,7 @@ final class LocalDailyRecordRepository: DailyRecordRepository {
     func loadRecord(for date: Date, preferences: UserPreferences, userID: String) throws -> DailyRecord {
         let key = date.storageKey()
         var database = try store.load()
-        let canonicalRecords = canonicalizedRecordMap(database.recordsByUser[userID] ?? [:])
+        let canonicalRecords = canonicalizedRecordMap(database.recordsByUser[userID] ?? [:], preferences: preferences)
         if canonicalRecords != (database.recordsByUser[userID] ?? [:]) {
             database.recordsByUser[userID] = canonicalRecords
             try store.save(database)
@@ -513,18 +517,18 @@ final class LocalDailyRecordRepository: DailyRecordRepository {
         return DailyRecord.empty(for: date, preferences: preferences)
     }
 
-    func saveRecord(_ record: DailyRecord, userID: String) throws {
+    func saveRecord(_ record: DailyRecord, preferences: UserPreferences, userID: String) throws {
         var database = try store.load()
-        var records = canonicalizedRecordMap(database.recordsByUser[userID] ?? [:])
-        let key = record.canonicalStorageKey(fallback: record.date.storageKey())
+        var records = canonicalizedRecordMap(database.recordsByUser[userID] ?? [:], preferences: preferences)
+        let key = record.canonicalStorageKey(using: preferences, fallback: record.date.storageKey())
         records[key] = record.anchoredToStorageKey(key)
-        database.recordsByUser[userID] = canonicalizedRecordMap(records)
+        database.recordsByUser[userID] = canonicalizedRecordMap(records, preferences: preferences)
         try store.save(database)
     }
 
-    func loadAllRecords(userID: String) throws -> [DailyRecord] {
+    func loadAllRecords(userID: String, preferences: UserPreferences) throws -> [DailyRecord] {
         var database = try store.load()
-        let canonicalRecords = canonicalizedRecordMap(database.recordsByUser[userID] ?? [:])
+        let canonicalRecords = canonicalizedRecordMap(database.recordsByUser[userID] ?? [:], preferences: preferences)
         if canonicalRecords != (database.recordsByUser[userID] ?? [:]) {
             database.recordsByUser[userID] = canonicalRecords
             try store.save(database)
@@ -532,9 +536,9 @@ final class LocalDailyRecordRepository: DailyRecordRepository {
         return canonicalRecords.values.sorted { $0.date < $1.date }
     }
 
-    private func canonicalizedRecordMap(_ records: [String: DailyRecord]) -> [String: DailyRecord] {
+    private func canonicalizedRecordMap(_ records: [String: DailyRecord], preferences: UserPreferences) -> [String: DailyRecord] {
         records.reduce(into: [:]) { partialResult, entry in
-            let canonicalKey = entry.value.canonicalStorageKey(fallback: entry.key)
+            let canonicalKey = entry.value.canonicalStorageKey(using: preferences, fallback: entry.key)
             let anchored = entry.value.anchoredToStorageKey(canonicalKey)
             if let existing = partialResult[canonicalKey] {
                 partialResult[canonicalKey] = preferredRecord(between: existing, and: anchored)
@@ -635,10 +639,86 @@ final class PlaceholderHealthSyncAdapter: HealthSyncAdapter {
     }
 }
 
+struct OpenMeteoWeatherService: WeatherService {
+    func weather(at coordinate: CLLocationCoordinate2D) async throws -> WeatherSnapshot? {
+        var components = URLComponents(string: "https://api.open-meteo.com/v1/forecast")
+        components?.queryItems = [
+            URLQueryItem(name: "latitude", value: String(coordinate.latitude)),
+            URLQueryItem(name: "longitude", value: String(coordinate.longitude)),
+            URLQueryItem(name: "current", value: "temperature_2m,weather_code"),
+            URLQueryItem(name: "timezone", value: "auto")
+        ]
+        guard let url = components?.url else { return nil }
+
+        let (data, response) = try await URLSession.shared.data(from: url)
+        guard let httpResponse = response as? HTTPURLResponse,
+              (200..<300).contains(httpResponse.statusCode) else {
+            return nil
+        }
+
+        let payload = try JSONDecoder().decode(OpenMeteoCurrentWeatherResponse.self, from: data)
+        guard let current = payload.current else { return nil }
+        return WeatherSnapshot(
+            conditionDescription: current.conditionDescription,
+            symbolName: current.symbolName,
+            temperatureCelsius: current.temperature2m
+        )
+    }
+}
+
+private struct OpenMeteoCurrentWeatherResponse: Decodable {
+    struct Current: Decodable {
+        let temperature2m: Double
+        let weatherCode: Int
+
+        enum CodingKeys: String, CodingKey {
+            case temperature2m = "temperature_2m"
+            case weatherCode = "weather_code"
+        }
+
+        var conditionDescription: String {
+            switch weatherCode {
+            case 0: "晴朗"
+            case 1: "大部晴朗"
+            case 2: "局部多云"
+            case 3: "阴"
+            case 45, 48: "有雾"
+            case 51, 53, 55: "毛毛雨"
+            case 56, 57: "冻毛毛雨"
+            case 61, 63, 65: "下雨"
+            case 66, 67: "冻雨"
+            case 71, 73, 75, 77: "下雪"
+            case 80, 81, 82: "阵雨"
+            case 85, 86: "阵雪"
+            case 95: "雷暴"
+            case 96, 99: "强雷暴"
+            default: "天气"
+            }
+        }
+
+        var symbolName: String {
+            switch weatherCode {
+            case 0: "sun.max.fill"
+            case 1: "sun.max"
+            case 2: "cloud.sun"
+            case 3: "cloud.fill"
+            case 45, 48: "cloud.fog.fill"
+            case 51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82: "cloud.rain.fill"
+            case 71, 73, 75, 77, 85, 86: "cloud.snow.fill"
+            case 95, 96, 99: "cloud.bolt.rain.fill"
+            default: "cloud.sun.fill"
+            }
+        }
+    }
+
+    let current: Current?
+}
+
 final class LocationService: NSObject, ObservableObject, @unchecked Sendable {
     @Published private(set) var permissionState: LocationPermissionState = .notDetermined
     @Published private(set) var latestLocation: CLLocation?
     @Published private(set) var detectedTimeZone: TimeZone?
+    @Published private(set) var detectedLocationName: String?
 
     private let manager = CLLocationManager()
     private let geocoder = CLGeocoder()
@@ -685,12 +765,27 @@ extension LocationService: CLLocationManagerDelegate {
         latestLocation = locations.last
         guard let location = locations.last else { return }
         geocoder.reverseGeocodeLocation(location) { placemarks, _ in
-            self.detectedTimeZone = placemarks?.first?.timeZone ?? TimeZone.autoupdatingCurrent
+            let placemark = placemarks?.first
+            self.detectedTimeZone = placemark?.timeZone ?? TimeZone.autoupdatingCurrent
+            self.detectedLocationName = self.formattedLocationName(from: placemark)
         }
     }
 
     func locationManager(_ manager: CLLocationManager, didFailWithError error: any Error) {
         // Keep the UI non-blocking when location fetch fails.
+    }
+
+    private func formattedLocationName(from placemark: CLPlacemark?) -> String? {
+        guard let placemark else { return nil }
+        let candidates = [
+            placemark.locality,
+            placemark.name,
+            placemark.subLocality,
+            placemark.administrativeArea
+        ]
+        return candidates
+            .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .first(where: { !$0.isEmpty })
     }
 }
 
@@ -762,11 +857,17 @@ struct AnalyticsSummary {
     var averageSleepHours: Double?
     var averageBedtimeMinutes: Double?
     var averageWakeMinutes: Double?
+    var previousAverageSleepHours: Double?
+    var previousAverageBedtimeMinutes: Double?
+    var previousAverageWakeMinutes: Double?
     var defaultMealCompletionRate: Double?
     var averageShowers: Double?
     var averageLightSleepHours: Double?
     var averageDeepSleepHours: Double?
     var averageREMSleepHours: Double?
+    var previousAverageLightSleepHours: Double?
+    var previousAverageDeepSleepHours: Double?
+    var previousAverageREMSleepHours: Double?
     var averageShowerMinutes: Double?
     var averageBowelMovements: Double?
     var averageBowelMovementMinutes: Double?
@@ -799,14 +900,15 @@ enum AnalyticsCalculator {
         records: [DailyRecord],
         range: AnalyticsRange,
         customRange: ClosedRange<Date>? = nil,
-        defaultMealSlots: [MealSlot] = MealSlot.defaults
+        defaultMealSlots: [MealSlot] = MealSlot.defaults,
+        today: Date = .now
     ) -> AnalyticsSummary {
         let calendar = Calendar.current
-        let today = calendar.startOfDay(for: .now)
+        let resolvedToday = calendar.startOfDay(for: today)
         let chartBounds = visibleDateBounds(
             range: range,
             customRange: customRange,
-            today: today,
+            today: resolvedToday,
             calendar: calendar
         )
         let chartFiltered = records.filter { $0.date >= chartBounds.lowerBound && $0.date <= chartBounds.upperBound }
@@ -863,28 +965,69 @@ enum AnalyticsCalculator {
                 bowelMovements: record.bowelMovements.count,
                 sexualActivities: record.sexualActivities.count,
                 sexualActivitiesMasturbation: record.sexualActivities.filter(\.isMasturbation).count
-            )
-        }
+                )
+            }
 
-        let historicalUpperBound = min(chartBounds.upperBound, today.adding(days: -1))
-        let historicalBounds: ClosedRange<Date>? = historicalUpperBound >= chartBounds.lowerBound
-            ? chartBounds.lowerBound...historicalUpperBound
-            : nil
-        let historicalDays = historicalBounds.map { bounds in
-            days.filter { $0.date >= bounds.lowerBound && $0.date <= bounds.upperBound }
-        } ?? []
-        let historicalRecords = historicalBounds.map { bounds in
-            chartFiltered.filter { $0.date >= bounds.lowerBound && $0.date <= bounds.upperBound }
-        } ?? []
-        .sorted { $0.date < $1.date }
+        let comparisonUpperBound = chartBounds.lowerBound.adding(days: -1)
+        let comparisonLowerBound = comparisonUpperBound.adding(days: -(totalDays - 1))
+        let comparisonBounds: ClosedRange<Date>? = comparisonUpperBound >= availableLowerBound(
+            for: records,
+            fallback: chartBounds.lowerBound
+        ) ? comparisonLowerBound...comparisonUpperBound : nil
 
-        let averageSleepHours = historicalDays.compactMap(\.sleepHours).averageOptional
-        let averageBedtimeMinutes = averageBedtimeClockMinutes(historicalDays.compactMap(\.bedtimeMinutes))
-        let averageWakeMinutes = historicalDays.compactMap(\.wakeMinutes).averageOptional
-        let showerRecords = historicalRecordsStartingAtFirstMatch(in: historicalRecords) { !$0.showers.isEmpty }
+        let currentDays = days
+        let currentRecords = chartFiltered.sorted { $0.date < $1.date }
+        let comparisonDays: [AnalyticsDayPoint] = comparisonBounds.map { bounds in
+            records
+                .filter { $0.date >= bounds.lowerBound && $0.date <= bounds.upperBound }
+                .sorted { $0.date < $1.date }
+                .map { record in
+                    let stageDurations = record.sleepRecord.hasStageData ? record.sleepRecord.stageDurations : [:]
+                    return AnalyticsDayPoint(
+                        date: record.date,
+                        sleepHours: record.sleepRecord.duration.map { $0 / 3600 },
+                        bedtimeMinutes: record.sleepRecord.bedtimePreviousNight.map {
+                            clockMinutes($0, timeZoneIdentifier: record.sleepRecord.timeZoneIdentifier)
+                        },
+                        wakeMinutes: record.sleepRecord.wakeTimeCurrentDay.map {
+                            clockMinutes($0, timeZoneIdentifier: record.sleepRecord.timeZoneIdentifier)
+                        },
+                        sleepStartMinutes: record.sleepRecord.bedtimePreviousNight.map {
+                            chartMinutes($0, timeZoneIdentifier: record.sleepRecord.timeZoneIdentifier)
+                        },
+                        sleepEndMinutes: record.sleepRecord.wakeTimeCurrentDay.map {
+                            chartMinutes($0, timeZoneIdentifier: record.sleepRecord.timeZoneIdentifier)
+                        },
+                        loggedMeals: record.meals.filter { $0.effectiveStatus(on: record.date) == .logged }.count,
+                        trackedMeals: record.meals.count,
+                        showers: record.showers.count,
+                        lightSleepHours: stageDurations[.light].map { $0 / 3600 },
+                        deepSleepHours: stageDurations[.deep].map { $0 / 3600 },
+                        remSleepHours: stageDurations[.rem].map { $0 / 3600 },
+                        awakeSleepHours: stageDurations[.awake].map { $0 / 3600 },
+                        bowelMovements: record.bowelMovements.count,
+                        sexualActivities: record.sexualActivities.count,
+                        sexualActivitiesMasturbation: record.sexualActivities.filter(\.isMasturbation).count
+                    )
+                }
+        } ?? []
+        let comparisonRecords: [DailyRecord] = comparisonBounds.map { bounds in
+            records
+                .filter { $0.date >= bounds.lowerBound && $0.date <= bounds.upperBound }
+                .sorted { $0.date < $1.date }
+        } ?? []
+
+        let averageSleepHours = currentDays.compactMap(\.sleepHours).averageOptional
+        let averageBedtimeMinutes = averageBedtimeClockMinutes(currentDays.compactMap(\.bedtimeMinutes))
+        let averageWakeMinutes = currentDays.compactMap(\.wakeMinutes).averageOptional
+        let previousAverageSleepHours = comparisonDays.compactMap(\.sleepHours).averageOptional
+        let previousAverageBedtimeMinutes = averageBedtimeClockMinutes(comparisonDays.compactMap(\.bedtimeMinutes))
+        let previousAverageWakeMinutes = comparisonDays.compactMap(\.wakeMinutes).averageOptional
+
+        let showerRecords = historicalRecordsStartingAtFirstMatch(in: currentRecords) { !$0.showers.isEmpty }
         let averageShowers = showerRecords.map { Double($0.showers.count) }.averageOptional
 
-        let defaultMealEntries = historicalRecords.flatMap { record in
+        let defaultMealEntries = currentRecords.flatMap { record in
             record.meals.filter { [.breakfast, .lunch, .dinner].contains($0.mealKind) }.map { (record, $0) }
         }
         let defaultTrackedMeals = Double(defaultMealEntries.count)
@@ -896,7 +1039,7 @@ enum AnalyticsCalculator {
         let chartGroupedMeals = Dictionary(grouping: chartFiltered.flatMap { record in
             record.meals.map { (record, $0) }
         }, by: { $0.1.slotKey })
-        let historicalGroupedMeals = Dictionary(grouping: historicalRecords.flatMap { record in
+        let currentGroupedMeals = Dictionary(grouping: currentRecords.flatMap { record in
             record.meals.map { (record, $0) }
         }, by: { $0.1.slotKey })
 
@@ -920,8 +1063,8 @@ enum AnalyticsCalculator {
                         minutes: clockMinutes(time, timeZoneIdentifier: meal.timeZoneIdentifier)
                     )
                 }
-                let historicalEntries = historicalGroupedMeals[sample.slotKey] ?? []
-                let historicalPoints = historicalEntries.compactMap { record, meal -> AnalyticsScatterPoint? in
+                let currentEntries = currentGroupedMeals[sample.slotKey] ?? []
+                let currentPoints = currentEntries.compactMap { record, meal -> AnalyticsScatterPoint? in
                     guard meal.effectiveStatus(on: record.date) == .logged, let time = meal.time else { return nil }
                     return AnalyticsScatterPoint(
                         id: "\(record.date.storageKey())-\(meal.slotKey)",
@@ -929,14 +1072,14 @@ enum AnalyticsCalculator {
                         minutes: clockMinutes(time, timeZoneIdentifier: meal.timeZoneIdentifier)
                     )
                 }
-                let tracked = Double(historicalEntries.count)
-                let logged = Double(historicalPoints.count)
+                let tracked = Double(currentEntries.count)
+                let logged = Double(currentPoints.count)
                 return MealAnalyticsSeries(
                     key: sample.slotKey,
                     title: sample.displayTitle,
                     showsAverage: defaultMealKeys.contains(sample.slotKey),
                     completionRate: tracked > 0 ? logged / tracked : 0,
-                    averageMinutes: historicalPoints.map(\.minutes).averageOptional,
+                    averageMinutes: currentPoints.map(\.minutes).averageOptional,
                     points: chartPoints.sorted { $0.date < $1.date }
                 )
             }
@@ -962,9 +1105,12 @@ enum AnalyticsCalculator {
             }
             .averageOptional
 
-        let averageLightSleepHours = historicalDays.compactMap(\.lightSleepHours).averageOptional
-        let averageDeepSleepHours = historicalDays.compactMap(\.deepSleepHours).averageOptional
-        let averageREMSleepHours = historicalDays.compactMap(\.remSleepHours).averageOptional
+        let averageLightSleepHours = currentDays.compactMap(\.lightSleepHours).averageOptional
+        let averageDeepSleepHours = currentDays.compactMap(\.deepSleepHours).averageOptional
+        let averageREMSleepHours = currentDays.compactMap(\.remSleepHours).averageOptional
+        let previousAverageLightSleepHours = comparisonDays.compactMap(\.lightSleepHours).averageOptional
+        let previousAverageDeepSleepHours = comparisonDays.compactMap(\.deepSleepHours).averageOptional
+        let previousAverageREMSleepHours = comparisonDays.compactMap(\.remSleepHours).averageOptional
 
         // Bowel movement analytics
         let bowelMovementPoints = chartFiltered.flatMap { record in
@@ -977,7 +1123,7 @@ enum AnalyticsCalculator {
                 )
             }
         }
-        let bowelMovementRecords = historicalRecordsStartingAtFirstMatch(in: historicalRecords) { !$0.bowelMovements.isEmpty }
+        let bowelMovementRecords = historicalRecordsStartingAtFirstMatch(in: currentRecords) { !$0.bowelMovements.isEmpty }
         let averageBowelMovements = bowelMovementRecords.map { Double($0.bowelMovements.count) }.averageOptional
         let averageBowelMovementMinutes = bowelMovementRecords
             .flatMap(\.bowelMovements)
@@ -1012,13 +1158,13 @@ enum AnalyticsCalculator {
             )
         }.sorted { $0.weekStart < $1.weekStart }
 
-        let historicalSexualActivityRecords = historicalRecordsStartingAtFirstMatch(in: historicalRecords) { !$0.sexualActivities.isEmpty }
+        let historicalSexualActivityRecords = historicalRecordsStartingAtFirstMatch(in: currentRecords) { !$0.sexualActivities.isEmpty }
         let historicalSexualActivityDates = historicalSexualActivityRecords.flatMap { record in
             record.sexualActivities.map { _ in record.date }
         }
         let averageSexualActivity: Double? = averageSexualActivityPerWeek(
             activityDates: historicalSexualActivityDates,
-            upperBound: historicalUpperBound,
+            upperBound: chartBounds.upperBound,
             calendar: isoCalendar
         )
 
@@ -1026,11 +1172,17 @@ enum AnalyticsCalculator {
             averageSleepHours: averageSleepHours,
             averageBedtimeMinutes: averageBedtimeMinutes,
             averageWakeMinutes: averageWakeMinutes,
+            previousAverageSleepHours: previousAverageSleepHours,
+            previousAverageBedtimeMinutes: previousAverageBedtimeMinutes,
+            previousAverageWakeMinutes: previousAverageWakeMinutes,
             defaultMealCompletionRate: defaultMealCompletionRate,
             averageShowers: averageShowers,
             averageLightSleepHours: averageLightSleepHours,
             averageDeepSleepHours: averageDeepSleepHours,
             averageREMSleepHours: averageREMSleepHours,
+            previousAverageLightSleepHours: previousAverageLightSleepHours,
+            previousAverageDeepSleepHours: previousAverageDeepSleepHours,
+            previousAverageREMSleepHours: previousAverageREMSleepHours,
             averageShowerMinutes: averageShowerMinutes,
             averageBowelMovements: averageBowelMovements,
             averageBowelMovementMinutes: averageBowelMovementMinutes,
@@ -1074,6 +1226,10 @@ enum AnalyticsCalculator {
             normalized += fullDay
         }
         return normalized
+    }
+
+    private static func availableLowerBound(for records: [DailyRecord], fallback: Date) -> Date {
+        records.map(\.date).min() ?? fallback
     }
 
     private static func historicalRecordsStartingAtFirstMatch(

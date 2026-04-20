@@ -33,7 +33,7 @@
 	<key>NSCameraUsageDescription</key>
 	<string>用于为餐食记录拍照。</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>用于显示你所在地区的日出日落时间。</string>
+	<string>用于显示你所在地区的定位地点、天气和日出日落时间。</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>用于保存你拍摄的餐食照片。</string>
 	<key>NSPhotoLibraryUsageDescription</key>

@@ -5,6 +5,12 @@ extension Date {
         Calendar.current.startOfDay(for: self)
     }
 
+    func startOfDay(in timeZone: TimeZone, calendar: Calendar = .current) -> Date {
+        var adjustedCalendar = calendar
+        adjustedCalendar.timeZone = timeZone
+        return adjustedCalendar.startOfDay(for: self)
+    }
+
     func formattedDayTitle(locale: Locale = .autoupdatingCurrent) -> String {
         let formatter = DateFormatter()
         formatter.locale = locale
@@ -29,6 +35,10 @@ extension Date {
 
     func adding(days: Int) -> Date {
         Calendar.current.date(byAdding: .day, value: days, to: self) ?? self
+    }
+
+    func adding(days: Int, calendar: Calendar = .current) -> Date {
+        calendar.date(byAdding: .day, value: days, to: self) ?? self
     }
 
     func settingTime(hour: Int, minute: Int) -> Date {

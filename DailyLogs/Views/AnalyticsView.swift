@@ -46,7 +46,8 @@ struct MemoryView: View {
     private var analyticsDateBounds: ClosedRange<Date> {
         AnalyticsCalculator.visibleDateBounds(
             range: appViewModel.analyticsRange,
-            customRange: appViewModel.analyticsRange == .custom ? appViewModel.analyticsCustomDateRange : nil
+            customRange: appViewModel.analyticsRange == .custom ? appViewModel.analyticsCustomDateRange : nil,
+            today: appViewModel.logicalToday
         )
     }
 
@@ -89,6 +90,9 @@ struct AnalyticsView: View {
     @State private var highlightedSleepIntervalDate: Date?
     @State private var highlightedWakeDate: Date?
     @State private var highlightedBedtimeDate: Date?
+    @State private var highlightedLightSleepDate: Date?
+    @State private var highlightedDeepSleepDate: Date?
+    @State private var highlightedREMSleepDate: Date?
     @State private var highlightedMealDate: Date?
     @State private var highlightedShowerDate: Date?
     @State private var highlightedBowelMovementDate: Date?
@@ -211,6 +215,7 @@ struct AnalyticsView: View {
                     SummaryCard(
                         title: metric.title,
                         value: metricValue(metric),
+                        detail: metricTrend(metric),
                         tone: metricColor(metric)
                     )
                 }
@@ -304,11 +309,11 @@ struct AnalyticsView: View {
             }
             .sectionStyle()
         case .lightSleepTrend:
-            sleepStageCard(title: NSLocalizedString("浅睡时长", comment: ""), keyPath: \.lightSleepHours, average: summary.averageLightSleepHours, tone: SleepStage.light.color, compact: true)
+            sleepStageCard(title: NSLocalizedString("浅睡时长", comment: ""), keyPath: \.lightSleepHours, average: summary.averageLightSleepHours, previousAverage: summary.previousAverageLightSleepHours, tone: SleepStage.light.color, selectedDate: $highlightedLightSleepDate, compact: true)
         case .deepSleepTrend:
-            sleepStageCard(title: NSLocalizedString("深睡时长", comment: ""), keyPath: \.deepSleepHours, average: summary.averageDeepSleepHours, tone: SleepStage.deep.color, compact: true)
+            sleepStageCard(title: NSLocalizedString("深睡时长", comment: ""), keyPath: \.deepSleepHours, average: summary.averageDeepSleepHours, previousAverage: summary.previousAverageDeepSleepHours, tone: SleepStage.deep.color, selectedDate: $highlightedDeepSleepDate, compact: true)
         case .remSleepTrend:
-            sleepStageCard(title: NSLocalizedString("REM 时长", comment: ""), keyPath: \.remSleepHours, average: summary.averageREMSleepHours, tone: SleepStage.rem.color, compact: true)
+            sleepStageCard(title: NSLocalizedString("REM 时长", comment: ""), keyPath: \.remSleepHours, average: summary.averageREMSleepHours, previousAverage: summary.previousAverageREMSleepHours, tone: SleepStage.rem.color, selectedDate: $highlightedREMSleepDate, compact: true)
         case .mealCompletion:
             VStack(alignment: .leading, spacing: 14) {
                 SectionHeader(title: NSLocalizedString("三餐完成率", comment: ""), subtitle: nil)
@@ -356,7 +361,7 @@ struct AnalyticsView: View {
         }
     }
 
-    private func sleepStageCard(title: String, keyPath: KeyPath<AnalyticsDayPoint, Double?>, average: Double?, tone: Color, compact: Bool) -> some View {
+    private func sleepStageCard(title: String, keyPath: KeyPath<AnalyticsDayPoint, Double?>, average: Double?, previousAverage: Double?, tone: Color, selectedDate: Binding<Date?>, compact: Bool) -> some View {
         VStack(alignment: .leading, spacing: 14) {
             SectionHeader(title: title, subtitle: nil)
             DurationLineChart(
@@ -364,7 +369,9 @@ struct AnalyticsView: View {
                     point[keyPath: keyPath].map { ChartDurationValue(date: point.date, hours: $0) }
                 },
                 averageHours: average,
+                previousAverageHours: previousAverage,
                 tone: tone,
+                selectedDate: selectedDate,
                 compact: compact
             )
         }
@@ -406,6 +413,19 @@ struct AnalyticsView: View {
         }
     }
 
+    private func metricTrend(_ metric: AnalyticsMetricKind) -> String {
+        switch metric {
+        case .averageSleep:
+            intervalTrendText(current: summary.averageSleepHours, previous: summary.previousAverageSleepHours)
+        case .averageWake:
+            clockTrendText(current: summary.averageWakeMinutes, previous: summary.previousAverageWakeMinutes)
+        case .averageBedtime:
+            clockTrendText(current: summary.averageBedtimeMinutes, previous: summary.previousAverageBedtimeMinutes)
+        case .mealCompletion, .averageShowers, .averageBowelMovements, .averageSexualActivity:
+            "--"
+        }
+    }
+
     private func formatClock(_ minutes: Double?) -> String {
         guard let minutes else { return "--" }
         let fullDay = 24 * 60
@@ -423,6 +443,37 @@ struct AnalyticsView: View {
 
     private func wrapForNight(_ minutes: Double) -> Double {
         minutes < 18 * 60 ? minutes + 24 * 60 : minutes
+    }
+
+    private func intervalTrendText(current: Double?, previous: Double?) -> String {
+        guard let current, let previous, previous > 0 else { return "--" }
+        let change = (current - previous) / previous
+        if abs(change) < 0.005 {
+            return NSLocalizedString("持平", comment: "")
+        }
+        let percent = abs(change * 100)
+        return change > 0
+            ? String(format: NSLocalizedString("增长 %.0f%%", comment: ""), percent)
+            : String(format: NSLocalizedString("减少 %.0f%%", comment: ""), percent)
+    }
+
+    private func clockTrendText(current: Double?, previous: Double?) -> String {
+        guard let current, let previous else { return "--" }
+        var delta = current - previous
+        let fullDay = 24.0 * 60.0
+        if delta > fullDay / 2 {
+            delta -= fullDay
+        } else if delta < -fullDay / 2 {
+            delta += fullDay
+        }
+        if abs(delta) < 0.5 {
+            return NSLocalizedString("持平", comment: "")
+        }
+        let totalMinutes = Int(abs(delta).rounded())
+        let hours = totalMinutes / 60
+        let minutes = totalMinutes % 60
+        let direction = delta > 0 ? NSLocalizedString("变晚", comment: "") : NSLocalizedString("变早", comment: "")
+        return String(format: NSLocalizedString("%@ %d小时%d分", comment: ""), direction, hours, minutes)
     }
 }
 
@@ -546,11 +597,11 @@ private struct AnalyticsDetailView: View {
                     )
                 }
             case .lightSleepTrend:
-                sleepStageDetailCard(title: NSLocalizedString("浅睡时长", comment: ""), keyPath: \.lightSleepHours, average: summary.averageLightSleepHours, tone: SleepStage.light.color)
+                sleepStageDetailCard(title: NSLocalizedString("浅睡时长", comment: ""), keyPath: \.lightSleepHours, average: summary.averageLightSleepHours, previousAverage: summary.previousAverageLightSleepHours, tone: SleepStage.light.color)
             case .deepSleepTrend:
-                sleepStageDetailCard(title: NSLocalizedString("深睡时长", comment: ""), keyPath: \.deepSleepHours, average: summary.averageDeepSleepHours, tone: SleepStage.deep.color)
+                sleepStageDetailCard(title: NSLocalizedString("深睡时长", comment: ""), keyPath: \.deepSleepHours, average: summary.averageDeepSleepHours, previousAverage: summary.previousAverageDeepSleepHours, tone: SleepStage.deep.color)
             case .remSleepTrend:
-                sleepStageDetailCard(title: NSLocalizedString("REM 时长", comment: ""), keyPath: \.remSleepHours, average: summary.averageREMSleepHours, tone: SleepStage.rem.color)
+                sleepStageDetailCard(title: NSLocalizedString("REM 时长", comment: ""), keyPath: \.remSleepHours, average: summary.averageREMSleepHours, previousAverage: summary.previousAverageREMSleepHours, tone: SleepStage.rem.color)
             case .mealCompletion:
                 VStack(alignment: .leading, spacing: 14) {
                     SectionHeader(title: NSLocalizedString("三餐完成率", comment: ""), subtitle: nil)
@@ -606,7 +657,7 @@ private struct AnalyticsDetailView: View {
         }
     }
 
-    private func sleepStageDetailCard(title: String, keyPath: KeyPath<AnalyticsDayPoint, Double?>, average: Double?, tone: Color) -> some View {
+    private func sleepStageDetailCard(title: String, keyPath: KeyPath<AnalyticsDayPoint, Double?>, average: Double?, previousAverage: Double?, tone: Color) -> some View {
         VStack(alignment: .leading, spacing: 14) {
             SectionHeader(title: title, subtitle: nil)
             DurationLineChart(
@@ -614,7 +665,9 @@ private struct AnalyticsDetailView: View {
                     point[keyPath: keyPath].map { ChartDurationValue(date: point.date, hours: $0) }
                 },
                 averageHours: average,
+                previousAverageHours: previousAverage,
                 tone: tone,
+                selectedDate: $selectedDate,
                 compact: false
             )
         }
@@ -628,6 +681,7 @@ private struct AnalyticsDetailView: View {
 private struct SummaryCard: View {
     let title: String
     let value: String
+    let detail: String
     let tone: Color
 
     var body: some View {
@@ -645,6 +699,11 @@ private struct SummaryCard: View {
                 .lineLimit(2)
                 .minimumScaleFactor(0.72)
                 .multilineTextAlignment(.center)
+
+            Text(detail)
+                .font(.system(size: 12, weight: .medium, design: .rounded))
+                .foregroundStyle(AppTheme.secondaryText)
+                .lineLimit(1)
         }
         .frame(maxWidth: .infinity, minHeight: 104, alignment: .center)
         .padding(.horizontal, 10)
@@ -869,21 +928,21 @@ private struct TimeLineChart: View {
 
                 Chart {
                     if let averageMinutes {
-                        RuleMark(y: .value("平均", averageMinutes))
+                        RuleMark(y: .value("平均", plotValue(for: averageMinutes)))
                             .foregroundStyle(tone.opacity(0.72))
                             .lineStyle(.init(lineWidth: 3, dash: [7, 5]))
                     }
 
                     ForEach(points) { point in
-                        LineMark(x: .value("日期", point.date), y: .value("时间", point.minutes))
+                        LineMark(x: .value("日期", point.date), y: .value("时间", plotValue(for: point.minutes)))
                             .interpolationMethod(.catmullRom)
                             .foregroundStyle(tone)
 
-                        PointMark(x: .value("日期", point.date), y: .value("时间", point.minutes))
+                        PointMark(x: .value("日期", point.date), y: .value("时间", plotValue(for: point.minutes)))
                             .foregroundStyle(tone)
                             .symbolSize(compact ? 34 : 46)
 
-                        PointMark(x: .value("日期", point.date), y: .value("时间", point.minutes))
+                        PointMark(x: .value("日期", point.date), y: .value("时间", plotValue(for: point.minutes)))
                             .foregroundStyle(AppTheme.background)
                             .symbolSize(compact ? 12 : 18)
 
@@ -892,11 +951,11 @@ private struct TimeLineChart: View {
                                 .foregroundStyle(AppTheme.primaryText.opacity(0.5))
                                 .lineStyle(.init(lineWidth: 3, dash: [7, 5]))
 
-                            RuleMark(y: .value("时间", point.minutes))
+                            RuleMark(y: .value("时间", plotValue(for: point.minutes)))
                                 .foregroundStyle(AppTheme.primaryText.opacity(0.5))
                                 .lineStyle(.init(lineWidth: 3, dash: [7, 5]))
 
-                            PointMark(x: .value("日期", point.date), y: .value("时间", point.minutes))
+                            PointMark(x: .value("日期", point.date), y: .value("时间", plotValue(for: point.minutes)))
                                 .foregroundStyle(tone)
                                 .symbolSize(compact ? 54 : 70)
                         }
@@ -909,8 +968,8 @@ private struct TimeLineChart: View {
                     AxisMarks(position: .leading, values: axisValues) { value in
                         AxisGridLine()
                         AxisValueLabel {
-                            if let minutes = value.as(Double.self) {
-                                Text(formatClock(minutes))
+                            if let plotted = value.as(Double.self) {
+                                Text(formatClock(unplotValue(plotted)))
                             }
                         }
                     }
@@ -944,14 +1003,17 @@ private struct TimeLineChart: View {
         let padding = usesWrappedClock ? 45.0 : 30.0
         let lower = max(0, floor((minValue - padding) / 15) * 15)
         let upper = min(usesWrappedClock ? 36 * 60 : 24 * 60, ceil((maxValue + padding) / 15) * 15)
-        return lower...max(lower + 30, upper)
+        return plotValue(for: upper)...plotValue(for: lower)
     }
 
     private var axisValues: [Double] {
-        let lower = adaptiveDomain.lowerBound
-        let upper = adaptiveDomain.upperBound
-        let step = max(30.0, ceil((upper - lower) / 4 / 15) * 15)
-        return stride(from: lower, through: upper, by: step).map { $0 }
+        let values = points.map(\.minutes) + (averageMinutes.map { [$0] } ?? [])
+        let minValue = values.min() ?? 0
+        let maxValue = values.max() ?? (usesWrappedClock ? 36 * 60 : 24 * 60)
+        let padding = usesWrappedClock ? 45.0 : 30.0
+        let lower = max(0, floor((minValue - padding) / 60) * 60)
+        let upper = min(usesWrappedClock ? 36 * 60 : 24 * 60, ceil((maxValue + padding) / 60) * 60)
+        return stride(from: lower, through: upper, by: 120).map(plotValue(for:))
     }
 
     private func formatClock(_ minutes: Double) -> String {
@@ -977,6 +1039,18 @@ private struct TimeLineChart: View {
         } else {
             selectedDate = nil
         }
+    }
+
+    private var plotUpperBound: Double {
+        usesWrappedClock ? 36 * 60 : 24 * 60
+    }
+
+    private func plotValue(for minutes: Double) -> Double {
+        plotUpperBound - minutes
+    }
+
+    private func unplotValue(_ plotted: Double) -> Double {
+        plotUpperBound - plotted
     }
 }
 
@@ -1232,7 +1306,7 @@ private struct MealTimingScatterChart: View {
                         ForEach(item.points) { point in
                             PointMark(
                                 x: .value("日期", point.date),
-                                y: .value("时间", point.minutes)
+                                y: .value("时间", plotValue(point.minutes))
                             )
                             .foregroundStyle(chartColor(for: item.key))
                             .symbolSize(compact ? 28 : 44)
@@ -1242,13 +1316,13 @@ private struct MealTimingScatterChart: View {
                                     .foregroundStyle(AppTheme.primaryText.opacity(0.5))
                                     .lineStyle(.init(lineWidth: 3, dash: [7, 5]))
 
-                                RuleMark(y: .value("时间", point.minutes))
+                                RuleMark(y: .value("时间", plotValue(point.minutes)))
                                     .foregroundStyle(AppTheme.primaryText.opacity(0.5))
                                     .lineStyle(.init(lineWidth: 3, dash: [7, 5]))
 
                                 PointMark(
                                     x: .value("日期", point.date),
-                                    y: .value("时间", point.minutes)
+                                    y: .value("时间", plotValue(point.minutes))
                                 )
                                 .foregroundStyle(chartColor(for: item.key))
                                 .symbolSize(compact ? 52 : 64)
@@ -1256,7 +1330,7 @@ private struct MealTimingScatterChart: View {
                         }
 
                         if item.showsAverage, let averageMinutes = item.averageMinutes {
-                            RuleMark(y: .value(item.title, averageMinutes))
+                            RuleMark(y: .value(item.title, plotValue(averageMinutes)))
                                 .foregroundStyle(chartColor(for: item.key).opacity(0.72))
                                 .lineStyle(.init(lineWidth: 3, dash: [7, 5]))
                         }
@@ -1269,8 +1343,8 @@ private struct MealTimingScatterChart: View {
                     AxisMarks(position: .leading, values: axisValues) { value in
                         AxisGridLine()
                         AxisValueLabel {
-                            if let minutes = value.as(Double.self) {
-                                Text(clockText(minutes))
+                            if let plotted = value.as(Double.self) {
+                                Text(clockText(unplotValue(plotted)))
                             }
                         }
                     }
@@ -1339,14 +1413,16 @@ private struct MealTimingScatterChart: View {
         let maxValue = values.max() ?? 24 * 60
         let lower = max(0, floor((minValue - 30) / 15) * 15)
         let upper = min(24 * 60, ceil((maxValue + 30) / 15) * 15)
-        return lower...max(lower + 30, upper)
+        return plotValue(upper)...plotValue(lower)
     }
 
     private var axisValues: [Double] {
-        let lower = adaptiveDomain.lowerBound
-        let upper = adaptiveDomain.upperBound
-        let step = max(30.0, ceil((upper - lower) / 4 / 15) * 15)
-        return stride(from: lower, through: upper, by: step).map { $0 }
+        let values = series.flatMap { $0.points.map(\.minutes) } + series.compactMap(\.averageMinutes)
+        let minValue = values.min() ?? 0
+        let maxValue = values.max() ?? 24 * 60
+        let lower = max(0, floor((minValue - 30) / 60) * 60)
+        let upper = min(24 * 60, ceil((maxValue + 30) / 60) * 60)
+        return stride(from: lower, through: upper, by: 120).map(plotValue)
     }
 
     private func updateSelection(at location: CGPoint, proxy: ChartProxy, geometry: GeometryProxy) {
@@ -1365,6 +1441,14 @@ private struct MealTimingScatterChart: View {
         } else {
             selectedDate = nil
         }
+    }
+
+    private func plotValue(_ minutes: Double) -> Double {
+        24 * 60 - minutes
+    }
+
+    private func unplotValue(_ plotted: Double) -> Double {
+        24 * 60 - plotted
     }
 }
 
@@ -1418,7 +1502,7 @@ private struct ShowerScatterChart: View {
 
                 Chart {
                     if let averageMinutes {
-                        RuleMark(y: .value("平均", averageMinutes))
+                        RuleMark(y: .value("平均", plotValue(averageMinutes)))
                             .foregroundStyle(Color.teal.opacity(0.72))
                             .lineStyle(.init(lineWidth: 3, dash: [7, 5]))
                     }
@@ -1426,7 +1510,7 @@ private struct ShowerScatterChart: View {
                     ForEach(points) { point in
                         PointMark(
                             x: .value("日期", point.date),
-                            y: .value("时间", point.minutes)
+                            y: .value("时间", plotValue(point.minutes))
                         )
                         .foregroundStyle(.teal)
                         .symbolSize(compact ? 28 : 44)
@@ -1436,13 +1520,13 @@ private struct ShowerScatterChart: View {
                                 .foregroundStyle(AppTheme.primaryText.opacity(0.5))
                                 .lineStyle(.init(lineWidth: 3, dash: [7, 5]))
 
-                            RuleMark(y: .value("时间", point.minutes))
+                            RuleMark(y: .value("时间", plotValue(point.minutes)))
                                 .foregroundStyle(AppTheme.primaryText.opacity(0.5))
                                 .lineStyle(.init(lineWidth: 3, dash: [7, 5]))
 
                             PointMark(
                                 x: .value("日期", point.date),
-                                y: .value("时间", point.minutes)
+                                y: .value("时间", plotValue(point.minutes))
                             )
                             .foregroundStyle(.teal)
                             .symbolSize(compact ? 52 : 64)
@@ -1456,8 +1540,8 @@ private struct ShowerScatterChart: View {
                     AxisMarks(position: .leading, values: axisValues) { value in
                         AxisGridLine()
                         AxisValueLabel {
-                            if let minutes = value.as(Double.self) {
-                                Text(clockText(minutes))
+                            if let plotted = value.as(Double.self) {
+                                Text(clockText(unplotValue(plotted)))
                             }
                         }
                     }
@@ -1491,14 +1575,15 @@ private struct ShowerScatterChart: View {
         let maxValue = points.map(\.minutes).max() ?? 24 * 60
         let lower = max(0, floor((minValue - 30) / 15) * 15)
         let upper = min(24 * 60, ceil((maxValue + 30) / 15) * 15)
-        return lower...max(lower + 30, upper)
+        return plotValue(upper)...plotValue(lower)
     }
 
     private var axisValues: [Double] {
-        let lower = adaptiveDomain.lowerBound
-        let upper = adaptiveDomain.upperBound
-        let step = max(30.0, ceil((upper - lower) / 4 / 15) * 15)
-        return stride(from: lower, through: upper, by: step).map { $0 }
+        let minValue = points.map(\.minutes).min() ?? 0
+        let maxValue = points.map(\.minutes).max() ?? 24 * 60
+        let lower = max(0, floor((minValue - 30) / 60) * 60)
+        let upper = min(24 * 60, ceil((maxValue + 30) / 60) * 60)
+        return stride(from: lower, through: upper, by: 120).map(plotValue)
     }
 
     private func updateSelection(at location: CGPoint, proxy: ChartProxy, geometry: GeometryProxy) {
@@ -1517,6 +1602,14 @@ private struct ShowerScatterChart: View {
         } else {
             selectedDate = nil
         }
+    }
+
+    private func plotValue(_ minutes: Double) -> Double {
+        24 * 60 - minutes
+    }
+
+    private func unplotValue(_ plotted: Double) -> Double {
+        24 * 60 - plotted
     }
 }
 
@@ -1570,7 +1663,7 @@ private struct BowelMovementScatterChart: View {
 
                 Chart {
                     if let averageMinutes {
-                        RuleMark(y: .value("平均", averageMinutes))
+                        RuleMark(y: .value("平均", plotValue(averageMinutes)))
                             .foregroundStyle(Color.brown.opacity(0.72))
                             .lineStyle(.init(lineWidth: 3, dash: [7, 5]))
                     }
@@ -1578,7 +1671,7 @@ private struct BowelMovementScatterChart: View {
                     ForEach(points) { point in
                         PointMark(
                             x: .value("日期", point.date),
-                            y: .value("时间", point.minutes)
+                            y: .value("时间", plotValue(point.minutes))
                         )
                         .foregroundStyle(.brown)
                         .symbolSize(compact ? 28 : 44)
@@ -1588,13 +1681,13 @@ private struct BowelMovementScatterChart: View {
                                 .foregroundStyle(AppTheme.primaryText.opacity(0.5))
                                 .lineStyle(.init(lineWidth: 3, dash: [7, 5]))
 
-                            RuleMark(y: .value("时间", point.minutes))
+                            RuleMark(y: .value("时间", plotValue(point.minutes)))
                                 .foregroundStyle(AppTheme.primaryText.opacity(0.5))
                                 .lineStyle(.init(lineWidth: 3, dash: [7, 5]))
 
                             PointMark(
                                 x: .value("日期", point.date),
-                                y: .value("时间", point.minutes)
+                                y: .value("时间", plotValue(point.minutes))
                             )
                             .foregroundStyle(.brown)
                             .symbolSize(compact ? 52 : 64)
@@ -1608,8 +1701,8 @@ private struct BowelMovementScatterChart: View {
                     AxisMarks(position: .leading, values: axisValues) { value in
                         AxisGridLine()
                         AxisValueLabel {
-                            if let minutes = value.as(Double.self) {
-                                Text(clockText(minutes))
+                            if let plotted = value.as(Double.self) {
+                                Text(clockText(unplotValue(plotted)))
                             }
                         }
                     }
@@ -1643,14 +1736,15 @@ private struct BowelMovementScatterChart: View {
         let maxValue = points.map(\.minutes).max() ?? 24 * 60
         let lower = max(0, floor((minValue - 30) / 15) * 15)
         let upper = min(24 * 60, ceil((maxValue + 30) / 15) * 15)
-        return lower...max(lower + 30, upper)
+        return plotValue(upper)...plotValue(lower)
     }
 
     private var axisValues: [Double] {
-        let lower = adaptiveDomain.lowerBound
-        let upper = adaptiveDomain.upperBound
-        let step = max(30.0, ceil((upper - lower) / 4 / 15) * 15)
-        return stride(from: lower, through: upper, by: step).map { $0 }
+        let minValue = points.map(\.minutes).min() ?? 0
+        let maxValue = points.map(\.minutes).max() ?? 24 * 60
+        let lower = max(0, floor((minValue - 30) / 60) * 60)
+        let upper = min(24 * 60, ceil((maxValue + 30) / 60) * 60)
+        return stride(from: lower, through: upper, by: 120).map(plotValue)
     }
 
     private func updateSelection(at location: CGPoint, proxy: ChartProxy, geometry: GeometryProxy) {
@@ -1669,6 +1763,14 @@ private struct BowelMovementScatterChart: View {
         } else {
             selectedDate = nil
         }
+    }
+
+    private func plotValue(_ minutes: Double) -> Double {
+        24 * 60 - minutes
+    }
+
+    private func unplotValue(_ plotted: Double) -> Double {
+        24 * 60 - plotted
     }
 }
 
@@ -1938,6 +2040,7 @@ private struct ChartDisplayZone<Idle: View, Selected: View>: View {
 private struct AverageTextBlock: View {
     let title: String
     let value: String
+    var detail: String? = nil
     let tone: Color
 
     var body: some View {
@@ -1948,6 +2051,11 @@ private struct AverageTextBlock: View {
             Text(value)
                 .font(.system(size: 18, weight: .bold, design: .rounded))
                 .foregroundStyle(tone)
+            if let detail {
+                Text(detail)
+                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .foregroundStyle(AppTheme.secondaryText)
+            }
         }
     }
 }
@@ -2050,21 +2158,57 @@ private struct ChartDurationValue: Identifiable {
 private struct DurationLineChart: View {
     let points: [ChartDurationValue]
     let averageHours: Double?
+    let previousAverageHours: Double?
     let tone: Color
+    @Binding var selectedDate: Date?
     var compact: Bool = false
+
+    init(
+        points: [ChartDurationValue],
+        averageHours: Double?,
+        previousAverageHours: Double? = nil,
+        tone: Color,
+        selectedDate: Binding<Date?> = .constant(nil),
+        compact: Bool = false
+    ) {
+        self.points = points
+        self.averageHours = averageHours
+        self.previousAverageHours = previousAverageHours
+        self.tone = tone
+        self._selectedDate = selectedDate
+        self.compact = compact
+    }
 
     var body: some View {
         if points.isEmpty {
             PlaceholderCard(text: NSLocalizedString("还没有足够的睡眠阶段数据。", comment: ""))
         } else {
             VStack(alignment: .leading, spacing: 10) {
-                if let averageHours {
-                    AverageTextBlock(
-                        title: NSLocalizedString("平均时长", comment: ""),
-                        value: formatDuration(averageHours),
-                        tone: tone
-                    )
-                }
+                ChartDisplayZone(
+                    ratio: selectedRatio,
+                    cardWidth: 160,
+                    height: 78,
+                    idle: {
+                        AverageTextBlock(
+                            title: NSLocalizedString("平均时长", comment: ""),
+                            value: averageHours.map(formatDuration) ?? "--",
+                            detail: intervalTrendText(current: averageHours, previous: previousAverageHours),
+                            tone: tone
+                        )
+                    },
+                    selected: {
+                        fixedChartCallout {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(selectedPoint?.date ?? .now, format: .dateTime.month().day())
+                                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                                    .foregroundStyle(AppTheme.secondaryText)
+                                Text(selectedPoint.map { formatDuration($0.hours) } ?? "--")
+                                    .font(.system(size: 22, weight: .bold, design: .rounded))
+                                    .foregroundStyle(AppTheme.primaryText)
+                            }
+                        }
+                    }
+                )
 
                 Chart {
                     if let averageHours {
@@ -2085,6 +2229,20 @@ private struct DurationLineChart: View {
                         PointMark(x: .value("日期", point.date), y: .value("时长", point.hours))
                             .foregroundStyle(AppTheme.background)
                             .symbolSize(compact ? 12 : 18)
+
+                        if selectedDate.flatMap({ Calendar.current.isDate($0, inSameDayAs: point.date) ? point : nil }) != nil {
+                            RuleMark(x: .value("日期", point.date))
+                                .foregroundStyle(AppTheme.primaryText.opacity(0.5))
+                                .lineStyle(.init(lineWidth: 3, dash: [7, 5]))
+
+                            RuleMark(y: .value("时长", point.hours))
+                                .foregroundStyle(AppTheme.primaryText.opacity(0.5))
+                                .lineStyle(.init(lineWidth: 3, dash: [7, 5]))
+
+                            PointMark(x: .value("日期", point.date), y: .value("时长", point.hours))
+                                .foregroundStyle(tone)
+                                .symbolSize(compact ? 54 : 70)
+                        }
                     }
                 }
                 .frame(height: compact ? 190 : 260)
@@ -2100,8 +2258,22 @@ private struct DurationLineChart: View {
                         }
                     }
                 }
+                .chartOverlay { proxy in
+                    chartSelectionOverlay(proxy: proxy) { location, geometry in
+                        updateSelection(at: location, proxy: proxy, geometry: geometry)
+                    }
+                }
             }
         }
+    }
+
+    private var selectedPoint: ChartDurationValue? {
+        guard let selectedDate else { return nil }
+        return points.first(where: { Calendar.current.isDate($0.date, inSameDayAs: selectedDate) })
+    }
+
+    private var selectedRatio: CGFloat? {
+        chartSelectionRatio(selectedDate: selectedDate, in: points.map(\.date))
     }
 
     private var adaptiveDomain: ClosedRange<Double> {
@@ -2121,6 +2293,36 @@ private struct DurationLineChart: View {
             return "\(h)h\(m)m"
         }
         return "\(m)m"
+    }
+
+    private func intervalTrendText(current: Double?, previous: Double?) -> String {
+        guard let current, let previous, previous > 0 else { return "--" }
+        let change = (current - previous) / previous
+        if abs(change) < 0.005 {
+            return NSLocalizedString("持平", comment: "")
+        }
+        let percent = abs(change * 100)
+        return change > 0
+            ? String(format: NSLocalizedString("增长 %.0f%%", comment: ""), percent)
+            : String(format: NSLocalizedString("减少 %.0f%%", comment: ""), percent)
+    }
+
+    private func updateSelection(at location: CGPoint, proxy: ChartProxy, geometry: GeometryProxy) {
+        guard let plotFrame = proxy.plotFrame else {
+            selectedDate = nil
+            return
+        }
+        let plotRect = geometry[plotFrame]
+        guard plotRect.contains(location) else {
+            selectedDate = nil
+            return
+        }
+        let xPosition = location.x - plotRect.origin.x
+        if let date: Date = proxy.value(atX: xPosition) {
+            selectedDate = nearestDate(to: date, in: points.map(\.date))
+        } else {
+            selectedDate = nil
+        }
     }
 }
 

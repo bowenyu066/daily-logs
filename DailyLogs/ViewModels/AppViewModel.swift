@@ -40,6 +40,8 @@ final class AppViewModel: ObservableObject {
     @Published private(set) var canGenerateAIInsights = false
     @Published private(set) var isUsingCloudAIProxy = false
     @Published private(set) var aiInsightErrorMessage: String?
+    @Published private(set) var currentWeather: WeatherSnapshot?
+    @Published private(set) var currentLocationName: String?
 
     let locationService: LocationService
 
@@ -48,6 +50,7 @@ final class AppViewModel: ObservableObject {
     private let preferencesStore: PreferencesStore
     private let photoStorageService: PhotoStorageService
     private let sunTimesService: SunTimesService
+    private let weatherService: WeatherService
     private var healthSyncAdapter: HealthSyncAdapter
     private let cloudSyncService: CloudSyncService
     private let aiInsightNarrativeService: AIInsightNarrativeGenerating
@@ -65,12 +68,13 @@ final class AppViewModel: ObservableObject {
             preferencesStore: LocalPreferencesStore(store: store),
             photoStorageService: LocalPhotoStorageService(),
             sunTimesService: AstronomySunTimesService(),
+            weatherService: OpenMeteoWeatherService(),
             healthSyncAdapter: HealthKitService(),
             cloudSyncService: FirebaseCloudSyncService(),
             aiInsightNarrativeService: cloudAIService,
             openAIKeyStore: openAIKeyStore,
             locationService: LocationService(),
-            selectedDate: .now.startOfDay,
+            selectedDate: preferences.currentLogicalDate(),
             dailyRecord: DailyRecord.empty(for: .now, preferences: preferences),
             preferences: preferences
         )
@@ -82,6 +86,7 @@ final class AppViewModel: ObservableObject {
         preferencesStore: PreferencesStore,
         photoStorageService: PhotoStorageService,
         sunTimesService: SunTimesService,
+        weatherService: WeatherService,
         healthSyncAdapter: HealthSyncAdapter,
         cloudSyncService: CloudSyncService,
         aiInsightNarrativeService: AIInsightNarrativeGenerating,
@@ -96,12 +101,15 @@ final class AppViewModel: ObservableObject {
         self.preferencesStore = preferencesStore
         self.photoStorageService = photoStorageService
         self.sunTimesService = sunTimesService
+        self.weatherService = weatherService
         self.healthSyncAdapter = healthSyncAdapter
         self.cloudSyncService = cloudSyncService
         self.aiInsightNarrativeService = aiInsightNarrativeService
         self.openAIKeyStore = openAIKeyStore
         self.locationService = locationService
-        self.selectedDate = selectedDate.startOfDay
+        self.selectedDate = selectedDate.startOfDay == Date().startOfDay
+            ? preferences.currentLogicalDate()
+            : selectedDate.startOfDay
         self.dailyRecord = dailyRecord
         self.preferences = preferences
         bindLocationService()
@@ -111,16 +119,20 @@ final class AppViewModel: ObservableObject {
         user != nil
     }
 
+    var logicalToday: Date {
+        preferences.currentLogicalDate()
+    }
+
     var canEditSelectedDate: Bool {
-        selectedDate.startOfDay <= Date().startOfDay
+        selectedDate.startOfDay <= logicalToday
     }
 
     var availableStartDate: Date {
-        user?.createdAt.startOfDay ?? Date().startOfDay
+        user?.createdAt.startOfDay ?? logicalToday
     }
 
     var availableDateRange: ClosedRange<Date> {
-        availableStartDate...Date().startOfDay
+        availableStartDate...logicalToday
     }
 
     var analyticsSummary: AnalyticsSummary {
@@ -128,7 +140,8 @@ final class AppViewModel: ObservableObject {
             records: allRecords,
             range: analyticsRange,
             customRange: analyticsRange == .custom ? analyticsCustomDateRange : nil,
-            defaultMealSlots: preferences.defaultMealSlots
+            defaultMealSlots: preferences.defaultMealSlots,
+            today: logicalToday
         )
     }
 
@@ -152,7 +165,7 @@ final class AppViewModel: ObservableObject {
     }
 
     var dailyInsightTargetDate: Date? {
-        let today = Date().startOfDay
+        let today = logicalToday
         let yesterday = today.adding(days: -1)
         if availableStartDate <= yesterday {
             return yesterday
@@ -300,7 +313,7 @@ final class AppViewModel: ObservableObject {
             preferences = hydratedPreferences(from: try preferencesStore.loadPreferences(userID: user?.userID))
             persistPreferences()
             applyCurrentLanguage()
-            selectedDate = max(Date().startOfDay, availableStartDate)
+            selectedDate = max(logicalToday, availableStartDate)
             analyticsCustomDateRange = defaultAnalyticsCustomRange(startingAt: availableStartDate)
             try loadAllRecords(for: user?.userID ?? "")
             try loadSelectedRecord()
@@ -327,7 +340,7 @@ final class AppViewModel: ObservableObject {
             preferences = hydratedPreferences(from: try preferencesStore.loadPreferences(userID: user?.userID))
             persistPreferences()
             applyCurrentLanguage()
-            selectedDate = max(Date().startOfDay, availableStartDate)
+            selectedDate = max(logicalToday, availableStartDate)
             analyticsCustomDateRange = defaultAnalyticsCustomRange(startingAt: availableStartDate)
             try loadAllRecords(for: user?.userID ?? "")
             try loadSelectedRecord()
@@ -395,7 +408,7 @@ final class AppViewModel: ObservableObject {
             user = nil
             refreshOpenAIConfigurationState()
             allRecords = []
-            selectedDate = .now.startOfDay
+            selectedDate = logicalToday
             dailyRecord = DailyRecord.empty(for: selectedDate, preferences: preferences)
             cloudEncryptionState = .unavailable
             shouldPresentCloudMigration = false
@@ -444,7 +457,7 @@ final class AppViewModel: ObservableObject {
     }
 
     func selectDate(_ date: Date) async {
-        let clamped = min(max(date.startOfDay, availableStartDate), Date().startOfDay)
+        let clamped = min(max(date.startOfDay, availableStartDate), logicalToday)
         selectedDate = clamped
         do {
             try loadSelectedRecord()
@@ -565,6 +578,44 @@ final class AppViewModel: ObservableObject {
         preferences.timeDisplayMode = mode
         persistPreferences()
         await syncPreferencesToCloudIfNeeded()
+    }
+
+    func updateTemperatureUnit(_ unit: TemperatureUnitPreference) async {
+        guard preferences.temperatureUnit != unit else { return }
+        preferences.temperatureUnit = unit
+        persistPreferences()
+        await syncPreferencesToCloudIfNeeded()
+    }
+
+    func configureMidnightMode(enabled: Bool, cutoffHour: Int, applyToExistingRecords: Bool) async {
+        let clampedHour = max(0, min(11, cutoffHour))
+        if enabled {
+            preferences.midnightMode = MidnightModeSettings(
+                isEnabled: true,
+                cutoffHour: clampedHour,
+                effectiveFrom: applyToExistingRecords ? nil : .now
+            )
+        } else {
+            preferences.midnightMode = MidnightModeSettings(isEnabled: false, cutoffHour: clampedHour, effectiveFrom: nil)
+        }
+
+        persistPreferences()
+
+        do {
+            if let user, applyToExistingRecords {
+                try rekeyAllRecords(for: user.userID)
+            } else if let user {
+                try loadAllRecords(for: user.userID)
+            }
+
+            selectedDate = min(max(selectedDate, availableStartDate), logicalToday)
+            try loadSelectedRecord()
+        } catch {
+            errorMessage = NSLocalizedString("更新午夜模式失败：", comment: "") + error.localizedDescription
+        }
+
+        await syncPreferencesToCloudIfNeeded()
+        await syncCurrentRecordToCloudIfNeeded()
     }
 
     func saveMeal(_ entry: MealEntry, images: [UIImage]) async {
@@ -820,6 +871,7 @@ final class AppViewModel: ObservableObject {
     func refreshSunTimes() async {
         refreshLocationIfAuthorized()
         updateSunTimesIfPossible()
+        await refreshCurrentWeatherIfPossible()
         persistCurrentRecord()
         persistPreferences()
         await syncCurrentRecordToCloudIfNeeded()
@@ -841,6 +893,7 @@ final class AppViewModel: ObservableObject {
             errorMessage = NSLocalizedString("刷新记录失败：", comment: "") + error.localizedDescription
         }
         refreshLocationIfAuthorized()
+        await refreshCurrentWeatherIfPossible()
         await syncHealthKitForCurrentDate()
     }
 
@@ -897,7 +950,7 @@ final class AppViewModel: ObservableObject {
 
     func updateAnalyticsCustomDateRange(_ range: ClosedRange<Date>) {
         let lower = max(range.lowerBound.startOfDay, availableStartDate)
-        let upper = min(range.upperBound.startOfDay, Date().startOfDay)
+        let upper = min(range.upperBound.startOfDay, logicalToday)
         analyticsCustomDateRange = min(lower, upper)...max(lower, upper)
         analyticsRange = .custom
     }
@@ -930,7 +983,7 @@ final class AppViewModel: ObservableObject {
     }
 
     private func loadAllRecords(for userID: String) throws {
-        let records = try repository.loadAllRecords(userID: userID)
+        let records = try repository.loadAllRecords(userID: userID, preferences: preferences)
             .filter { $0.date >= availableStartDate }
         allRecords = try migrateRecordedTimeZonesIfNeeded(in: records, userID: userID)
         Task { await refreshRemotePhotoCache() }
@@ -944,7 +997,7 @@ final class AppViewModel: ObservableObject {
             dailyRecord = mergedRecord(dailyRecord, with: preferences)
             dailyRecord.aiInsightNarrative = nil
             dailyRecord.modifiedAt = .now
-            try repository.saveRecord(dailyRecord, userID: user.userID)
+            try repository.saveRecord(dailyRecord, preferences: preferences, userID: user.userID)
             try loadAllRecords(for: user.userID)
             invalidateDailyInsightNarrative()
         } catch {
@@ -1006,7 +1059,7 @@ final class AppViewModel: ObservableObject {
         storedRecord.aiInsightNarrative = narrative
         storedRecord.modifiedAt = .now
 
-        try repository.saveRecord(storedRecord, userID: user.userID)
+        try repository.saveRecord(storedRecord, preferences: preferences, userID: user.userID)
         try loadAllRecords(for: user.userID)
 
         if selectedDate.startOfDay == date.startOfDay {
@@ -1015,7 +1068,7 @@ final class AppViewModel: ObservableObject {
     }
 
     private var automaticInsightTargetDate: Date? {
-        let yesterday = Date().startOfDay.adding(days: -1)
+        let yesterday = logicalToday.adding(days: -1)
         guard availableStartDate <= yesterday else { return nil }
         return yesterday
     }
@@ -1076,6 +1129,23 @@ final class AppViewModel: ObservableObject {
         dailyRecord.sunTimes = sunTimesService.sunTimes(for: selectedDate, coordinate: coordinate, timeZone: timeZone)
     }
 
+    private func refreshCurrentWeatherIfPossible() async {
+        guard locationService.permissionState == .authorized,
+              let coordinate = locationService.latestLocation?.coordinate else {
+            currentWeather = nil
+            currentLocationName = nil
+            return
+        }
+
+        currentLocationName = locationService.detectedLocationName
+
+        do {
+            currentWeather = try await weatherService.weather(at: coordinate)
+        } catch {
+            currentWeather = nil
+        }
+    }
+
     private func refreshFromCloudIfNeeded(for user: UserAccount) async {
         guard !user.isGuest, cloudSyncService.isAvailable else { return }
         do {
@@ -1105,7 +1175,8 @@ final class AppViewModel: ObservableObject {
                 (database.recordsByUser[user.userID] ?? [:]).compactMap { entry in
                     guard entry.key >= registrationCutoffKey else { return nil }
                     return entry.value.anchoredToStorageKey(entry.key)
-                }
+                },
+                preferences: preferences
             )
 
             if payload.records.isEmpty {
@@ -1119,7 +1190,7 @@ final class AppViewModel: ObservableObject {
 
             if !payload.records.isEmpty {
                 let localRecordMap = prunedLocalRecordMap
-                let remoteRecordMap = Self.recordsByStorageKey(payload.records)
+                let remoteRecordMap = Self.recordsByStorageKey(payload.records, preferences: preferences)
                 var merged = remoteRecordMap
                 var recordsToPush: [DailyRecord] = []
                 for (key, localRecord) in localRecordMap {
@@ -1262,8 +1333,17 @@ final class AppViewModel: ObservableObject {
     }
 
     private func defaultAnalyticsCustomRange(startingAt start: Date) -> ClosedRange<Date> {
-        let lower = max(start.startOfDay, Date().startOfDay.adding(days: -29))
-        return lower...Date().startOfDay
+        let lower = max(start.startOfDay, logicalToday.adding(days: -29))
+        return lower...logicalToday
+    }
+
+    private func rekeyAllRecords(for userID: String) throws {
+        let rekeyed = Self.recordsByStorageKey(allRecords, preferences: preferences)
+        let store = LocalJSONStore()
+        var database = try store.load()
+        database.recordsByUser[userID] = rekeyed
+        try store.save(database)
+        try loadAllRecords(for: userID)
     }
 
     private static func longestRecordStreak(in records: [DailyRecord]) -> Int {
@@ -1290,7 +1370,7 @@ final class AppViewModel: ObservableObject {
     }
 
     private func recentRemotePhotoURLs() -> [String] {
-        let lowerBound = Date().startOfDay.adding(days: -6)
+        let lowerBound = logicalToday.adding(days: -6)
         let urls = allRecords
             .filter { $0.date >= lowerBound }
             .flatMap { record in
@@ -1308,10 +1388,10 @@ final class AppViewModel: ObservableObject {
             || SecureCloudPhotoReference.isSecureReference(urlString)
     }
 
-    nonisolated static func recordsByStorageKey(_ records: [DailyRecord]) -> [String: DailyRecord] {
+    nonisolated static func recordsByStorageKey(_ records: [DailyRecord], preferences: UserPreferences) -> [String: DailyRecord] {
         records.reduce(into: [:]) { partialResult, record in
-            let normalized = normalizedRecord(record)
-            let key = normalized.canonicalStorageKey(fallback: normalized.date.storageKey())
+            let normalized = normalizedRecord(record, preferences: preferences)
+            let key = normalized.canonicalStorageKey(using: preferences, fallback: normalized.date.storageKey())
 
             if let existing = partialResult[key] {
                 partialResult[key] = preferredRecord(between: existing, and: normalized)
@@ -1321,8 +1401,8 @@ final class AppViewModel: ObservableObject {
         }
     }
 
-    private nonisolated static func normalizedRecord(_ record: DailyRecord) -> DailyRecord {
-        let key = record.canonicalStorageKey(fallback: record.date.storageKey())
+    private nonisolated static func normalizedRecord(_ record: DailyRecord, preferences: UserPreferences) -> DailyRecord {
+        let key = record.canonicalStorageKey(using: preferences, fallback: record.date.storageKey())
         return record.anchoredToStorageKey(key)
     }
 
@@ -1396,9 +1476,13 @@ final class AppViewModel: ObservableObject {
             self.preferences.locationPermissionState = permissionState
             guard permissionState == .authorized else {
                 self.dailyRecord.sunTimes = nil
+                self.currentWeather = nil
+                self.currentLocationName = nil
                 return
             }
+            self.currentLocationName = self.locationService.detectedLocationName
             self.updateSunTimesIfPossible()
+            Task { await self.refreshCurrentWeatherIfPossible() }
         }
         .store(in: &cancellables)
     }
@@ -1413,7 +1497,7 @@ final class AppViewModel: ObservableObject {
         let migrated = records.map { $0.backfillingRecordedTimeZones(identifier) }
         guard migrated != records else { return migrated.sorted { $0.date < $1.date } }
         for record in migrated {
-            try repository.saveRecord(record, userID: userID)
+            try repository.saveRecord(record, preferences: preferences, userID: userID)
         }
         return migrated.sorted { $0.date < $1.date }
     }
@@ -1546,6 +1630,23 @@ final class AppViewModel: ObservableObject {
         date.displayShortTime(in: displayedTimeZone(for: recordedTimeZoneIdentifier))
     }
 
+    func formattedCurrentTemperature() -> String {
+        guard let currentWeather else { return "--" }
+        let value: Double
+        switch preferences.temperatureUnit {
+        case .celsius:
+            value = currentWeather.temperatureCelsius
+        case .fahrenheit:
+            value = currentWeather.temperatureCelsius * 9 / 5 + 32
+        }
+        return String(format: "%.0f°%@", value.rounded(), preferences.temperatureUnit.symbol)
+    }
+
+    func currentWeatherSummary() -> String? {
+        guard let currentWeather else { return nil }
+        return "\(currentWeather.conditionDescription) · \(formattedCurrentTemperature())"
+    }
+
     private func editedTimeZoneIdentifier(for recordedTimeZoneIdentifier: String?) -> String {
         switch preferences.timeDisplayMode {
         case .current:
@@ -1556,7 +1657,10 @@ final class AppViewModel: ObservableObject {
     }
 
     private func shouldAttemptAutomaticHealthKitSync() -> Bool {
-        guard selectedDate.startOfDay == Date().startOfDay else { return false }
+        guard selectedDate.startOfDay == logicalToday else { return false }
+        if preferences.midnightMode.isEnabled, logicalToday != Date().startOfDay {
+            return false
+        }
         return !dailyRecord.sleepRecord.hasSleepData
     }
 
@@ -1574,7 +1678,7 @@ final class AppViewModel: ObservableObject {
     }
 
     private func deduplicatedPendingUploads(_ records: [DailyRecord]) -> [DailyRecord] {
-        let deduplicated = Self.recordsByStorageKey(records)
+        let deduplicated = Self.recordsByStorageKey(records, preferences: preferences)
         return deduplicated.values.sorted { $0.date < $1.date }
     }
 

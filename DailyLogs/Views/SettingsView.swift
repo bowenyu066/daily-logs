@@ -9,6 +9,9 @@ struct SettingsView: View {
     @State private var isEditingNickname = false
     @State private var nicknameText = ""
     @State private var showingHomeSections = false
+    @State private var showingMidnightModeConfirmation = false
+    @State private var pendingMidnightModeEnabled = false
+    @State private var pendingMidnightCutoffHour = 4
 
     var body: some View {
         NavigationStack {
@@ -66,6 +69,29 @@ struct SettingsView: View {
                 }
             } message: {
                 Text(appViewModel.errorMessage ?? "")
+            }
+            .confirmationDialog(NSLocalizedString("午夜模式如何生效？", comment: ""), isPresented: $showingMidnightModeConfirmation, titleVisibility: .visible) {
+                Button(NSLocalizedString("更新之前日期的数据", comment: "")) {
+                    Task {
+                        await appViewModel.configureMidnightMode(
+                            enabled: pendingMidnightModeEnabled,
+                            cutoffHour: pendingMidnightCutoffHour,
+                            applyToExistingRecords: true
+                        )
+                    }
+                }
+                Button(NSLocalizedString("仅从现在开始生效", comment: "")) {
+                    Task {
+                        await appViewModel.configureMidnightMode(
+                            enabled: pendingMidnightModeEnabled,
+                            cutoffHour: pendingMidnightCutoffHour,
+                            applyToExistingRecords: false
+                        )
+                    }
+                }
+                Button(NSLocalizedString("取消", comment: ""), role: .cancel) {}
+            } message: {
+                Text(NSLocalizedString("凌晨截止前的记录会被算到前一天。", comment: ""))
             }
             .task(id: appViewModel.user?.userID) {
                 await appViewModel.refreshCloudEncryptionState()
@@ -171,6 +197,8 @@ struct SettingsView: View {
             }
 
             timeDisplayModeSection
+            temperatureUnitSection
+            midnightModeSection
 
             LocationPermissionToggleRow(
                 isOn: Binding(
@@ -363,6 +391,82 @@ struct SettingsView: View {
             SettingsStaticRow(title: NSLocalizedString("时间展示方式", comment: ""), value: appViewModel.preferences.timeDisplayMode.title)
         }
         .buttonStyle(.plain)
+    }
+
+    private var temperatureUnitSection: some View {
+        Menu {
+            ForEach(TemperatureUnitPreference.allCases) { unit in
+                Button {
+                    Task { await appViewModel.updateTemperatureUnit(unit) }
+                } label: {
+                    HStack {
+                        Text(unit.title)
+                        if appViewModel.preferences.temperatureUnit == unit {
+                            Image(systemName: "checkmark")
+                        }
+                    }
+                }
+            }
+        } label: {
+            SettingsStaticRow(title: NSLocalizedString("温度单位", comment: ""), value: appViewModel.preferences.temperatureUnit.title)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var midnightModeSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text(NSLocalizedString("午夜模式", comment: ""))
+                    .font(.system(size: 16, weight: .semibold, design: .rounded))
+                    .foregroundStyle(AppTheme.primaryText)
+                Spacer()
+                Toggle("", isOn: Binding(
+                    get: { appViewModel.preferences.midnightMode.isEnabled },
+                    set: { isOn in
+                        if isOn {
+                            pendingMidnightModeEnabled = true
+                            pendingMidnightCutoffHour = appViewModel.preferences.midnightMode.cutoffHour
+                            showingMidnightModeConfirmation = true
+                        } else {
+                            Task {
+                                await appViewModel.configureMidnightMode(
+                                    enabled: false,
+                                    cutoffHour: appViewModel.preferences.midnightMode.cutoffHour,
+                                    applyToExistingRecords: false
+                                )
+                            }
+                        }
+                    }
+                ))
+                .labelsHidden()
+                .tint(AppTheme.accent)
+            }
+
+            if appViewModel.preferences.midnightMode.isEnabled {
+                Menu {
+                    ForEach(0..<12, id: \.self) { hour in
+                        Button {
+                            pendingMidnightModeEnabled = true
+                            pendingMidnightCutoffHour = hour
+                            showingMidnightModeConfirmation = true
+                        } label: {
+                            HStack {
+                                Text(String(format: NSLocalizedString("凌晨 %d 点", comment: ""), hour))
+                                if appViewModel.preferences.midnightMode.cutoffHour == hour {
+                                    Image(systemName: "checkmark")
+                                }
+                            }
+                        }
+                    }
+                } label: {
+                    SettingsStaticRow(
+                        title: NSLocalizedString("截止时间", comment: ""),
+                        value: String(format: NSLocalizedString("凌晨 %d 点前算前一天", comment: ""), appViewModel.preferences.midnightMode.cutoffHour)
+                    )
+                }
+                .buttonStyle(.plain)
+            }
+        }
     }
 
     private var defaultMealsCard: some View {

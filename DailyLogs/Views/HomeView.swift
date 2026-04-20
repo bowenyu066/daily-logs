@@ -289,33 +289,60 @@ struct HomeView: View {
             }
 
             if sectionVisible(.sunTimes) {
-                HStack(spacing: 16) {
-                    Label {
-                        Text(formattedSun(
-                            appViewModel.dailyRecord.sunTimes?.sunrise,
-                            timeZoneIdentifier: appViewModel.dailyRecord.sunTimes?.timeZoneIdentifier
-                        ))
-                            .font(.system(size: 15, weight: .semibold, design: .rounded))
-                            .foregroundStyle(AppTheme.primaryText)
-                            .monospacedDigit()
-                    } icon: {
-                        Image(systemName: "sunrise")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(AppTheme.sunriseAccent)
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(spacing: 14) {
+                        Label {
+                            Text(appViewModel.currentLocationName ?? NSLocalizedString("当前位置", comment: ""))
+                                .font(.system(size: 15, weight: .semibold, design: .rounded))
+                                .foregroundStyle(AppTheme.primaryText)
+                                .lineLimit(1)
+                        } icon: {
+                            Image(systemName: "location.fill")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(AppTheme.accent)
+                        }
+
+                        Spacer(minLength: 8)
+
+                        Label {
+                            Text(formattedSun(
+                                appViewModel.dailyRecord.sunTimes?.sunrise,
+                                timeZoneIdentifier: appViewModel.dailyRecord.sunTimes?.timeZoneIdentifier
+                            ))
+                                .font(.system(size: 15, weight: .semibold, design: .rounded))
+                                .foregroundStyle(AppTheme.primaryText)
+                                .monospacedDigit()
+                        } icon: {
+                            Image(systemName: "sunrise")
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundStyle(AppTheme.sunriseAccent)
+                        }
+
+                        Label {
+                            Text(formattedSun(
+                                appViewModel.dailyRecord.sunTimes?.sunset,
+                                timeZoneIdentifier: appViewModel.dailyRecord.sunTimes?.timeZoneIdentifier
+                            ))
+                                .font(.system(size: 15, weight: .semibold, design: .rounded))
+                                .foregroundStyle(AppTheme.primaryText)
+                                .monospacedDigit()
+                        } icon: {
+                            Image(systemName: "sunset")
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundStyle(AppTheme.sleepAccent)
+                        }
                     }
 
-                    Label {
-                        Text(formattedSun(
-                            appViewModel.dailyRecord.sunTimes?.sunset,
-                            timeZoneIdentifier: appViewModel.dailyRecord.sunTimes?.timeZoneIdentifier
-                        ))
-                            .font(.system(size: 15, weight: .semibold, design: .rounded))
-                            .foregroundStyle(AppTheme.primaryText)
-                            .monospacedDigit()
-                    } icon: {
-                        Image(systemName: "sunset")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(AppTheme.sleepAccent)
+                    if let weatherSummary = appViewModel.currentWeatherSummary() {
+                        Label {
+                            Text(weatherSummary)
+                                .font(.system(size: 14, weight: .medium, design: .rounded))
+                                .foregroundStyle(AppTheme.secondaryText)
+                        } icon: {
+                            Image(systemName: appViewModel.currentWeather?.symbolName ?? "cloud.sun.fill")
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundStyle(AppTheme.sunriseAccent)
+                        }
                     }
                 }
             }

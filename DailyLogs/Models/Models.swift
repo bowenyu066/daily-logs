@@ -136,6 +136,31 @@ enum TimeDisplayMode: String, Codable, CaseIterable, Identifiable {
     }
 }
 
+enum TemperatureUnitPreference: String, Codable, CaseIterable, Identifiable {
+    case celsius
+    case fahrenheit
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .celsius:
+            NSLocalizedString("摄氏度", comment: "")
+        case .fahrenheit:
+            NSLocalizedString("华氏度", comment: "")
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .celsius:
+            "C"
+        case .fahrenheit:
+            "F"
+        }
+    }
+}
+
 enum MealKind: String, Codable, CaseIterable, Identifiable {
     case breakfast
     case lunch
@@ -212,6 +237,12 @@ struct SunTimes: Codable, Equatable {
     }
 }
 
+struct WeatherSnapshot: Equatable, Sendable {
+    var conditionDescription: String
+    var symbolName: String
+    var temperatureCelsius: Double
+}
+
 enum SleepStage: String, Codable, CaseIterable {
     case awake, light, deep, rem
 
@@ -256,8 +287,11 @@ struct SleepRecord: Codable, Equatable {
 
     var duration: TimeInterval? {
         guard let bedtimePreviousNight, let wakeTimeCurrentDay else { return nil }
-        let duration = wakeTimeCurrentDay.timeIntervalSince(bedtimePreviousNight)
-        return duration > 0 ? duration : nil
+        let rawDuration = wakeTimeCurrentDay.timeIntervalSince(bedtimePreviousNight)
+        guard rawDuration > 0 else { return nil }
+        let awakeDuration = stageDurations[.awake] ?? 0
+        let adjustedDuration = rawDuration - awakeDuration
+        return adjustedDuration > 0 ? adjustedDuration : rawDuration
     }
 
     var hasStageData: Bool {
@@ -731,6 +765,8 @@ struct UserPreferences: Codable, Equatable {
     var healthKitSyncEnabled: Bool = false
     var appLanguage: AppLanguage = .system
     var timeDisplayMode: TimeDisplayMode = .recorded
+    var temperatureUnit: TemperatureUnitPreference = .celsius
+    var midnightMode: MidnightModeSettings = .default
     var visibleHomeSections: [HomeSectionKind] = HomeSectionKind.defaultVisible
     var showMasturbationOption: Bool = false
 
@@ -743,6 +779,8 @@ struct UserPreferences: Codable, Equatable {
         case healthKitSyncEnabled
         case appLanguage
         case timeDisplayMode
+        case temperatureUnit
+        case midnightMode
         case targetBedtime
         case visibleHomeSections
         case showMasturbationOption
@@ -757,6 +795,8 @@ struct UserPreferences: Codable, Equatable {
         healthKitSyncEnabled: Bool = false,
         appLanguage: AppLanguage = .system,
         timeDisplayMode: TimeDisplayMode = .recorded,
+        temperatureUnit: TemperatureUnitPreference = .celsius,
+        midnightMode: MidnightModeSettings = .default,
         visibleHomeSections: [HomeSectionKind] = HomeSectionKind.defaultVisible,
         showMasturbationOption: Bool = false
     ) {
@@ -768,6 +808,8 @@ struct UserPreferences: Codable, Equatable {
         self.healthKitSyncEnabled = healthKitSyncEnabled
         self.appLanguage = appLanguage
         self.timeDisplayMode = timeDisplayMode
+        self.temperatureUnit = temperatureUnit
+        self.midnightMode = midnightMode
         self.visibleHomeSections = visibleHomeSections
         self.showMasturbationOption = showMasturbationOption
     }
@@ -781,6 +823,8 @@ struct UserPreferences: Codable, Equatable {
         healthKitSyncEnabled = try container.decodeIfPresent(Bool.self, forKey: .healthKitSyncEnabled) ?? false
         appLanguage = try container.decodeIfPresent(AppLanguage.self, forKey: .appLanguage) ?? .system
         timeDisplayMode = try container.decodeIfPresent(TimeDisplayMode.self, forKey: .timeDisplayMode) ?? .recorded
+        temperatureUnit = try container.decodeIfPresent(TemperatureUnitPreference.self, forKey: .temperatureUnit) ?? .celsius
+        midnightMode = try container.decodeIfPresent(MidnightModeSettings.self, forKey: .midnightMode) ?? .default
         visibleHomeSections = try container.decodeIfPresent([HomeSectionKind].self, forKey: .visibleHomeSections) ?? HomeSectionKind.defaultVisible
         showMasturbationOption = try container.decodeIfPresent(Bool.self, forKey: .showMasturbationOption) ?? false
         if let bedtimeSchedule = try container.decodeIfPresent(BedtimeSchedule.self, forKey: .bedtimeSchedule) {
@@ -801,8 +845,60 @@ struct UserPreferences: Codable, Equatable {
         try container.encode(healthKitSyncEnabled, forKey: .healthKitSyncEnabled)
         try container.encode(appLanguage, forKey: .appLanguage)
         try container.encode(timeDisplayMode, forKey: .timeDisplayMode)
+        try container.encode(temperatureUnit, forKey: .temperatureUnit)
+        try container.encode(midnightMode, forKey: .midnightMode)
         try container.encode(visibleHomeSections, forKey: .visibleHomeSections)
         try container.encode(showMasturbationOption, forKey: .showMasturbationOption)
+    }
+}
+
+struct MidnightModeSettings: Codable, Equatable {
+    var isEnabled: Bool = false
+    var cutoffHour: Int = 4
+    var effectiveFrom: Date?
+
+    static let `default` = MidnightModeSettings()
+
+    init(isEnabled: Bool = false, cutoffHour: Int = 4, effectiveFrom: Date? = nil) {
+        self.isEnabled = isEnabled
+        self.cutoffHour = max(0, min(11, cutoffHour))
+        self.effectiveFrom = effectiveFrom
+    }
+
+    var appliesRetroactively: Bool {
+        isEnabled && effectiveFrom == nil
+    }
+
+    func applies(to timestamp: Date) -> Bool {
+        guard isEnabled else { return false }
+        guard let effectiveFrom else { return true }
+        return timestamp >= effectiveFrom
+    }
+
+    func logicalDate(for timestamp: Date, timeZone: TimeZone = .autoupdatingCurrent, calendar: Calendar = .current) -> Date {
+        var adjustedCalendar = calendar
+        adjustedCalendar.timeZone = timeZone
+        var logicalDay = adjustedCalendar.startOfDay(for: timestamp)
+        guard applies(to: timestamp) else { return logicalDay }
+        if adjustedCalendar.component(.hour, from: timestamp) < cutoffHour {
+            logicalDay = adjustedCalendar.date(byAdding: .day, value: -1, to: logicalDay) ?? logicalDay
+        }
+        return logicalDay
+    }
+}
+
+extension UserPreferences {
+    func logicalDate(for timestamp: Date, timeZoneIdentifier: String? = nil, fallbackTimeZone: TimeZone = .autoupdatingCurrent) -> Date {
+        let timeZone = TimeZone(identifier: timeZoneIdentifier ?? "") ?? fallbackTimeZone
+        return midnightMode.logicalDate(for: timestamp, timeZone: timeZone)
+    }
+
+    func storageKey(for timestamp: Date, timeZoneIdentifier: String? = nil, fallbackTimeZone: TimeZone = .autoupdatingCurrent) -> String {
+        logicalDate(for: timestamp, timeZoneIdentifier: timeZoneIdentifier, fallbackTimeZone: fallbackTimeZone).storageKey()
+    }
+
+    func currentLogicalDate(now: Date = .now, timeZone: TimeZone = .autoupdatingCurrent) -> Date {
+        midnightMode.logicalDate(for: now, timeZone: timeZone)
     }
 }
 
@@ -928,9 +1024,9 @@ extension DailyRecord {
         return updated
     }
 
-    func canonicalStorageKey(fallback fallbackKey: String? = nil) -> String {
+    func canonicalStorageKey(using preferences: UserPreferences, fallback fallbackKey: String? = nil) -> String {
         let fallbackKey = fallbackKey ?? date.storageKey()
-        let candidates = inferredStorageKeyCandidates()
+        let candidates = inferredStorageKeyCandidates(using: preferences)
         guard !candidates.isEmpty else { return fallbackKey }
 
         let counts = Dictionary(candidates.map { ($0, 1) }, uniquingKeysWith: +)
@@ -946,43 +1042,41 @@ extension DailyRecord {
         return bestKeys.first ?? fallbackKey
     }
 
-    private func inferredStorageKeyCandidates() -> [String] {
+    func canonicalStorageKey(fallback fallbackKey: String? = nil) -> String {
+        canonicalStorageKey(using: UserPreferences(), fallback: fallbackKey)
+    }
+
+    private func inferredStorageKeyCandidates(using preferences: UserPreferences) -> [String] {
         var candidates: [String] = []
 
         if let wakeTime = sleepRecord.wakeTimeCurrentDay {
-            let timeZone = TimeZone(identifier: sleepRecord.timeZoneIdentifier ?? "") ?? .autoupdatingCurrent
-            candidates.append(wakeTime.storageKey(in: timeZone))
+            candidates.append(preferences.storageKey(for: wakeTime, timeZoneIdentifier: sleepRecord.timeZoneIdentifier))
         }
 
         candidates += meals.compactMap {
             guard let time = $0.time else { return nil }
-            let timeZone = TimeZone(identifier: $0.timeZoneIdentifier ?? "") ?? .autoupdatingCurrent
-            return time.storageKey(in: timeZone)
+            return preferences.storageKey(for: time, timeZoneIdentifier: $0.timeZoneIdentifier)
         }
 
         candidates += showers.compactMap {
             guard let time = $0.time else { return nil }
-            let timeZone = TimeZone(identifier: $0.timeZoneIdentifier ?? "") ?? .autoupdatingCurrent
-            return time.storageKey(in: timeZone)
+            return preferences.storageKey(for: time, timeZoneIdentifier: $0.timeZoneIdentifier)
         }
 
         candidates += bowelMovements.compactMap {
             guard let time = $0.time else { return nil }
-            let timeZone = TimeZone(identifier: $0.timeZoneIdentifier ?? "") ?? .autoupdatingCurrent
-            return time.storageKey(in: timeZone)
+            return preferences.storageKey(for: time, timeZoneIdentifier: $0.timeZoneIdentifier)
         }
 
         candidates += sexualActivities.map { entry in
             if let time = entry.time {
-                let timeZone = TimeZone(identifier: entry.timeZoneIdentifier ?? "") ?? .autoupdatingCurrent
-                return time.storageKey(in: timeZone)
+                return preferences.storageKey(for: time, timeZoneIdentifier: entry.timeZoneIdentifier)
             }
             return entry.date.storageKey()
         }
 
         if let sunrise = sunTimes?.sunrise {
-            let timeZone = TimeZone(identifier: sunTimes?.timeZoneIdentifier ?? "") ?? .autoupdatingCurrent
-            candidates.append(sunrise.storageKey(in: timeZone))
+            candidates.append(preferences.storageKey(for: sunrise, timeZoneIdentifier: sunTimes?.timeZoneIdentifier))
         }
 
         return candidates

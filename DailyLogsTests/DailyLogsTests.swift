@@ -22,6 +22,26 @@ struct DailyLogsTests {
     }
 
     @Test
+    func sleepDurationSubtractsAwakeStages() {
+        let calendar = Calendar.current
+        let bedtime = calendar.date(from: DateComponents(year: 2026, month: 3, day: 13, hour: 23, minute: 0))!
+        let wake = calendar.date(from: DateComponents(year: 2026, month: 3, day: 14, hour: 7, minute: 0))!
+        let record = SleepRecord(
+            bedtimePreviousNight: bedtime,
+            wakeTimeCurrentDay: wake,
+            targetBedtime: nil,
+            source: .healthKit,
+            stageIntervals: [
+                SleepStageInterval(stage: .light, start: bedtime, end: bedtime.addingTimeInterval(2 * 3600)),
+                SleepStageInterval(stage: .awake, start: bedtime.addingTimeInterval(2 * 3600), end: bedtime.addingTimeInterval(2.5 * 3600)),
+                SleepStageInterval(stage: .deep, start: bedtime.addingTimeInterval(2.5 * 3600), end: wake)
+            ]
+        )
+
+        #expect(record.duration == 27_000)
+    }
+
+    @Test
     func analyticsSummaryCountsMealsAndShowers() {
         let baseDay = Calendar.current.date(from: DateComponents(year: 2026, month: 3, day: 10))!
         let record = DailyRecord(
@@ -165,6 +185,89 @@ struct DailyLogsTests {
 
         #expect(summary.days.first?.date == customStart)
         #expect(summary.days.last?.date == today)
+    }
+
+    @Test
+    func analyticsWeekRangeIncludesToday() throws {
+        let today = Date().startOfDay
+        let records = (0..<7).map { offset in
+            let date = today.adding(days: -offset)
+            return DailyRecord(
+                date: date,
+                sleepRecord: SleepRecord(
+                    bedtimePreviousNight: date.adding(days: -1).settingTime(hour: 23, minute: 0),
+                    wakeTimeCurrentDay: date.settingTime(hour: 7, minute: 0),
+                    source: .manual
+                ),
+                meals: [MealEntry(mealKind: .breakfast)],
+                showers: [],
+                sunTimes: nil
+            )
+        }
+
+        let summary = AnalyticsCalculator.build(
+            records: records,
+            range: .week,
+            today: today
+        )
+
+        #expect(summary.days.count == 7)
+        #expect(summary.days.last?.date == today)
+        #expect(summary.averageSleepHours == 8)
+    }
+
+    @Test
+    func analyticsComparisonUsesPreviousWindow() {
+        let today = Date().startOfDay
+        let currentWindow = (0..<7).map { offset in
+            let date = today.adding(days: -offset)
+            return DailyRecord(
+                date: date,
+                sleepRecord: SleepRecord(
+                    bedtimePreviousNight: date.adding(days: -1).settingTime(hour: 23, minute: 0),
+                    wakeTimeCurrentDay: date.settingTime(hour: 7, minute: 0),
+                    source: .manual
+                ),
+                meals: [MealEntry(mealKind: .breakfast)],
+                showers: [],
+                sunTimes: nil
+            )
+        }
+        let previousWindow = (7..<14).map { offset in
+            let date = today.adding(days: -offset)
+            return DailyRecord(
+                date: date,
+                sleepRecord: SleepRecord(
+                    bedtimePreviousNight: date.adding(days: -1).settingTime(hour: 0, minute: 0),
+                    wakeTimeCurrentDay: date.settingTime(hour: 6, minute: 0),
+                    source: .manual
+                ),
+                meals: [MealEntry(mealKind: .breakfast)],
+                showers: [],
+                sunTimes: nil
+            )
+        }
+
+        let summary = AnalyticsCalculator.build(
+            records: currentWindow + previousWindow,
+            range: .week,
+            today: today
+        )
+
+        #expect(summary.averageSleepHours == 8)
+        #expect(summary.previousAverageSleepHours == 6)
+        #expect(summary.previousAverageBedtimeMinutes == 0)
+    }
+
+    @Test
+    func midnightModeShiftsEarlyMorningToPreviousDay() {
+        let timestamp = Calendar.current.date(from: DateComponents(year: 2026, month: 4, day: 19, hour: 2, minute: 30))!
+        let preferences = UserPreferences(
+            midnightMode: MidnightModeSettings(isEnabled: true, cutoffHour: 4, effectiveFrom: nil)
+        )
+
+        let logicalDate = preferences.logicalDate(for: timestamp)
+        #expect(logicalDate.storageKey() == "2026-04-18")
     }
 
     @Test
@@ -382,6 +485,7 @@ struct DailyLogsTests {
             preferencesStore: MockPreferencesStore(preferences: preferences),
             photoStorageService: MockPhotoStorageService(),
             sunTimesService: MockSunTimesService(),
+            weatherService: MockWeatherService(),
             healthSyncAdapter: MockHealthSyncAdapter(sleepRecord: nil),
             cloudSyncService: NoopCloudSyncService(),
             aiInsightNarrativeService: aiService,
@@ -467,6 +571,7 @@ struct DailyLogsTests {
             preferencesStore: MockPreferencesStore(preferences: preferences),
             photoStorageService: MockPhotoStorageService(),
             sunTimesService: MockSunTimesService(),
+            weatherService: MockWeatherService(),
             healthSyncAdapter: MockHealthSyncAdapter(sleepRecord: nil),
             cloudSyncService: NoopCloudSyncService(),
             aiInsightNarrativeService: aiService,
@@ -517,6 +622,7 @@ struct DailyLogsTests {
             preferencesStore: MockPreferencesStore(preferences: preferences),
             photoStorageService: MockPhotoStorageService(),
             sunTimesService: MockSunTimesService(),
+            weatherService: MockWeatherService(),
             healthSyncAdapter: MockHealthSyncAdapter(sleepRecord: nil),
             cloudSyncService: NoopCloudSyncService(),
             aiInsightNarrativeService: aiService,
@@ -584,7 +690,7 @@ struct DailyLogsTests {
             )
         )
 
-        let deduplicated = AppViewModel.recordsByStorageKey([sparseRecord, richerRecord])
+        let deduplicated = AppViewModel.recordsByStorageKey([sparseRecord, richerRecord], preferences: UserPreferences())
         let expected = DailyRecord(
             date: richerRecord.date,
             sleepRecord: richerRecord.sleepRecord,
@@ -622,7 +728,7 @@ struct DailyLogsTests {
             modifiedAt: day.settingTime(hour: 22, minute: 0)
         )
 
-        let deduplicated = AppViewModel.recordsByStorageKey([olderRecord, newerRecord])
+        let deduplicated = AppViewModel.recordsByStorageKey([olderRecord, newerRecord], preferences: UserPreferences())
         let expected = DailyRecord(
             date: newerRecord.date,
             sleepRecord: newerRecord.sleepRecord,
@@ -665,7 +771,7 @@ struct DailyLogsTests {
         )
 
         let duplicate = shiftedRecord.anchoredToStorageKey("2026-03-27")
-        let deduplicated = AppViewModel.recordsByStorageKey([shiftedRecord, duplicate])
+        let deduplicated = AppViewModel.recordsByStorageKey([shiftedRecord, duplicate], preferences: UserPreferences())
 
         #expect(deduplicated.count == 1)
         #expect(deduplicated["2026-03-27"]?.date.storageKey() == "2026-03-27")
@@ -712,7 +818,7 @@ struct DailyLogsTests {
         ]
         try store.save(database)
 
-        let loaded = try repository.loadAllRecords(userID: userID)
+        let loaded = try repository.loadAllRecords(userID: userID, preferences: UserPreferences())
 
         #expect(loaded.count == 1)
         #expect(loaded.first?.date.storageKey() == storedKey)
@@ -844,6 +950,7 @@ struct DailyLogsTests {
             preferencesStore: MockPreferencesStore(preferences: preferences),
             photoStorageService: MockPhotoStorageService(),
             sunTimesService: MockSunTimesService(),
+            weatherService: MockWeatherService(),
             healthSyncAdapter: healthSyncAdapter,
             cloudSyncService: NoopCloudSyncService(),
             aiInsightNarrativeService: NoopAIInsightNarrativeService(),
@@ -896,6 +1003,7 @@ struct DailyLogsTests {
             preferencesStore: MockPreferencesStore(preferences: UserPreferences()),
             photoStorageService: MockPhotoStorageService(),
             sunTimesService: MockSunTimesService(),
+            weatherService: MockWeatherService(),
             healthSyncAdapter: MockHealthSyncAdapter(sleepRecord: nil),
             cloudSyncService: cloudSyncService,
             aiInsightNarrativeService: NoopAIInsightNarrativeService(),
@@ -954,6 +1062,7 @@ struct DailyLogsTests {
             preferencesStore: MockPreferencesStore(preferences: UserPreferences()),
             photoStorageService: MockPhotoStorageService(),
             sunTimesService: MockSunTimesService(),
+            weatherService: MockWeatherService(),
             healthSyncAdapter: MockHealthSyncAdapter(sleepRecord: nil),
             cloudSyncService: NoopCloudSyncService(),
             aiInsightNarrativeService: NoopAIInsightNarrativeService(),
@@ -1022,6 +1131,7 @@ struct DailyLogsTests {
             preferencesStore: MockPreferencesStore(preferences: UserPreferences()),
             photoStorageService: MockPhotoStorageService(),
             sunTimesService: MockSunTimesService(),
+            weatherService: MockWeatherService(),
             healthSyncAdapter: MockHealthSyncAdapter(sleepRecord: nil),
             cloudSyncService: NoopCloudSyncService(),
             aiInsightNarrativeService: NoopAIInsightNarrativeService(),
@@ -1066,6 +1176,7 @@ struct DailyLogsTests {
             preferencesStore: MockPreferencesStore(preferences: preferences),
             photoStorageService: MockPhotoStorageService(),
             sunTimesService: MockSunTimesService(),
+            weatherService: MockWeatherService(),
             healthSyncAdapter: healthSyncAdapter,
             cloudSyncService: NoopCloudSyncService(),
             aiInsightNarrativeService: NoopAIInsightNarrativeService(),
@@ -1114,6 +1225,7 @@ struct DailyLogsTests {
             preferencesStore: MockPreferencesStore(preferences: preferences),
             photoStorageService: MockPhotoStorageService(),
             sunTimesService: MockSunTimesService(),
+            weatherService: MockWeatherService(),
             healthSyncAdapter: healthSyncAdapter,
             cloudSyncService: NoopCloudSyncService(),
             aiInsightNarrativeService: NoopAIInsightNarrativeService(),
@@ -1299,12 +1411,20 @@ private final class InMemoryDailyRecordRepository: DailyRecordRepository {
         records[date.storageKey()] ?? DailyRecord.empty(for: date, preferences: preferences)
     }
 
-    func saveRecord(_ record: DailyRecord, userID: String) throws {
+    func saveRecord(_ record: DailyRecord, preferences: UserPreferences, userID: String) throws {
         records[record.date.storageKey()] = record
     }
 
-    func loadAllRecords(userID: String) throws -> [DailyRecord] {
+    func loadAllRecords(userID: String, preferences: UserPreferences) throws -> [DailyRecord] {
         Array(records.values)
+    }
+}
+
+private struct MockWeatherService: WeatherService {
+    var snapshot: WeatherSnapshot? = nil
+
+    func weather(at coordinate: CLLocationCoordinate2D) async throws -> WeatherSnapshot? {
+        snapshot
     }
 }
 
