@@ -1166,11 +1166,19 @@ enum AnalyticsCalculator {
     }
 
     private static func actualDisplayDate(for timestamp: Date, timeZoneIdentifier: String? = nil) -> Date {
-        var calendar = Calendar.current
+        var recordedCalendar = Calendar.current
         if let timeZoneIdentifier, let timeZone = TimeZone(identifier: timeZoneIdentifier) {
-            calendar.timeZone = timeZone
+            recordedCalendar.timeZone = timeZone
         }
-        return calendar.startOfDay(for: timestamp)
+        let components = recordedCalendar.dateComponents([.year, .month, .day], from: timestamp)
+        var displayComponents = DateComponents()
+        displayComponents.calendar = Calendar.current
+        displayComponents.timeZone = Calendar.current.timeZone
+        displayComponents.year = components.year
+        displayComponents.month = components.month
+        displayComponents.day = components.day
+        return Calendar.current.date(from: displayComponents).map { Calendar.current.startOfDay(for: $0) }
+            ?? Calendar.current.startOfDay(for: timestamp)
     }
 
     private static func dateRange(in bounds: ClosedRange<Date>, calendar: Calendar = .current) -> [Date] {

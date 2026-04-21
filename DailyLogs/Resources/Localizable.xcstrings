@@ -701,6 +701,16 @@
         }
       }
     },
+    "云端 AI 响应超时，请稍后重试。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cloud AI response timed out. Please try again later."
+          }
+        }
+      }
+    },
     "云端 AI 已启用" : {
       "localizations" : {
         "en" : {

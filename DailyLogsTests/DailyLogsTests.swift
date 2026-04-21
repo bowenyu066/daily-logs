@@ -313,6 +313,55 @@ struct DailyLogsTests {
     }
 
     @Test
+    func analyticsMapsRecordedTimeZoneSleepOntoLocalChartDay() throws {
+        let recordedTimeZone = try #require(TimeZone(identifier: "Pacific/Kiritimati"))
+        var recordedCalendar = Calendar(identifier: .gregorian)
+        recordedCalendar.timeZone = recordedTimeZone
+        let displayDay = try #require(Calendar.current.date(from: DateComponents(year: 2026, month: 3, day: 27)))
+        let bedtime = try #require(recordedCalendar.date(from: DateComponents(
+            timeZone: recordedTimeZone,
+            year: 2026,
+            month: 3,
+            day: 26,
+            hour: 23,
+            minute: 30
+        )))
+        let wake = try #require(recordedCalendar.date(from: DateComponents(
+            timeZone: recordedTimeZone,
+            year: 2026,
+            month: 3,
+            day: 27,
+            hour: 7,
+            minute: 30
+        )))
+        let record = DailyRecord(
+            date: displayDay,
+            sleepRecord: SleepRecord(
+                bedtimePreviousNight: bedtime,
+                wakeTimeCurrentDay: wake,
+                source: .manual,
+                timeZoneIdentifier: recordedTimeZone.identifier
+            ),
+            meals: [],
+            showers: [],
+            bowelMovements: [],
+            sexualActivities: [],
+            sunTimes: nil
+        )
+
+        let summary = AnalyticsCalculator.build(
+            records: [record],
+            range: .custom,
+            customRange: displayDay...displayDay,
+            today: displayDay
+        )
+
+        #expect(summary.days.first?.date.storageKey() == "2026-03-27")
+        #expect(summary.days.first?.sleepHours == 8)
+        #expect(summary.days.first?.wakeMinutes == Double(7 * 60 + 30))
+    }
+
+    @Test
     func analyticsComparisonUsesPreviousWindow() {
         let today = Date().startOfDay
         let currentWindow = (0..<7).map { offset in
