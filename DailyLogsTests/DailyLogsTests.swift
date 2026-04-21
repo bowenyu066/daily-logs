@@ -525,6 +525,42 @@ struct DailyLogsTests {
     }
 
     @Test @MainActor
+    func normalizedEventTimestampDropsNextDayMarkerAfterWheelMovesPastCutoff() {
+        let logicalDate = Calendar.current.date(from: DateComponents(year: 2026, month: 4, day: 19))!
+        let nextDayShell = Calendar.current.date(from: DateComponents(year: 2026, month: 4, day: 20, hour: 21, minute: 6))!
+        let timeZoneIdentifier = TimeZone.autoupdatingCurrent.identifier
+        let preferences = UserPreferences(
+            midnightMode: MidnightModeSettings(isEnabled: true, cutoffHour: 4, effectiveFrom: nil)
+        )
+        let viewModel = AppViewModel(
+            authService: MockAuthService(user: nil),
+            repository: InMemoryDailyRecordRepository(records: [:]),
+            preferencesStore: MockPreferencesStore(preferences: preferences),
+            photoStorageService: MockPhotoStorageService(),
+            sunTimesService: MockSunTimesService(),
+            weatherService: MockWeatherService(),
+            healthSyncAdapter: MockHealthSyncAdapter(sleepRecord: nil),
+            cloudSyncService: NoopCloudSyncService(),
+            aiInsightNarrativeService: MockAIInsightNarrativeService(responses: []),
+            openAIKeyStore: MockOpenAIKeyStore(key: nil),
+            locationService: LocationService(),
+            selectedDate: logicalDate,
+            dailyRecord: DailyRecord.empty(for: logicalDate, preferences: preferences),
+            preferences: preferences
+        )
+
+        let normalized = viewModel.normalizedEventTimestamp(
+            from: nextDayShell,
+            baseDate: logicalDate,
+            recordedTimeZoneIdentifier: timeZoneIdentifier
+        )
+        let rendered = viewModel.displayedClockTime(for: normalized, recordedTimeZoneIdentifier: timeZoneIdentifier)
+
+        #expect(normalized.storageKey(in: .autoupdatingCurrent) == "2026-04-19")
+        #expect(rendered.contains("+1") == false)
+    }
+
+    @Test @MainActor
     func resolvedEventTimestampKeepsOlderDatesUnshiftedWhenMidnightModeStartsLater() {
         let logicalDate = Calendar.current.date(from: DateComponents(year: 2026, month: 4, day: 18))!
         let effectiveFrom = Calendar.current.date(from: DateComponents(year: 2026, month: 4, day: 20, hour: 1, minute: 0))!

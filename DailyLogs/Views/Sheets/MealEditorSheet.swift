@@ -161,7 +161,7 @@ struct MealEditorSheet: View {
 
                 VStack(spacing: 12) {
                     Text(appViewModel.displayedClockTime(
-                        for: draft.time ?? defaultLoggedTime,
+                        for: normalizedDraftTime,
                         recordedTimeZoneIdentifier: draft.timeZoneIdentifier
                     ))
                         .font(.system(size: 34, weight: .bold, design: .rounded))
@@ -388,7 +388,7 @@ struct MealEditorSheet: View {
             entry.timeZoneIdentifier = nil
         } else if !selectedImages.isEmpty || !entry.photoURLs.isEmpty || entry.time != nil || preferredSource == .editRecord {
             entry.status = .logged
-            entry.time = entry.time ?? defaultLoggedTime
+            entry.time = normalizedDraftTime
             entry.timeZoneIdentifier = appViewModel.displayedTimeZone(for: entry.timeZoneIdentifier).identifier
         } else {
             entry.status = .empty
@@ -411,6 +411,14 @@ struct MealEditorSheet: View {
     private var defaultLoggedTime: Date {
         appViewModel.suggestedEventTimestamp(
             for: baseDate,
+            recordedTimeZoneIdentifier: draft.timeZoneIdentifier
+        )
+    }
+
+    private var normalizedDraftTime: Date {
+        appViewModel.normalizedEventTimestamp(
+            from: draft.time ?? defaultLoggedTime,
+            baseDate: baseDate,
             recordedTimeZoneIdentifier: draft.timeZoneIdentifier
         )
     }

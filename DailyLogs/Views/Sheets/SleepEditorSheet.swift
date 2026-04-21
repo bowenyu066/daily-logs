@@ -64,7 +64,7 @@ struct SleepEditorSheet: View {
                     .foregroundStyle(AppTheme.secondaryText)
 
                 Text(appViewModel.displayedClockTime(
-                    for: selectedTime,
+                    for: normalizedTime,
                     recordedTimeZoneIdentifier: appViewModel.dailyRecord.sleepRecord.timeZoneIdentifier
                 ))
                     .font(.system(size: 46, weight: .bold, design: .rounded))

@@ -52,7 +52,7 @@ struct SexualActivityEditorSheet: View {
 
                 if !dateOnly {
                     Text(appViewModel.displayedClockTime(
-                        for: draftTime,
+                        for: normalizedTime,
                         recordedTimeZoneIdentifier: recordedTimeZoneIdentifier
                     ))
                         .font(.system(size: 34, weight: .bold, design: .rounded))
