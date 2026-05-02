@@ -29,6 +29,9 @@ Package.resolved
 # Node / Firebase Functions
 node_modules/
 firebase/functions/node_modules/
+firebase/functions/.env
+firebase/functions/.env.*
+!firebase/functions/.env.example
 firebase-debug.log
 firebase-debug.*.log
 
