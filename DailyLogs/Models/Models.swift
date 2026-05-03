@@ -467,6 +467,37 @@ struct MealEntry: Codable, Equatable, Identifiable {
     }
 }
 
+struct DailyVideoEntry: Codable, Equatable, Identifiable {
+    var id: UUID = UUID()
+    var videoURL: String
+    var duration: TimeInterval
+    var createdAt: Date
+
+    enum CodingKeys: String, CodingKey {
+        case id, videoURL, duration, createdAt
+    }
+
+    init(
+        id: UUID = UUID(),
+        videoURL: String,
+        duration: TimeInterval,
+        createdAt: Date = .now
+    ) {
+        self.id = id
+        self.videoURL = videoURL
+        self.duration = duration
+        self.createdAt = createdAt
+    }
+
+    init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        videoURL = try container.decode(String.self, forKey: .videoURL)
+        duration = try container.decodeIfPresent(TimeInterval.self, forKey: .duration) ?? 10
+        createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt) ?? .now
+    }
+}
+
 enum HomeSectionKind: String, Codable, CaseIterable, Identifiable {
     case sunTimes
     case sleep
@@ -474,6 +505,7 @@ enum HomeSectionKind: String, Codable, CaseIterable, Identifiable {
     case showers
     case bowelMovements
     case sexualActivity
+    case dailyVideo
 
     var id: String { rawValue }
 
@@ -485,10 +517,11 @@ enum HomeSectionKind: String, Codable, CaseIterable, Identifiable {
         case .showers: NSLocalizedString("洗澡", comment: "")
         case .bowelMovements: NSLocalizedString("排便", comment: "")
         case .sexualActivity: NSLocalizedString("性生活", comment: "")
+        case .dailyVideo: NSLocalizedString("每日视频", comment: "")
         }
     }
 
-    static let defaultVisible: [HomeSectionKind] = [.sunTimes, .sleep, .meals, .showers]
+    static let defaultVisible: [HomeSectionKind] = [.sunTimes, .sleep, .meals, .dailyVideo, .showers]
 }
 
 struct ShowerEntry: Codable, Equatable, Identifiable {
@@ -599,6 +632,7 @@ struct DailyRecord: Codable, Equatable {
     var showers: [ShowerEntry]
     var bowelMovements: [BowelMovementEntry]
     var sexualActivities: [SexualActivityEntry]
+    var dailyVideo: DailyVideoEntry?
     var locationName: String?
     var sunTimes: SunTimes?
     var weatherSnapshot: WeatherSnapshot?
@@ -607,7 +641,7 @@ struct DailyRecord: Codable, Equatable {
 
     enum CodingKeys: String, CodingKey {
         case date, sleepRecord, meals, showers, bowelMovements, sexualActivities
-        case locationName, sunTimes, weatherSnapshot, aiInsightNarrative, modifiedAt
+        case dailyVideo, locationName, sunTimes, weatherSnapshot, aiInsightNarrative, modifiedAt
     }
 
     init(
@@ -617,6 +651,7 @@ struct DailyRecord: Codable, Equatable {
         showers: [ShowerEntry],
         bowelMovements: [BowelMovementEntry] = [],
         sexualActivities: [SexualActivityEntry] = [],
+        dailyVideo: DailyVideoEntry? = nil,
         locationName: String? = nil,
         sunTimes: SunTimes? = nil,
         weatherSnapshot: WeatherSnapshot? = nil,
@@ -629,6 +664,7 @@ struct DailyRecord: Codable, Equatable {
         self.showers = showers
         self.bowelMovements = bowelMovements
         self.sexualActivities = sexualActivities
+        self.dailyVideo = dailyVideo
         self.locationName = locationName
         self.sunTimes = sunTimes
         self.weatherSnapshot = weatherSnapshot
@@ -644,6 +680,7 @@ struct DailyRecord: Codable, Equatable {
         showers = try container.decodeIfPresent([ShowerEntry].self, forKey: .showers) ?? []
         bowelMovements = try container.decodeIfPresent([BowelMovementEntry].self, forKey: .bowelMovements) ?? []
         sexualActivities = try container.decodeIfPresent([SexualActivityEntry].self, forKey: .sexualActivities) ?? []
+        dailyVideo = try container.decodeIfPresent(DailyVideoEntry.self, forKey: .dailyVideo)
         locationName = try container.decodeIfPresent(String.self, forKey: .locationName)
         sunTimes = try container.decodeIfPresent(SunTimes.self, forKey: .sunTimes)
         weatherSnapshot = try container.decodeIfPresent(WeatherSnapshot.self, forKey: .weatherSnapshot)
@@ -661,6 +698,7 @@ struct DailyRecord: Codable, Equatable {
             showers: [],
             bowelMovements: [],
             sexualActivities: [],
+            dailyVideo: nil,
             locationName: nil,
             sunTimes: nil,
             weatherSnapshot: nil,
@@ -770,6 +808,8 @@ struct BedtimeSchedule: Codable, Equatable {
 }
 
 struct UserPreferences: Codable, Equatable {
+    static let currentHomeSectionSchemaVersion = 1
+
     var defaultMealSlots: [MealSlot] = MealSlot.defaults
     var bedtimeSchedule: BedtimeSchedule = .default
     var locationPermissionState: LocationPermissionState = .notDetermined
@@ -782,6 +822,7 @@ struct UserPreferences: Codable, Equatable {
     var midnightMode: MidnightModeSettings = .default
     var visibleHomeSections: [HomeSectionKind] = HomeSectionKind.defaultVisible
     var showMasturbationOption: Bool = false
+    var homeSectionSchemaVersion: Int = 0
 
     enum CodingKeys: String, CodingKey {
         case defaultMealSlots
@@ -797,6 +838,7 @@ struct UserPreferences: Codable, Equatable {
         case targetBedtime
         case visibleHomeSections
         case showMasturbationOption
+        case homeSectionSchemaVersion
     }
 
     init(
@@ -811,7 +853,8 @@ struct UserPreferences: Codable, Equatable {
         temperatureUnit: TemperatureUnitPreference = .celsius,
         midnightMode: MidnightModeSettings = .default,
         visibleHomeSections: [HomeSectionKind] = HomeSectionKind.defaultVisible,
-        showMasturbationOption: Bool = false
+        showMasturbationOption: Bool = false,
+        homeSectionSchemaVersion: Int = UserPreferences.currentHomeSectionSchemaVersion
     ) {
         self.defaultMealSlots = defaultMealSlots
         self.bedtimeSchedule = bedtimeSchedule
@@ -825,6 +868,7 @@ struct UserPreferences: Codable, Equatable {
         self.midnightMode = midnightMode
         self.visibleHomeSections = visibleHomeSections
         self.showMasturbationOption = showMasturbationOption
+        self.homeSectionSchemaVersion = homeSectionSchemaVersion
     }
 
     init(from decoder: any Decoder) throws {
@@ -840,6 +884,7 @@ struct UserPreferences: Codable, Equatable {
         midnightMode = try container.decodeIfPresent(MidnightModeSettings.self, forKey: .midnightMode) ?? .default
         visibleHomeSections = try container.decodeIfPresent([HomeSectionKind].self, forKey: .visibleHomeSections) ?? HomeSectionKind.defaultVisible
         showMasturbationOption = try container.decodeIfPresent(Bool.self, forKey: .showMasturbationOption) ?? false
+        homeSectionSchemaVersion = try container.decodeIfPresent(Int.self, forKey: .homeSectionSchemaVersion) ?? 0
         if let bedtimeSchedule = try container.decodeIfPresent(BedtimeSchedule.self, forKey: .bedtimeSchedule) {
             self.bedtimeSchedule = bedtimeSchedule
         } else {
@@ -862,6 +907,7 @@ struct UserPreferences: Codable, Equatable {
         try container.encode(midnightMode, forKey: .midnightMode)
         try container.encode(visibleHomeSections, forKey: .visibleHomeSections)
         try container.encode(showMasturbationOption, forKey: .showMasturbationOption)
+        try container.encode(homeSectionSchemaVersion, forKey: .homeSectionSchemaVersion)
     }
 }
 
@@ -1147,6 +1193,7 @@ enum AnalyticsWidgetKind: String, Codable, CaseIterable, Identifiable {
     case showerTiming
     case bowelMovementTiming
     case sexualActivityFrequency
+    case habitFrequencyCalendar
 
     var id: String { rawValue }
 
@@ -1164,6 +1211,7 @@ enum AnalyticsWidgetKind: String, Codable, CaseIterable, Identifiable {
         case .showerTiming: NSLocalizedString("洗澡时间", comment: "")
         case .bowelMovementTiming: NSLocalizedString("排便时间", comment: "")
         case .sexualActivityFrequency: NSLocalizedString("性生活频率", comment: "")
+        case .habitFrequencyCalendar: NSLocalizedString("频率月历", comment: "")
         }
     }
 
@@ -1175,6 +1223,7 @@ enum AnalyticsWidgetKind: String, Codable, CaseIterable, Identifiable {
         case .showerTiming: .showers
         case .bowelMovementTiming: .bowelMovements
         case .sexualActivityFrequency: .sexualActivity
+        case .habitFrequencyCalendar: nil
         }
     }
 }

@@ -101,6 +101,26 @@ enum SecureCloudPhotoReference {
     }
 }
 
+enum SecureCloudMediaReference {
+    static let prefix = "dailylogs-secure-media:"
+
+    static func make(bucket: String, path: String) -> String {
+        prefix + bucket + "|" + path
+    }
+
+    static func isSecureReference(_ value: String) -> Bool {
+        value.hasPrefix(prefix)
+    }
+
+    static func parse(_ value: String) -> (bucket: String, path: String)? {
+        guard value.hasPrefix(prefix) else { return nil }
+        let payload = String(value.dropFirst(prefix.count))
+        let components = payload.split(separator: "|", maxSplits: 1).map(String.init)
+        guard components.count == 2, !components[0].isEmpty, !components[1].isEmpty else { return nil }
+        return (bucket: components[0], path: components[1])
+    }
+}
+
 struct CloudCryptoService {
     func makeMetadata() -> CloudEncryptionMetadata {
         makePassphraseMetadata()
@@ -310,6 +330,38 @@ actor SecureCloudPhotoLoader {
 
         let storage = Storage.storage(url: "gs://\(parsed.bucket)")
         let data = try await storage.reference(withPath: parsed.path).getDataAsync(maxSize: 20 * 1024 * 1024)
+        return try crypto.decrypt(data: data, key: key)
+    }
+
+    private func userID(fromStoragePath path: String) -> String? {
+        let components = path.split(separator: "/")
+        guard components.count >= 2, components[0] == "users" else { return nil }
+        return String(components[1])
+    }
+}
+
+actor SecureCloudMediaLoader {
+    static let shared = SecureCloudMediaLoader()
+
+    private let crypto = CloudCryptoService()
+    private let keychain = CloudKeychainStore()
+
+    func data(for secureReference: String) async throws -> Data {
+        guard let parsed = SecureCloudMediaReference.parse(secureReference) else {
+            throw CloudSyncSecurityError.invalidEncryptedPayload
+        }
+        let userID = userID(fromStoragePath: parsed.path)
+        guard let userID, let key = keychain.loadKey(for: userID) else {
+            throw CloudSyncSecurityError.encryptedSyncLocked
+        }
+
+        FirebaseBootstrap.configureIfPossible()
+        guard FirebaseBootstrap.isConfigured else {
+            throw CloudSyncSecurityError.firebaseUnavailable
+        }
+
+        let storage = Storage.storage(url: "gs://\(parsed.bucket)")
+        let data = try await storage.reference(withPath: parsed.path).getDataAsync(maxSize: 120 * 1024 * 1024)
         return try crypto.decrypt(data: data, key: key)
     }
 

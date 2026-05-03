@@ -469,6 +469,7 @@ struct DailyLogsTests {
             repository: InMemoryDailyRecordRepository(records: [:]),
             preferencesStore: MockPreferencesStore(preferences: preferences),
             photoStorageService: MockPhotoStorageService(),
+            videoStorageService: MockVideoStorageService(),
             sunTimesService: MockSunTimesService(),
             weatherService: MockWeatherService(),
             healthSyncAdapter: MockHealthSyncAdapter(sleepRecord: nil),
@@ -501,6 +502,7 @@ struct DailyLogsTests {
             repository: InMemoryDailyRecordRepository(records: [:]),
             preferencesStore: MockPreferencesStore(preferences: preferences),
             photoStorageService: MockPhotoStorageService(),
+            videoStorageService: MockVideoStorageService(),
             sunTimesService: MockSunTimesService(),
             weatherService: MockWeatherService(),
             healthSyncAdapter: MockHealthSyncAdapter(sleepRecord: nil),
@@ -537,6 +539,7 @@ struct DailyLogsTests {
             repository: InMemoryDailyRecordRepository(records: [:]),
             preferencesStore: MockPreferencesStore(preferences: preferences),
             photoStorageService: MockPhotoStorageService(),
+            videoStorageService: MockVideoStorageService(),
             sunTimesService: MockSunTimesService(),
             weatherService: MockWeatherService(),
             healthSyncAdapter: MockHealthSyncAdapter(sleepRecord: nil),
@@ -572,6 +575,7 @@ struct DailyLogsTests {
             repository: InMemoryDailyRecordRepository(records: [:]),
             preferencesStore: MockPreferencesStore(preferences: preferences),
             photoStorageService: MockPhotoStorageService(),
+            videoStorageService: MockVideoStorageService(),
             sunTimesService: MockSunTimesService(),
             weatherService: MockWeatherService(),
             healthSyncAdapter: MockHealthSyncAdapter(sleepRecord: nil),
@@ -615,6 +619,7 @@ struct DailyLogsTests {
             repository: repository,
             preferencesStore: MockPreferencesStore(preferences: UserPreferences()),
             photoStorageService: MockPhotoStorageService(),
+            videoStorageService: MockVideoStorageService(),
             sunTimesService: MockSunTimesService(),
             weatherService: MockWeatherService(),
             healthSyncAdapter: MockHealthSyncAdapter(sleepRecord: nil),
@@ -632,6 +637,39 @@ struct DailyLogsTests {
         let range = try #require(viewModel.aiInsightCalendarDateRange)
         #expect(range.upperBound == yesterday)
         #expect(!range.contains(today))
+    }
+
+    @Test @MainActor
+    func bootstrapMigratesLegacyHomeSectionsToShowDailyVideo() async {
+        let today = Date().startOfDay
+        let legacyPreferences = UserPreferences(
+            visibleHomeSections: [.sleep, .meals, .showers],
+            homeSectionSchemaVersion: 0
+        )
+        let preferencesStore = CapturingPreferencesStore(preferences: legacyPreferences)
+        let viewModel = AppViewModel(
+            authService: MockAuthService(user: nil),
+            repository: InMemoryDailyRecordRepository(),
+            preferencesStore: preferencesStore,
+            photoStorageService: MockPhotoStorageService(),
+            videoStorageService: MockVideoStorageService(),
+            sunTimesService: MockSunTimesService(),
+            weatherService: MockWeatherService(),
+            healthSyncAdapter: MockHealthSyncAdapter(sleepRecord: nil),
+            cloudSyncService: NoopCloudSyncService(),
+            aiInsightNarrativeService: NoopAIInsightNarrativeService(),
+            openAIKeyStore: MockOpenAIKeyStore(),
+            locationService: LocationService(),
+            selectedDate: today,
+            dailyRecord: DailyRecord.empty(for: today, preferences: legacyPreferences),
+            preferences: legacyPreferences
+        )
+
+        await viewModel.bootstrap()
+
+        #expect(viewModel.preferences.visibleHomeSections.contains(.dailyVideo))
+        #expect(viewModel.preferences.homeSectionSchemaVersion == UserPreferences.currentHomeSectionSchemaVersion)
+        #expect(preferencesStore.savedPreferences?.visibleHomeSections.contains(.dailyVideo) == true)
     }
 
     @Test
@@ -894,6 +932,7 @@ struct DailyLogsTests {
             repository: repository,
             preferencesStore: MockPreferencesStore(preferences: preferences),
             photoStorageService: MockPhotoStorageService(),
+            videoStorageService: MockVideoStorageService(),
             sunTimesService: MockSunTimesService(),
             weatherService: MockWeatherService(),
             healthSyncAdapter: MockHealthSyncAdapter(sleepRecord: nil),
@@ -1039,6 +1078,7 @@ struct DailyLogsTests {
             repository: InMemoryDailyRecordRepository(records: [yesterday.storageKey(): record]),
             preferencesStore: MockPreferencesStore(preferences: preferences),
             photoStorageService: MockPhotoStorageService(),
+            videoStorageService: MockVideoStorageService(),
             sunTimesService: MockSunTimesService(),
             weatherService: MockWeatherService(),
             healthSyncAdapter: MockHealthSyncAdapter(sleepRecord: nil),
@@ -1117,6 +1157,7 @@ struct DailyLogsTests {
             repository: repository,
             preferencesStore: MockPreferencesStore(preferences: preferences),
             photoStorageService: MockPhotoStorageService(),
+            videoStorageService: MockVideoStorageService(),
             sunTimesService: MockSunTimesService(),
             weatherService: MockWeatherService(),
             healthSyncAdapter: MockHealthSyncAdapter(sleepRecord: nil),
@@ -1211,6 +1252,7 @@ struct DailyLogsTests {
             repository: InMemoryDailyRecordRepository(records: [yesterday.storageKey(): record]),
             preferencesStore: MockPreferencesStore(preferences: preferences),
             photoStorageService: MockPhotoStorageService(),
+            videoStorageService: MockVideoStorageService(),
             sunTimesService: MockSunTimesService(),
             weatherService: MockWeatherService(),
             healthSyncAdapter: MockHealthSyncAdapter(sleepRecord: nil),
@@ -1397,6 +1439,7 @@ struct DailyLogsTests {
             repository: InMemoryDailyRecordRepository(records: [yesterday.storageKey(): record]),
             preferencesStore: MockPreferencesStore(preferences: preferences),
             photoStorageService: MockPhotoStorageService(),
+            videoStorageService: MockVideoStorageService(),
             sunTimesService: MockSunTimesService(),
             weatherService: MockWeatherService(),
             healthSyncAdapter: MockHealthSyncAdapter(sleepRecord: nil),
@@ -1451,6 +1494,7 @@ struct DailyLogsTests {
             repository: InMemoryDailyRecordRepository(),
             preferencesStore: MockPreferencesStore(preferences: preferences),
             photoStorageService: MockPhotoStorageService(),
+            videoStorageService: MockVideoStorageService(),
             sunTimesService: MockSunTimesService(),
             weatherService: MockWeatherService(),
             healthSyncAdapter: MockHealthSyncAdapter(sleepRecord: nil),
@@ -1794,6 +1838,7 @@ struct DailyLogsTests {
             repository: repository,
             preferencesStore: MockPreferencesStore(preferences: preferences),
             photoStorageService: MockPhotoStorageService(),
+            videoStorageService: MockVideoStorageService(),
             sunTimesService: MockSunTimesService(),
             weatherService: MockWeatherService(),
             healthSyncAdapter: healthSyncAdapter,
@@ -1847,6 +1892,7 @@ struct DailyLogsTests {
             repository: repository,
             preferencesStore: MockPreferencesStore(preferences: UserPreferences()),
             photoStorageService: MockPhotoStorageService(),
+            videoStorageService: MockVideoStorageService(),
             sunTimesService: MockSunTimesService(),
             weatherService: MockWeatherService(),
             healthSyncAdapter: MockHealthSyncAdapter(sleepRecord: nil),
@@ -1906,6 +1952,7 @@ struct DailyLogsTests {
             repository: InMemoryDailyRecordRepository(records: [today.storageKey(): existingRecord]),
             preferencesStore: MockPreferencesStore(preferences: UserPreferences()),
             photoStorageService: MockPhotoStorageService(),
+            videoStorageService: MockVideoStorageService(),
             sunTimesService: MockSunTimesService(),
             weatherService: MockWeatherService(),
             healthSyncAdapter: MockHealthSyncAdapter(sleepRecord: nil),
@@ -1932,6 +1979,60 @@ struct DailyLogsTests {
         #expect(breakfasts.first?.id == existingBreakfast.id)
         #expect(breakfasts.first?.status == .logged)
         #expect(breakfasts.first?.time == today.settingTime(hour: 8, minute: 20))
+    }
+
+    @Test @MainActor
+    func saveDailyVideoReplacesExistingVideoAndDeleteRemovesIt() async {
+        let today = Date().startOfDay
+        var existingRecord = DailyRecord.empty(for: today, preferences: UserPreferences())
+        existingRecord.dailyVideo = DailyVideoEntry(
+            videoURL: "/tmp/old-daily-video.mp4",
+            duration: 10,
+            createdAt: today
+        )
+
+        let user = UserAccount(
+            userID: "video-user",
+            displayName: "Tester",
+            email: nil,
+            authMode: .guest,
+            createdAt: today.adding(days: -30)
+        )
+        let videoStorageService = TrackingVideoStorageService()
+        let viewModel = AppViewModel(
+            authService: MockAuthService(user: user),
+            repository: InMemoryDailyRecordRepository(records: [today.storageKey(): existingRecord]),
+            preferencesStore: MockPreferencesStore(preferences: UserPreferences()),
+            photoStorageService: MockPhotoStorageService(),
+            videoStorageService: videoStorageService,
+            sunTimesService: MockSunTimesService(),
+            weatherService: MockWeatherService(),
+            healthSyncAdapter: MockHealthSyncAdapter(sleepRecord: nil),
+            cloudSyncService: NoopCloudSyncService(),
+            aiInsightNarrativeService: NoopAIInsightNarrativeService(),
+            openAIKeyStore: MockOpenAIKeyStore(),
+            locationService: LocationService(),
+            selectedDate: today,
+            dailyRecord: existingRecord,
+            preferences: UserPreferences()
+        )
+
+        await viewModel.saveDailyVideo(
+            from: URL(fileURLWithPath: "/tmp/source-video.mov"),
+            duration: 12.7
+        )
+
+        #expect(viewModel.dailyRecord.dailyVideo?.videoURL == "/tmp/mock-daily-video-1.mp4")
+        #expect(viewModel.dailyRecord.dailyVideo?.duration == 10)
+        #expect(videoStorageService.deletedPaths == ["/tmp/old-daily-video.mp4"])
+
+        await viewModel.deleteDailyVideo()
+
+        #expect(viewModel.dailyRecord.dailyVideo == nil)
+        #expect(videoStorageService.deletedPaths == [
+            "/tmp/old-daily-video.mp4",
+            "/tmp/mock-daily-video-1.mp4"
+        ])
     }
 
     @Test @MainActor
@@ -1975,6 +2076,7 @@ struct DailyLogsTests {
             repository: InMemoryDailyRecordRepository(records: [today.storageKey(): duplicatedRecord]),
             preferencesStore: MockPreferencesStore(preferences: UserPreferences()),
             photoStorageService: MockPhotoStorageService(),
+            videoStorageService: MockVideoStorageService(),
             sunTimesService: MockSunTimesService(),
             weatherService: MockWeatherService(),
             healthSyncAdapter: MockHealthSyncAdapter(sleepRecord: nil),
@@ -2020,6 +2122,7 @@ struct DailyLogsTests {
             repository: repository,
             preferencesStore: MockPreferencesStore(preferences: preferences),
             photoStorageService: MockPhotoStorageService(),
+            videoStorageService: MockVideoStorageService(),
             sunTimesService: MockSunTimesService(),
             weatherService: MockWeatherService(),
             healthSyncAdapter: healthSyncAdapter,
@@ -2069,6 +2172,7 @@ struct DailyLogsTests {
             repository: repository,
             preferencesStore: MockPreferencesStore(preferences: preferences),
             photoStorageService: MockPhotoStorageService(),
+            videoStorageService: MockVideoStorageService(),
             sunTimesService: MockSunTimesService(),
             weatherService: MockWeatherService(),
             healthSyncAdapter: healthSyncAdapter,
@@ -2126,6 +2230,7 @@ struct DailyLogsTests {
             repository: InMemoryDailyRecordRepository(records: [yesterday.storageKey(): record]),
             preferencesStore: MockPreferencesStore(preferences: UserPreferences()),
             photoStorageService: MockPhotoStorageService(),
+            videoStorageService: MockVideoStorageService(),
             sunTimesService: MockSunTimesService(snapshot: SunTimes(
                 sunrise: yesterday.settingTime(hour: 5, minute: 0),
                 sunset: yesterday.settingTime(hour: 21, minute: 0),
@@ -2173,6 +2278,7 @@ struct DailyLogsTests {
             repository: InMemoryDailyRecordRepository(records: [yesterday.storageKey(): record]),
             preferencesStore: MockPreferencesStore(preferences: UserPreferences()),
             photoStorageService: MockPhotoStorageService(),
+            videoStorageService: MockVideoStorageService(),
             sunTimesService: MockSunTimesService(),
             weatherService: MockWeatherService(snapshot: WeatherSnapshot(
                 conditionDescription: "Rain",
@@ -2589,12 +2695,52 @@ private struct MockPreferencesStore: PreferencesStore {
     func savePreferences(_ preferences: UserPreferences, userID: String?) throws {}
 }
 
+private final class CapturingPreferencesStore: PreferencesStore {
+    var preferences: UserPreferences
+    private(set) var savedPreferences: UserPreferences?
+
+    init(preferences: UserPreferences) {
+        self.preferences = preferences
+    }
+
+    func loadPreferences(userID: String?) throws -> UserPreferences {
+        preferences
+    }
+
+    func savePreferences(_ preferences: UserPreferences, userID: String?) throws {
+        savedPreferences = preferences
+    }
+}
+
 private struct MockPhotoStorageService: PhotoStorageService {
     func savePhoto(_ image: UIImage) throws -> String {
         "/tmp/mock.jpg"
     }
 
     func deletePhoto(at path: String) throws {}
+}
+
+private struct MockVideoStorageService: VideoStorageService {
+    func saveVideo(from sourceURL: URL) throws -> String {
+        sourceURL.path
+    }
+
+    func deleteVideo(at path: String) throws {}
+}
+
+private final class TrackingVideoStorageService: VideoStorageService {
+    private(set) var savedPaths: [String] = []
+    private(set) var deletedPaths: [String] = []
+
+    func saveVideo(from sourceURL: URL) throws -> String {
+        let path = "/tmp/mock-daily-video-\(savedPaths.count + 1).mp4"
+        savedPaths.append(path)
+        return path
+    }
+
+    func deleteVideo(at path: String) throws {
+        deletedPaths.append(path)
+    }
 }
 
 private struct MockSunTimesService: SunTimesService {

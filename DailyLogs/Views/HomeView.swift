@@ -15,9 +15,13 @@ struct HomeView: View {
     @State private var editingSexualActivity: SexualActivityEntry?
     @State private var showingNewSexualActivity = false
     @State private var previewingPhotoURL: String?
+    @State private var previewingVideoURL: String?
     @State private var showingHealthKitSyncConfirmation = false
     @State private var showingSleepNoteEditor = false
     @State private var pendingDestructiveAction: PendingDestructiveAction?
+    @State private var showingDailyVideoSourceOptions = false
+    @State private var videoPickerSource: UIImagePickerController.SourceType?
+    @State private var trimmingVideoSource: IdentifiableVideoSource?
 
     var body: some View {
         NavigationStack {
@@ -34,6 +38,10 @@ struct HomeView: View {
                         if sectionVisible(.meals) {
                             Divider()
                             mealSection
+                        }
+                        if sectionVisible(.dailyVideo) {
+                            Divider()
+                            dailyVideoSection
                         }
                         if sectionVisible(.showers) {
                             Divider()
@@ -57,7 +65,7 @@ struct HomeView: View {
             }
             .navigationTitle(NSLocalizedString("主页", comment: ""))
             .navigationBarTitleDisplayMode(.inline)
-            .sheet(isPresented: $showingDatePicker) {
+            .fullScreenCover(isPresented: $showingDatePicker) {
                 DatePickerSheet(
                     selectedDate: appViewModel.selectedDate,
                     allowedRange: appViewModel.availableDateRange
@@ -261,12 +269,44 @@ struct HomeView: View {
                     secondaryButton: .cancel(Text(NSLocalizedString("取消", comment: "")))
                 )
             }
+            .sheet(isPresented: Binding(
+                get: { videoPickerSource != nil },
+                set: { if !$0 { videoPickerSource = nil } }
+            )) {
+                if let videoPickerSource {
+                    DailyVideoPicker(sourceType: videoPickerSource) { url in
+                        self.videoPickerSource = nil
+                        guard let url else { return }
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                            trimmingVideoSource = IdentifiableVideoSource(url: url)
+                        }
+                    }
+                    .ignoresSafeArea()
+                }
+            }
+            .fullScreenCover(item: $trimmingVideoSource) { source in
+                DailyVideoTrimmerSheet(sourceURL: source.url) { exportedURL, duration in
+                    Task {
+                        await appViewModel.saveDailyVideo(from: exportedURL, duration: duration)
+                        try? FileManager.default.removeItem(at: exportedURL)
+                        try? FileManager.default.removeItem(at: source.url)
+                    }
+                }
+            }
             .fullScreenCover(item: Binding(
                 get: { previewingPhotoURL.map { IdentifiablePhoto(url: $0) } },
                 set: { if $0 == nil { previewingPhotoURL = nil } }
             )) { item in
                 PhotoPreviewOverlay(photoURL: item.url) {
                     previewingPhotoURL = nil
+                }
+            }
+            .fullScreenCover(item: Binding(
+                get: { previewingVideoURL.map { IdentifiableVideo(url: $0) } },
+                set: { if $0 == nil { previewingVideoURL = nil } }
+            )) { item in
+                DailyVideoPlaybackOverlay(videoURL: item.url) {
+                    previewingVideoURL = nil
                 }
             }
         }
@@ -946,6 +986,122 @@ struct HomeView: View {
         .sectionStyle()
     }
 
+    // MARK: - Daily Video
+
+    private var dailyVideoSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .center) {
+                Text(NSLocalizedString("每日视频", comment: ""))
+                    .font(.system(size: 22, weight: .bold, design: .rounded))
+                    .foregroundStyle(AppTheme.primaryText)
+                Spacer()
+            }
+
+            if let dailyVideo = appViewModel.dailyRecord.dailyVideo {
+                VStack(spacing: 12) {
+                    Button {
+                        previewingVideoURL = dailyVideo.videoURL
+                    } label: {
+                        ZStack(alignment: .bottomLeading) {
+                            VideoContentView(videoURL: dailyVideo.videoURL)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 240)
+                                .clipped()
+
+                            Text(videoDurationText(dailyVideo.duration))
+                                .font(.system(size: 13, weight: .bold, design: .rounded))
+                                .foregroundStyle(.white)
+                                .monospacedDigit()
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 6)
+                                .background(Color.black.opacity(0.42))
+                                .clipShape(Capsule())
+                                .padding(12)
+                        }
+                        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+
+                    if appViewModel.canEditSelectedDate {
+                        HStack(spacing: 10) {
+                            dailyVideoSourceOptionsDialog {
+                                Button {
+                                    presentDailyVideoSourceOptions()
+                                } label: {
+                                    HStack(spacing: 7) {
+                                        Image(systemName: "arrow.triangle.2.circlepath")
+                                        Text(NSLocalizedString("更换视频", comment: ""))
+                                    }
+                                    .font(.system(size: 15, weight: .bold, design: .rounded))
+                                    .foregroundStyle(AppTheme.accent)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 12)
+                                    .background(AppTheme.accentSoft)
+                                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                                }
+                                .buttonStyle(.plain)
+                            }
+
+                            Button {
+                                pendingDestructiveAction = .deleteDailyVideo
+                            } label: {
+                                HStack(spacing: 7) {
+                                    Image(systemName: "trash")
+                                    Text(NSLocalizedString("删除视频", comment: ""))
+                                }
+                                .font(.system(size: 15, weight: .bold, design: .rounded))
+                                .foregroundStyle(AppTheme.warning)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 12)
+                                .background(AppTheme.warning.opacity(0.12))
+                                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+                .padding(18)
+                .background(AppTheme.surface)
+                .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 28, style: .continuous)
+                        .strokeBorder(AppTheme.border.opacity(0.8), lineWidth: 1)
+                }
+            } else {
+                dailyVideoSourceOptionsDialog {
+                    Button {
+                        presentDailyVideoSourceOptions()
+                    } label: {
+                        VStack(spacing: 12) {
+                            Image(systemName: "video.badge.plus")
+                                .font(.system(size: 30, weight: .semibold))
+                                .foregroundStyle(AppTheme.accent)
+                            Text(NSLocalizedString("添加视频", comment: ""))
+                                .font(.system(size: 20, weight: .bold, design: .rounded))
+                                .foregroundStyle(AppTheme.primaryText)
+                            Text(NSLocalizedString("保存一段最长 10 秒的生活片段", comment: ""))
+                                .font(.system(size: 14, weight: .semibold, design: .rounded))
+                                .foregroundStyle(AppTheme.secondaryText)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 190)
+                        .background(AppTheme.surface)
+                        .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                                .stroke(style: StrokeStyle(lineWidth: 1.6, dash: [8, 8]))
+                                .foregroundStyle(AppTheme.accent.opacity(0.6))
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(!appViewModel.canEditSelectedDate)
+                    .opacity(appViewModel.canEditSelectedDate ? 1 : 0.45)
+                }
+            }
+        }
+        .sectionStyle()
+    }
+
     // MARK: - Helpers
 
     private func sectionVisible(_ section: HomeSectionKind) -> Bool {
@@ -988,6 +1144,39 @@ struct HomeView: View {
         }
     }
 
+    private func presentDailyVideoSourceOptions() {
+        guard appViewModel.canEditSelectedDate else { return }
+        showingDailyVideoSourceOptions = true
+    }
+
+    private func dailyVideoSourceOptionsDialog<Content: View>(
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        content()
+            .confirmationDialog(NSLocalizedString("每日视频", comment: ""), isPresented: $showingDailyVideoSourceOptions) {
+                if UIImagePickerController.isSourceTypeAvailable(.camera) {
+                    Button(NSLocalizedString("录制视频", comment: "")) {
+                        openDailyVideoPicker(.camera)
+                    }
+                }
+                Button(NSLocalizedString("选择相册视频", comment: "")) {
+                    openDailyVideoPicker(.photoLibrary)
+                }
+                Button(NSLocalizedString("取消", comment: ""), role: .cancel) {}
+            }
+    }
+
+    private func openDailyVideoPicker(_ source: UIImagePickerController.SourceType) {
+        guard appViewModel.canEditSelectedDate else { return }
+        guard source != .camera || UIImagePickerController.isSourceTypeAvailable(.camera) else { return }
+        videoPickerSource = source
+    }
+
+    private func videoDurationText(_ duration: TimeInterval) -> String {
+        let seconds = max(0, Int(duration.rounded()))
+        return String(format: "00:%02d", min(seconds, 59))
+    }
+
     private func perform(_ action: PendingDestructiveAction) {
         switch action {
         case .removeMealPhoto(let meal):
@@ -1002,6 +1191,8 @@ struct HomeView: View {
             Task { await appViewModel.deleteBowelMovement(entry) }
         case .deleteSexualActivity(let entry):
             Task { await appViewModel.deleteSexualActivity(entry) }
+        case .deleteDailyVideo:
+            Task { await appViewModel.deleteDailyVideo() }
         }
     }
 }
@@ -1022,6 +1213,7 @@ private enum PendingDestructiveAction: Identifiable {
     case deleteShower(ShowerEntry)
     case deleteBowelMovement(BowelMovementEntry)
     case deleteSexualActivity(SexualActivityEntry)
+    case deleteDailyVideo
 
     var id: String {
         switch self {
@@ -1037,6 +1229,8 @@ private enum PendingDestructiveAction: Identifiable {
             return "delete-bowel-\(entry.id)"
         case .deleteSexualActivity(let entry):
             return "delete-sex-\(entry.id)"
+        case .deleteDailyVideo:
+            return "delete-daily-video"
         }
     }
 
@@ -1050,6 +1244,8 @@ private enum PendingDestructiveAction: Identifiable {
             return NSLocalizedString("删除记录？", comment: "")
         case .deleteShower, .deleteBowelMovement, .deleteSexualActivity:
             return NSLocalizedString("删除记录？", comment: "")
+        case .deleteDailyVideo:
+            return NSLocalizedString("删除视频？", comment: "")
         }
     }
 
@@ -1061,6 +1257,8 @@ private enum PendingDestructiveAction: Identifiable {
             return NSLocalizedString("此操作会删除整个餐次，且无法撤销。", comment: "")
         case .clearMealRecord, .deleteShower, .deleteBowelMovement, .deleteSexualActivity:
             return NSLocalizedString("此操作无法撤销。", comment: "")
+        case .deleteDailyVideo:
+            return NSLocalizedString("此操作会移除今天的视频片段，且无法撤销。", comment: "")
         }
     }
 
@@ -1072,6 +1270,8 @@ private enum PendingDestructiveAction: Identifiable {
             return NSLocalizedString("删除餐次", comment: "")
         case .clearMealRecord, .deleteShower, .deleteBowelMovement, .deleteSexualActivity:
             return NSLocalizedString("删除记录", comment: "")
+        case .deleteDailyVideo:
+            return NSLocalizedString("删除视频", comment: "")
         }
     }
 }
@@ -1143,6 +1343,11 @@ struct SleepStageBar: View {
 // MARK: - Photo Preview
 
 private struct IdentifiablePhoto: Identifiable {
+    let id = UUID()
+    let url: String
+}
+
+private struct IdentifiableVideo: Identifiable {
     let id = UUID()
     let url: String
 }

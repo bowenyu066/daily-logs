@@ -19,6 +19,7 @@ struct MemoryView: View {
                         }
                         .padding(.horizontal, 18)
                         .padding(.vertical, 16)
+                        .padding(.bottom, 96)
                     }
                 } else {
                     VStack {
@@ -129,13 +130,23 @@ struct AnalyticsView: View {
             .navigationTitle(NSLocalizedString("数据", comment: ""))
             .navigationBarTitleDisplayMode(.inline)
             .navigationDestination(item: $route) { route in
-                AnalyticsDetailView(
-                    route: route,
-                    summary: summary,
-                    range: $appViewModel.analyticsRange,
-                    customRange: $appViewModel.analyticsCustomDateRange,
-                    allowedRange: appViewModel.availableDateRange
-                )
+                switch route {
+                case .frequencyCalendar:
+                    HabitFrequencyCalendarDetailView(
+                        records: appViewModel.allRecords,
+                        allowedRange: appViewModel.availableDateRange,
+                        initialMonth: appViewModel.selectedDate,
+                        visibleHomeSections: appViewModel.preferences.visibleHomeSections
+                    )
+                case .widget:
+                    AnalyticsDetailView(
+                        route: route,
+                        summary: summary,
+                        range: $appViewModel.analyticsRange,
+                        customRange: $appViewModel.analyticsCustomDateRange,
+                        allowedRange: appViewModel.availableDateRange
+                    )
+                }
             }
             .sheet(isPresented: $isShowingCustomization) {
                 AnalyticsCustomizationSheet(
@@ -185,6 +196,11 @@ struct AnalyticsView: View {
         }
     }
 
+    private var visibleFrequencyMetrics: [HabitFrequencyMetric] {
+        let sections = appViewModel.preferences.visibleHomeSections
+        return HabitFrequencyMetric.allCases.filter { sections.contains($0.requiredSection) }
+    }
+
     private var header: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text(NSLocalizedString("规律不是为了控制你，而是为了更轻松地生活。", comment: ""))
@@ -201,6 +217,28 @@ struct AnalyticsView: View {
                 if newValue == .custom {
                     isShowingCustomRange = true
                 }
+            }
+
+            if !visibleFrequencyMetrics.isEmpty {
+                Button {
+                    route = .frequencyCalendar
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "calendar")
+                            .font(.system(size: 15, weight: .semibold))
+                        Text(NSLocalizedString("频率月历", comment: ""))
+                            .font(.system(size: 15, weight: .bold, design: .rounded))
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 13, weight: .bold))
+                    }
+                    .foregroundStyle(AppTheme.accent)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 11)
+                    .background(AppTheme.accentSoft)
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                }
+                .buttonStyle(.plain)
             }
         }
         .sectionStyle()
@@ -257,7 +295,7 @@ struct AnalyticsView: View {
 
     @ViewBuilder
     private var visibleWidgetCards: some View {
-        ForEach(visibleWidgets) { widget in
+        ForEach(visibleWidgets.filter { $0 != .habitFrequencyCalendar }) { widget in
             Button {
                 route = widget.route
             } label: {
@@ -365,6 +403,8 @@ struct AnalyticsView: View {
                 )
             }
             .sectionStyle()
+        case .habitFrequencyCalendar:
+            EmptyView()
         }
     }
 
@@ -442,10 +482,13 @@ struct AnalyticsView: View {
 }
 
 private enum AnalyticsRoute: Identifiable, Hashable {
+    case frequencyCalendar
     case widget(AnalyticsWidgetKind)
 
     var id: String {
         switch self {
+        case .frequencyCalendar:
+            return "frequencyCalendar"
         case let .widget(widget):
             return widget.rawValue
         }
@@ -504,6 +547,7 @@ private struct AnalyticsDetailView: View {
                 content
             }
             .padding(18)
+            .padding(.bottom, 96)
         }
         .background(AppTheme.background.ignoresSafeArea())
         .navigationTitle(title)
@@ -518,6 +562,8 @@ private struct AnalyticsDetailView: View {
     @ViewBuilder
     private var content: some View {
         switch route {
+        case .frequencyCalendar:
+            EmptyView()
         case let .widget(widget):
             switch widget {
             case .sleepTrend:
@@ -617,12 +663,16 @@ private struct AnalyticsDetailView: View {
                         compact: false
                     )
                 }
+            case .habitFrequencyCalendar:
+                EmptyView()
             }
         }
     }
 
     private var title: String {
         switch route {
+        case .frequencyCalendar:
+            NSLocalizedString("频率月历", comment: "")
         case let .widget(widget):
             widget.title
         }
@@ -1829,6 +1879,428 @@ private struct SexualActivityBarChart: View {
     }
 }
 
+private enum HabitFrequencyMetric: String, CaseIterable, Identifiable, Hashable {
+    case showers
+    case bowelMovements
+    case sexualActivity
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .showers:
+            NSLocalizedString("洗澡", comment: "")
+        case .bowelMovements:
+            NSLocalizedString("排便", comment: "")
+        case .sexualActivity:
+            NSLocalizedString("性生活", comment: "")
+        }
+    }
+
+    var color: Color {
+        switch self {
+        case .showers:
+            Color(red: 0.00, green: 0.68, blue: 0.88)
+        case .bowelMovements:
+            Color(red: 0.62, green: 0.45, blue: 0.22)
+        case .sexualActivity:
+            Color(red: 0.96, green: 0.28, blue: 0.55)
+        }
+    }
+
+    var requiredSection: HomeSectionKind {
+        switch self {
+        case .showers:
+            .showers
+        case .bowelMovements:
+            .bowelMovements
+        case .sexualActivity:
+            .sexualActivity
+        }
+    }
+
+    func count(in point: AnalyticsDayPoint) -> Int {
+        switch self {
+        case .showers:
+            point.showers
+        case .bowelMovements:
+            point.bowelMovements
+        case .sexualActivity:
+            point.sexualActivities
+        }
+    }
+
+    func count(in counts: HabitFrequencyDayCounts) -> Int {
+        switch self {
+        case .showers:
+            counts.showers
+        case .bowelMovements:
+            counts.bowelMovements
+        case .sexualActivity:
+            counts.sexualActivities
+        }
+    }
+}
+
+private struct HabitFrequencyCalendarDetailView: View {
+    let records: [DailyRecord]
+    let allowedRange: ClosedRange<Date>
+    let visibleHomeSections: [HomeSectionKind]
+    @State private var visibleMonth: Date
+    @State private var selectedMetrics: Set<HabitFrequencyMetric>
+
+    init(records: [DailyRecord], allowedRange: ClosedRange<Date>, initialMonth: Date, visibleHomeSections: [HomeSectionKind]) {
+        self.records = records
+        self.allowedRange = allowedRange
+        self.visibleHomeSections = visibleHomeSections
+        let initialMetrics = HabitFrequencyMetric.allCases.filter { visibleHomeSections.contains($0.requiredSection) }
+        _selectedMetrics = State(initialValue: Set(initialMetrics))
+        let clamped = min(max(initialMonth.startOfDay, allowedRange.lowerBound.startOfDay), allowedRange.upperBound.startOfDay)
+        _visibleMonth = State(initialValue: Calendar.current.dateInterval(of: .month, for: clamped)?.start ?? clamped)
+    }
+
+    private var countsByDate: [Date: HabitFrequencyDayCounts] {
+        HabitFrequencyDayCounts.aggregate(records: records)
+    }
+
+    private var monthCounts: [HabitFrequencyDayCounts] {
+        monthDates.compactMap { countsByDate[$0.startOfDay] }
+    }
+
+    private var visibleMetrics: [HabitFrequencyMetric] {
+        HabitFrequencyMetric.allCases.filter { visibleHomeSections.contains($0.requiredSection) }
+    }
+
+    private var displayedMetrics: [HabitFrequencyMetric] {
+        visibleMetrics.filter { selectedMetrics.contains($0) }
+    }
+
+    var body: some View {
+        ScrollView(.vertical, showsIndicators: false) {
+            VStack(alignment: .leading, spacing: 18) {
+                monthHeader
+
+                if visibleMetrics.isEmpty {
+                    PlaceholderCard(text: NSLocalizedString("在设置里打开洗澡、排便或性生活后，这里会显示频率月历。", comment: ""))
+                } else {
+                    metricSelector
+                    monthSummary
+
+                    HabitFrequencyCountMonthView(
+                        monthStart: visibleMonth,
+                        countsByDate: countsByDate,
+                        allowedRange: allowedRange,
+                        metrics: displayedMetrics
+                    )
+                }
+            }
+            .padding(18)
+            .padding(.bottom, 96)
+        }
+        .background(AppTheme.background.ignoresSafeArea())
+        .navigationTitle(NSLocalizedString("频率月历", comment: ""))
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private var monthHeader: some View {
+        HStack(spacing: 14) {
+            Button {
+                visibleMonth = month(byAdding: -1)
+            } label: {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 16, weight: .bold))
+                    .frame(width: 40, height: 40)
+                    .background(AppTheme.elevatedSurface)
+                    .clipShape(Circle())
+            }
+            .buttonStyle(.plain)
+            .disabled(!canMoveMonth(by: -1))
+            .opacity(canMoveMonth(by: -1) ? 1 : 0.35)
+
+            Spacer()
+
+            Text(monthTitle)
+                .font(.system(size: 24, weight: .bold, design: .rounded))
+                .foregroundStyle(AppTheme.primaryText)
+
+            Spacer()
+
+            Button {
+                visibleMonth = month(byAdding: 1)
+            } label: {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 16, weight: .bold))
+                    .frame(width: 40, height: 40)
+                    .background(AppTheme.elevatedSurface)
+                    .clipShape(Circle())
+            }
+            .buttonStyle(.plain)
+            .disabled(!canMoveMonth(by: 1))
+            .opacity(canMoveMonth(by: 1) ? 1 : 0.35)
+        }
+        .foregroundStyle(AppTheme.primaryText)
+    }
+
+    private var metricSelector: some View {
+        HStack(spacing: 8) {
+            ForEach(visibleMetrics) { metric in
+                let isSelected = selectedMetrics.contains(metric)
+                Button {
+                    toggle(metric)
+                } label: {
+                    HStack(spacing: 6) {
+                        Circle()
+                            .fill(metric.color)
+                            .frame(width: 8, height: 8)
+                        Text(metric.title)
+                            .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    }
+                    .foregroundStyle(isSelected ? Color.white : AppTheme.secondaryText)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(isSelected ? metric.color : AppTheme.surface)
+                    .clipShape(Capsule())
+                    .overlay(
+                        Capsule()
+                            .stroke(isSelected ? Color.clear : AppTheme.border, lineWidth: 1)
+                    )
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    private var monthSummary: some View {
+        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: max(displayedMetrics.count, 1)), spacing: 10) {
+            ForEach(displayedMetrics) { metric in
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 6) {
+                        Circle()
+                            .fill(metric.color)
+                            .frame(width: 8, height: 8)
+                        Text(metric.title)
+                            .font(.system(size: 12, weight: .semibold, design: .rounded))
+                            .foregroundStyle(AppTheme.secondaryText)
+                            .lineLimit(1)
+                    }
+
+                    Text(String(format: NSLocalizedString("%d 次", comment: ""), totalCount(for: metric)))
+                        .font(.system(size: 22, weight: .bold, design: .rounded))
+                        .foregroundStyle(metric.color)
+                        .monospacedDigit()
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(12)
+                .background(AppTheme.surface)
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            }
+        }
+    }
+
+    private var monthDates: [Date] {
+        let calendar = Calendar.current
+        guard let interval = calendar.dateInterval(of: .month, for: visibleMonth),
+              let dayRange = calendar.range(of: .day, in: .month, for: visibleMonth) else { return [] }
+        return dayRange.compactMap { day in
+            calendar.date(byAdding: .day, value: day - 1, to: interval.start)
+        }
+    }
+
+    private var monthTitle: String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale.autoupdatingCurrent
+        formatter.setLocalizedDateFormatFromTemplate("yMMMM")
+        return formatter.string(from: visibleMonth)
+    }
+
+    private func totalCount(for metric: HabitFrequencyMetric) -> Int {
+        monthCounts.reduce(0) { $0 + metric.count(in: $1) }
+    }
+
+    private func month(byAdding value: Int) -> Date {
+        Calendar.current.date(byAdding: .month, value: value, to: visibleMonth) ?? visibleMonth
+    }
+
+    private func canMoveMonth(by value: Int) -> Bool {
+        guard let interval = Calendar.current.dateInterval(of: .month, for: month(byAdding: value)) else { return false }
+        return interval.end > allowedRange.lowerBound.startOfDay && interval.start <= allowedRange.upperBound.startOfDay
+    }
+
+    private func toggle(_ metric: HabitFrequencyMetric) {
+        if selectedMetrics.contains(metric) {
+            guard selectedMetrics.count > 1 else { return }
+            selectedMetrics.remove(metric)
+        } else {
+            selectedMetrics.insert(metric)
+        }
+    }
+}
+
+private struct HabitFrequencyCountMonthView: View {
+    let monthStart: Date
+    let countsByDate: [Date: HabitFrequencyDayCounts]
+    let allowedRange: ClosedRange<Date>
+    let metrics: [HabitFrequencyMetric]
+
+    private let columns = Array(repeating: GridItem(.flexible(), spacing: 4), count: 7)
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 12) {
+                ForEach(metrics) { metric in
+                    HStack(spacing: 5) {
+                        Circle()
+                            .fill(metric.color)
+                            .frame(width: 7, height: 7)
+                        Text(metric.title)
+                            .font(.system(size: 12, weight: .semibold, design: .rounded))
+                            .foregroundStyle(AppTheme.secondaryText)
+                    }
+                }
+            }
+
+            LazyVGrid(columns: columns, spacing: 0) {
+                ForEach(weekdaySymbols, id: \.self) { symbol in
+                    Text(symbol)
+                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                        .foregroundStyle(AppTheme.secondaryText)
+                        .frame(height: 24)
+                        .frame(maxWidth: .infinity)
+                }
+            }
+
+            LazyVGrid(columns: columns, spacing: 8) {
+                ForEach(Array(monthCells.enumerated()), id: \.offset) { _, date in
+                    if let date {
+                        HabitFrequencyCountDayCell(
+                            date: date,
+                            counts: countsByDate[date.startOfDay] ?? .empty,
+                            isAllowed: allowedRange.contains(date.startOfDay),
+                            metrics: metrics
+                        )
+                    } else {
+                        Color.clear
+                            .frame(height: 56)
+                    }
+                }
+            }
+        }
+        .padding(14)
+        .background(AppTheme.cardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(AppTheme.border, lineWidth: 1)
+        )
+    }
+
+    private var monthCells: [Date?] {
+        let calendar = Calendar.current
+        guard let interval = calendar.dateInterval(of: .month, for: monthStart),
+              let dayRange = calendar.range(of: .day, in: .month, for: monthStart) else {
+            return []
+        }
+        let leadingBlanks = max(0, interval.start.isoWeekday - 1)
+        var cells = Array<Date?>(repeating: nil, count: leadingBlanks)
+        cells += dayRange.compactMap { day in
+            calendar.date(byAdding: .day, value: day - 1, to: interval.start)
+        }
+        while cells.count % 7 != 0 {
+            cells.append(nil)
+        }
+        return cells
+    }
+
+    private var weekdaySymbols: [String] {
+        let symbols = DateFormatter().veryShortWeekdaySymbols ?? ["S", "M", "T", "W", "T", "F", "S"]
+        guard symbols.count == 7 else { return symbols }
+        return Array(symbols[1...6]) + [symbols[0]]
+    }
+}
+
+private struct HabitFrequencyCountDayCell: View {
+    let date: Date
+    let counts: HabitFrequencyDayCounts
+    let isAllowed: Bool
+    let metrics: [HabitFrequencyMetric]
+
+    var body: some View {
+        VStack(spacing: 7) {
+            Text("\(Calendar.current.component(.day, from: date))")
+                .font(.system(size: 15, weight: .semibold, design: .rounded))
+                .foregroundStyle(AppTheme.primaryText)
+                .monospacedDigit()
+
+            HStack(spacing: 4) {
+                ForEach(metrics) { metric in
+                    let count = metric.count(in: counts)
+                    Circle()
+                        .fill(count > 0 ? metric.color : metric.color.opacity(0.12))
+                        .frame(width: 7, height: 7)
+                }
+            }
+        }
+        .frame(height: 56)
+        .frame(maxWidth: .infinity)
+        .opacity(isAllowed ? 1 : 0.28)
+    }
+}
+
+private struct HabitFrequencyDayCounts {
+    var showers: Int
+    var bowelMovements: Int
+    var sexualActivities: Int
+
+    static let empty = HabitFrequencyDayCounts(showers: 0, bowelMovements: 0, sexualActivities: 0)
+
+    static func aggregate(records: [DailyRecord]) -> [Date: HabitFrequencyDayCounts] {
+        var result: [Date: HabitFrequencyDayCounts] = [:]
+
+        for record in records {
+            let logicalDate = record.date.startOfDay
+
+            for shower in record.showers {
+                let date = shower.time.map {
+                    actualDisplayDate(for: $0, timeZoneIdentifier: shower.timeZoneIdentifier)
+                } ?? logicalDate
+                result[date, default: .empty].showers += 1
+            }
+
+            for bowelMovement in record.bowelMovements {
+                let date = bowelMovement.time.map {
+                    actualDisplayDate(for: $0, timeZoneIdentifier: bowelMovement.timeZoneIdentifier)
+                } ?? logicalDate
+                result[date, default: .empty].bowelMovements += 1
+            }
+
+            for activity in record.sexualActivities {
+                let date = activity.time.map {
+                    actualDisplayDate(for: $0, timeZoneIdentifier: activity.timeZoneIdentifier)
+                } ?? activity.date.startOfDay
+                result[date, default: .empty].sexualActivities += 1
+            }
+        }
+
+        return result
+    }
+
+    private static func actualDisplayDate(for timestamp: Date, timeZoneIdentifier: String?) -> Date {
+        var recordedCalendar = Calendar.current
+        if let timeZoneIdentifier, let timeZone = TimeZone(identifier: timeZoneIdentifier) {
+            recordedCalendar.timeZone = timeZone
+        }
+        let components = recordedCalendar.dateComponents([.year, .month, .day], from: timestamp)
+        var displayComponents = DateComponents()
+        displayComponents.calendar = Calendar.current
+        displayComponents.timeZone = Calendar.current.timeZone
+        displayComponents.year = components.year
+        displayComponents.month = components.month
+        displayComponents.day = components.day
+        return Calendar.current.date(from: displayComponents).map { Calendar.current.startOfDay(for: $0) }
+            ?? Calendar.current.startOfDay(for: timestamp)
+    }
+}
+
 private struct AnalyticsCustomizationSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var customization: AnalyticsCustomization
@@ -1856,7 +2328,7 @@ private struct AnalyticsCustomizationSheet: View {
                 }
 
                 Section(NSLocalizedString("图表", comment: "")) {
-                    ForEach(customization.visibleWidgets.filter { isSectionVisible(for: $0) }) { widget in
+                    ForEach(customization.visibleWidgets.filter { isCustomizableWidget($0) && isSectionVisible(for: $0) }) { widget in
                         ToggleRow(title: widget.title, isOn: true) {
                             customization.visibleWidgets.removeAll { $0 == widget }
                         }
@@ -1899,7 +2371,13 @@ private struct AnalyticsCustomizationSheet: View {
     }
 
     private var availableWidgets: [AnalyticsWidgetKind] {
-        AnalyticsWidgetKind.allCases.filter { !customization.visibleWidgets.contains($0) && isSectionVisible(for: $0) }
+        AnalyticsWidgetKind.allCases.filter {
+            isCustomizableWidget($0) && !customization.visibleWidgets.contains($0) && isSectionVisible(for: $0)
+        }
+    }
+
+    private func isCustomizableWidget(_ widget: AnalyticsWidgetKind) -> Bool {
+        widget != .habitFrequencyCalendar
     }
 
     private func isSectionVisible(for metric: AnalyticsMetricKind) -> Bool {

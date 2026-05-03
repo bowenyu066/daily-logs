@@ -19,13 +19,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Used to take photos for meal records."
+            "value" : "Used to take meal photos and daily videos."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "用于为餐食记录拍照。"
+            "value" : "用于拍摄餐食照片和每日视频。"
           }
         }
       }
@@ -76,19 +76,36 @@
         }
       }
     },
+    "NSMicrophoneUsageDescription" : {
+      "comment" : "Privacy - Microphone Usage Description",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Used to record sound in daily videos."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用于录制每日视频里的声音。"
+          }
+        }
+      }
+    },
     "NSPhotoLibraryAddUsageDescription" : {
       "comment" : "Privacy - Photo Library Additions Usage Description",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Used to save meal photos you have taken."
+            "value" : "Used to save meal photos and videos you have taken."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "用于保存你拍摄的餐食照片。"
+            "value" : "用于保存你拍摄的餐食照片和视频。"
           }
         }
       }
@@ -99,13 +116,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Used to select meal photos from your photo library."
+            "value" : "Used to select meal photos and videos from your photo library."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "用于从相册选择餐食照片。"
+            "value" : "用于从相册选择餐食照片和视频。"
           }
         }
       }

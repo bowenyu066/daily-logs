@@ -285,6 +285,7 @@ final class FirebaseCloudSyncService: CloudSyncService, Sendable {
     private func preparedPlaintextRecord(_ record: DailyRecord, userID: String) async throws -> DailyRecord {
         guard !storages.isEmpty else { return record }
         var updated = record
+        let recordKey = updated.canonicalStorageKey(fallback: updated.date.storageKey())
         for index in updated.meals.indices {
             var uploadedPhotoURLs: [String] = []
             for (photoIndex, photoURL) in updated.meals[index].photoURLs.enumerated() {
@@ -322,6 +323,28 @@ final class FirebaseCloudSyncService: CloudSyncService, Sendable {
             }
             updated.meals[index].photoURLs = uploadedPhotoURLs
         }
+        if var dailyVideo = updated.dailyVideo,
+           !dailyVideo.videoURL.hasPrefix("http://"),
+           !dailyVideo.videoURL.hasPrefix("https://"),
+           !SecureCloudMediaReference.isSecureReference(dailyVideo.videoURL),
+           FileManager.default.fileExists(atPath: dailyVideo.videoURL) {
+            do {
+                let data = try Data(contentsOf: URL(fileURLWithPath: dailyVideo.videoURL))
+                let path = "users/\(userID)/daily-videos/\(recordKey).mp4"
+                let meta = StorageMetadata()
+                meta.contentType = "video/mp4"
+                dailyVideo.videoURL = try await uploadPhoto(
+                    data: data,
+                    storagePath: path,
+                    metadata: meta
+                )
+                updated.dailyVideo = dailyVideo
+            } catch {
+                #if DEBUG
+                print("CloudSync: video upload failed for record \(recordKey): \(error)")
+                #endif
+            }
+        }
         return updated
     }
 
@@ -358,6 +381,7 @@ final class FirebaseCloudSyncService: CloudSyncService, Sendable {
     private func preparedEncryptedRecord(_ record: DailyRecord, userID: String, key: SymmetricKey) async throws -> DailyRecord {
         guard !storages.isEmpty else { return record }
         var updated = record
+        let recordKey = updated.canonicalStorageKey(fallback: updated.date.storageKey())
         for index in updated.meals.indices {
             var encryptedPhotoReferences: [String] = []
             for (photoIndex, photoReference) in updated.meals[index].photoURLs.enumerated() {
@@ -388,6 +412,23 @@ final class FirebaseCloudSyncService: CloudSyncService, Sendable {
                 }
             }
             updated.meals[index].photoURLs = encryptedPhotoReferences
+        }
+        if var dailyVideo = updated.dailyVideo,
+           !SecureCloudMediaReference.isSecureReference(dailyVideo.videoURL),
+           let data = try await loadVideoData(for: dailyVideo.videoURL) {
+            do {
+                let path = "users/\(userID)/secure-daily-videos/\(recordKey).bin"
+                dailyVideo.videoURL = try await uploadEncryptedVideo(
+                    data: data,
+                    storagePath: path,
+                    key: key
+                )
+                updated.dailyVideo = dailyVideo
+            } catch {
+                #if DEBUG
+                print("CloudSync: encrypted video upload failed for record \(recordKey): \(error)")
+                #endif
+            }
         }
         return updated
     }
@@ -433,6 +474,27 @@ final class FirebaseCloudSyncService: CloudSyncService, Sendable {
         throw lastError ?? CocoaError(.fileWriteUnknown)
     }
 
+    private func uploadEncryptedVideo(data: Data, storagePath: String, key: SymmetricKey) async throws -> String {
+        let encryptedData = try crypto.encrypt(data: data, key: key)
+        var lastError: Error?
+
+        for storage in storages {
+            let ref = storage.reference().child(storagePath)
+            do {
+                let result = try await ref.putDataAsync(encryptedData, metadata: nil)
+                let bucket = result.bucket ?? storage.reference().bucket
+                return SecureCloudMediaReference.make(bucket: bucket, path: storagePath)
+            } catch {
+                lastError = error
+                #if DEBUG
+                print("CloudSync: encrypted video upload attempt failed in bucket \(storage.reference().bucket) for \(storagePath): \(error)")
+                #endif
+            }
+        }
+
+        throw lastError ?? CocoaError(.fileWriteUnknown)
+    }
+
     private func loadPhotoData(for photoReference: String) async throws -> Data? {
         if SecureCloudPhotoReference.isSecureReference(photoReference) {
             return try await SecureCloudPhotoLoader.shared.data(for: photoReference)
@@ -449,6 +511,24 @@ final class FirebaseCloudSyncService: CloudSyncService, Sendable {
 
         guard FileManager.default.fileExists(atPath: photoReference) else { return nil }
         return try Data(contentsOf: URL(fileURLWithPath: photoReference))
+    }
+
+    private func loadVideoData(for videoReference: String) async throws -> Data? {
+        if SecureCloudMediaReference.isSecureReference(videoReference) {
+            return try await SecureCloudMediaLoader.shared.data(for: videoReference)
+        }
+
+        if videoReference.hasPrefix("http://") || videoReference.hasPrefix("https://"),
+           let url = URL(string: videoReference) {
+            let (data, response) = try await URLSession.shared.data(from: url)
+            guard let httpResponse = response as? HTTPURLResponse, 200..<300 ~= httpResponse.statusCode else {
+                return nil
+            }
+            return data
+        }
+
+        guard FileManager.default.fileExists(atPath: videoReference) else { return nil }
+        return try Data(contentsOf: URL(fileURLWithPath: videoReference))
     }
 
     private func legacyPlaintextPayload(for user: UserAccount) async throws -> CloudBootstrapPayload {
@@ -570,6 +650,7 @@ final class FirebaseCloudSyncService: CloudSyncService, Sendable {
         total += record.showers.count * 2
         total += record.bowelMovements.count * 2
         total += record.sexualActivities.count * 2
+        if record.dailyVideo != nil { total += 2 }
         if record.aiInsightNarrative?.hasAIScoring == true { total += 2 }
         if record.locationName?.isEmpty == false { total += 1 }
         if record.sunTimes != nil { total += 2 }

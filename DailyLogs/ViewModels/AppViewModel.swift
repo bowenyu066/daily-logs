@@ -49,6 +49,7 @@ final class AppViewModel: ObservableObject {
     private let repository: DailyRecordRepository
     private let preferencesStore: PreferencesStore
     private let photoStorageService: PhotoStorageService
+    private let videoStorageService: VideoStorageService
     private let sunTimesService: SunTimesService
     private let weatherService: WeatherService
     private var healthSyncAdapter: HealthSyncAdapter
@@ -67,6 +68,7 @@ final class AppViewModel: ObservableObject {
             repository: LocalDailyRecordRepository(store: store),
             preferencesStore: LocalPreferencesStore(store: store),
             photoStorageService: LocalPhotoStorageService(),
+            videoStorageService: LocalVideoStorageService(),
             sunTimesService: AstronomySunTimesService(),
             weatherService: OpenMeteoWeatherService(),
             healthSyncAdapter: HealthKitService(),
@@ -85,6 +87,7 @@ final class AppViewModel: ObservableObject {
         repository: DailyRecordRepository,
         preferencesStore: PreferencesStore,
         photoStorageService: PhotoStorageService,
+        videoStorageService: VideoStorageService,
         sunTimesService: SunTimesService,
         weatherService: WeatherService,
         healthSyncAdapter: HealthSyncAdapter,
@@ -100,6 +103,7 @@ final class AppViewModel: ObservableObject {
         self.repository = repository
         self.preferencesStore = preferencesStore
         self.photoStorageService = photoStorageService
+        self.videoStorageService = videoStorageService
         self.sunTimesService = sunTimesService
         self.weatherService = weatherService
         self.healthSyncAdapter = healthSyncAdapter
@@ -598,6 +602,12 @@ final class AppViewModel: ObservableObject {
             preferences.timeDisplayMode = .recorded
             UserDefaults.standard.set(true, forKey: Self.didMigrateTimeDisplayModeDefaultKey)
         }
+        if preferences.homeSectionSchemaVersion < UserPreferences.currentHomeSectionSchemaVersion {
+            if !preferences.visibleHomeSections.contains(.dailyVideo) {
+                preferences.visibleHomeSections.append(.dailyVideo)
+            }
+            preferences.homeSectionSchemaVersion = UserPreferences.currentHomeSectionSchemaVersion
+        }
         preferences.midnightMode.cutoffHour = MidnightModeSettings.fixedCutoffHour
         return preferences
     }
@@ -799,6 +809,38 @@ final class AppViewModel: ObservableObject {
             await syncCurrentRecordToCloudIfNeeded()
         } catch {
             errorMessage = NSLocalizedString("更新餐食失败：", comment: "") + error.localizedDescription
+        }
+    }
+
+    func saveDailyVideo(from sourceURL: URL, duration: TimeInterval) async {
+        guard canEditSelectedDate else { return }
+        do {
+            let existingVideoURL = dailyRecord.dailyVideo?.videoURL
+            let savedVideoURL = try videoStorageService.saveVideo(from: sourceURL)
+            if let existingVideoURL {
+                try deleteVideoIfLocal(at: existingVideoURL)
+            }
+            dailyRecord.dailyVideo = DailyVideoEntry(
+                videoURL: savedVideoURL,
+                duration: min(max(duration, 0), 10),
+                createdAt: .now
+            )
+            persistCurrentRecord()
+            await syncCurrentRecordToCloudIfNeeded()
+        } catch {
+            errorMessage = NSLocalizedString("保存视频失败：", comment: "") + error.localizedDescription
+        }
+    }
+
+    func deleteDailyVideo() async {
+        guard canEditSelectedDate, let dailyVideo = dailyRecord.dailyVideo else { return }
+        do {
+            try deleteVideoIfLocal(at: dailyVideo.videoURL)
+            dailyRecord.dailyVideo = nil
+            persistCurrentRecord()
+            await syncCurrentRecordToCloudIfNeeded()
+        } catch {
+            errorMessage = NSLocalizedString("删除视频失败：", comment: "") + error.localizedDescription
         }
     }
 
@@ -1495,6 +1537,7 @@ final class AppViewModel: ObservableObject {
 
     private func refreshRemotePhotoCache() async {
         await RemotePhotoCache.shared.syncRetention(with: recentRemotePhotoURLs())
+        await RemoteVideoCache.shared.syncRetention(with: recentRemoteVideoURLs())
     }
 
     private func recentRemotePhotoURLs() -> [String] {
@@ -1510,10 +1553,26 @@ final class AppViewModel: ObservableObject {
         return Array(Set(urls))
     }
 
+    private func recentRemoteVideoURLs() -> [String] {
+        let lowerBound = logicalToday.adding(days: -6)
+        let urls = allRecords
+            .filter { $0.date >= lowerBound }
+            .compactMap(\.dailyVideo?.videoURL)
+            .filter(Self.isRemoteVideoURL)
+
+        return Array(Set(urls))
+    }
+
     private static func isRemotePhotoURL(_ urlString: String) -> Bool {
         urlString.hasPrefix("http://")
             || urlString.hasPrefix("https://")
             || SecureCloudPhotoReference.isSecureReference(urlString)
+    }
+
+    private static func isRemoteVideoURL(_ urlString: String) -> Bool {
+        urlString.hasPrefix("http://")
+            || urlString.hasPrefix("https://")
+            || SecureCloudMediaReference.isSecureReference(urlString)
     }
 
     nonisolated static func recordsByStorageKey(_ records: [DailyRecord], preferences: UserPreferences) -> [String: DailyRecord] {
@@ -1562,6 +1621,9 @@ final class AppViewModel: ObservableObject {
         score += record.showers.count
         score += record.bowelMovements.count
         score += record.sexualActivities.count
+        if record.dailyVideo != nil {
+            score += 1
+        }
 
         for meal in record.meals {
             switch meal.status {
@@ -1743,6 +1805,11 @@ final class AppViewModel: ObservableObject {
     private func deletePhotoIfLocal(at path: String) throws {
         guard !Self.isRemotePhotoURL(path) else { return }
         try photoStorageService.deletePhoto(at: path)
+    }
+
+    private func deleteVideoIfLocal(at path: String) throws {
+        guard !Self.isRemoteVideoURL(path) else { return }
+        try videoStorageService.deleteVideo(at: path)
     }
 
     private func deleteMealPhotosIfLocal(_ photoURLs: [String]) throws {

@@ -32,6 +32,11 @@ protocol PhotoStorageService {
     func deletePhoto(at path: String) throws
 }
 
+protocol VideoStorageService {
+    func saveVideo(from sourceURL: URL) throws -> String
+    func deleteVideo(at path: String) throws
+}
+
 protocol SunTimesService {
     func sunTimes(for date: Date, coordinate: CLLocationCoordinate2D, timeZone: TimeZone) -> SunTimes?
 }
@@ -570,6 +575,7 @@ final class LocalDailyRecordRepository: DailyRecordRepository {
         score += record.showers.count
         score += record.bowelMovements.count
         score += record.sexualActivities.count
+        if record.dailyVideo != nil { score += 1 }
 
         for meal in record.meals {
             switch meal.status {
@@ -629,6 +635,31 @@ final class LocalPhotoStorageService: PhotoStorageService {
     }
 
     func deletePhoto(at path: String) throws {
+        guard FileManager.default.fileExists(atPath: path) else { return }
+        try FileManager.default.removeItem(atPath: path)
+    }
+}
+
+final class LocalVideoStorageService: VideoStorageService {
+    private let directory: URL
+
+    init() {
+        let supportURL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        let directory = supportURL.appendingPathComponent("DailyLogs/Videos", isDirectory: true)
+        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        self.directory = directory
+    }
+
+    func saveVideo(from sourceURL: URL) throws -> String {
+        let destinationURL = directory.appendingPathComponent("\(UUID().uuidString).mp4")
+        if FileManager.default.fileExists(atPath: destinationURL.path) {
+            try FileManager.default.removeItem(at: destinationURL)
+        }
+        try FileManager.default.copyItem(at: sourceURL, to: destinationURL)
+        return destinationURL.path
+    }
+
+    func deleteVideo(at path: String) throws {
         guard FileManager.default.fileExists(atPath: path) else { return }
         try FileManager.default.removeItem(atPath: path)
     }
