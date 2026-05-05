@@ -527,21 +527,30 @@ private final class ExportSessionBox: @unchecked Sendable {
 }
 
 private enum DailyVideoExporter {
+    private static let preferredPresets = [
+        AVAssetExportPreset1920x1080,
+        AVAssetExportPreset1280x720,
+        AVAssetExportPresetHighestQuality,
+        AVAssetExportPresetMediumQuality
+    ]
+
     static func export(sourceURL: URL, startTime: TimeInterval, duration: TimeInterval) async throws -> URL {
         let asset = AVURLAsset(url: sourceURL)
-        guard let exportSession = AVAssetExportSession(asset: asset, presetName: AVAssetExportPreset1280x720)
-            ?? AVAssetExportSession(asset: asset, presetName: AVAssetExportPresetMediumQuality) else {
+        guard let exportConfiguration = await makeExportConfiguration(for: asset) else {
             throw CocoaError(.fileWriteUnknown)
         }
+        let exportSession = exportConfiguration.session
+        let outputFileType = exportConfiguration.outputFileType
+        let outputExtension = outputFileType == .mp4 ? "mp4" : "mov"
 
         let outputURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent("daily-video-\(UUID().uuidString).mp4")
+            .appendingPathComponent("daily-video-\(UUID().uuidString).\(outputExtension)")
         if FileManager.default.fileExists(atPath: outputURL.path) {
             try FileManager.default.removeItem(at: outputURL)
         }
 
         exportSession.outputURL = outputURL
-        exportSession.outputFileType = .mp4
+        exportSession.outputFileType = outputFileType
         exportSession.shouldOptimizeForNetworkUse = true
         exportSession.timeRange = CMTimeRange(
             start: CMTime(seconds: max(0, startTime), preferredTimescale: 600),
@@ -562,6 +571,24 @@ private enum DailyVideoExporter {
             }
         }
     }
+
+    private static func makeExportConfiguration(for asset: AVURLAsset) async -> (session: AVAssetExportSession, outputFileType: AVFileType)? {
+        for presetName in preferredPresets {
+            for outputFileType in [AVFileType.mp4, .mov] {
+                let isCompatible = await AVAssetExportSession.compatibility(
+                    ofExportPreset: presetName,
+                    with: asset,
+                    outputFileType: outputFileType
+                )
+                guard isCompatible,
+                      let exportSession = AVAssetExportSession(asset: asset, presetName: presetName) else {
+                    continue
+                }
+                return (exportSession, outputFileType)
+            }
+        }
+        return nil
+    }
 }
 
 struct DailyVideoPicker: UIViewControllerRepresentable {
@@ -574,7 +601,7 @@ struct DailyVideoPicker: UIViewControllerRepresentable {
         picker.delegate = context.coordinator
         picker.sourceType = sourceType
         picker.mediaTypes = [UTType.movie.identifier]
-        picker.videoQuality = .typeMedium
+        picker.videoQuality = .typeHigh
         picker.videoMaximumDuration = maximumDuration
         if sourceType == .camera {
             picker.cameraCaptureMode = .video

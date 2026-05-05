@@ -327,9 +327,9 @@ final class FirebaseCloudSyncService: CloudSyncService, Sendable {
            !dailyVideo.videoURL.hasPrefix("http://"),
            !dailyVideo.videoURL.hasPrefix("https://"),
            !SecureCloudMediaReference.isSecureReference(dailyVideo.videoURL),
-           FileManager.default.fileExists(atPath: dailyVideo.videoURL) {
+           let localVideoURL = LocalVideoStorageService.resolvedURL(for: dailyVideo.videoURL) {
             do {
-                let data = try Data(contentsOf: URL(fileURLWithPath: dailyVideo.videoURL))
+                let data = try Data(contentsOf: localVideoURL)
                 let path = "users/\(userID)/daily-videos/\(recordKey).mp4"
                 let meta = StorageMetadata()
                 meta.contentType = "video/mp4"
@@ -527,8 +527,8 @@ final class FirebaseCloudSyncService: CloudSyncService, Sendable {
             return data
         }
 
-        guard FileManager.default.fileExists(atPath: videoReference) else { return nil }
-        return try Data(contentsOf: URL(fileURLWithPath: videoReference))
+        guard let localVideoURL = LocalVideoStorageService.resolvedURL(for: videoReference) else { return nil }
+        return try Data(contentsOf: localVideoURL)
     }
 
     private func legacyPlaintextPayload(for user: UserAccount) async throws -> CloudBootstrapPayload {

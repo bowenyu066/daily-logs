@@ -2035,6 +2035,26 @@ struct DailyLogsTests {
         ])
     }
 
+    @Test
+    func localVideoStorageResolvesStaleContainerPathByFilename() throws {
+        let fileManager = FileManager.default
+        let service = LocalVideoStorageService()
+        let sourceURL = fileManager.temporaryDirectory
+            .appendingPathComponent("daily-video-source-\(UUID().uuidString).mp4")
+        try Data([0, 1, 2, 3]).write(to: sourceURL, options: .atomic)
+        defer { try? fileManager.removeItem(at: sourceURL) }
+
+        let reference = try service.saveVideo(from: sourceURL)
+        let resolvedURL = try #require(LocalVideoStorageService.resolvedURL(for: reference))
+        let staleContainerPath = "/private/var/mobile/Containers/Data/Application/OLD-CONTAINER/Library/Application Support/DailyLogs/Videos/\(resolvedURL.lastPathComponent)"
+
+        let recoveredURL = try #require(LocalVideoStorageService.resolvedURL(for: staleContainerPath))
+        #expect(recoveredURL == resolvedURL)
+
+        try service.deleteVideo(at: reference)
+        #expect(LocalVideoStorageService.resolvedURL(for: reference) == nil)
+    }
+
     @Test @MainActor
     func bootstrapDeduplicatesDuplicateMealSlotsAndKeepsRicherMeal() async {
         let today = Date().startOfDay

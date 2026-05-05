@@ -71,8 +71,7 @@ struct VideoContentView: View {
             || SecureCloudMediaReference.isSecureReference(videoURL) {
             return await RemoteVideoCache.shared.fileURL(for: videoURL)
         }
-        let url = URL(fileURLWithPath: videoURL)
-        return FileManager.default.fileExists(atPath: url.path) ? url : nil
+        return LocalVideoStorageService.resolvedURL(for: videoURL)
     }
 
     private func makeThumbnail(for url: URL) -> UIImage? {
@@ -150,7 +149,6 @@ struct DailyVideoPlaybackOverlay: View {
             || SecureCloudMediaReference.isSecureReference(videoURL) {
             return await RemoteVideoCache.shared.fileURL(for: videoURL)
         }
-        let url = URL(fileURLWithPath: videoURL)
-        return FileManager.default.fileExists(atPath: url.path) ? url : nil
+        return LocalVideoStorageService.resolvedURL(for: videoURL)
     }
 }

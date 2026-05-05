@@ -19,22 +19,30 @@ struct DatePickerSheet: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 18) {
-                monthHeader
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(spacing: 18) {
+                    monthHeader
+                        .padding(.horizontal, 18)
+                        .padding(.top, 18)
+
+                    RingMonthCalendar(
+                        visibleMonth: visibleMonth,
+                        selectedDate: draftDate,
+                        allowedRange: allowedRange,
+                        locale: locale,
+                        reportForDate: { appViewModel.displayedDailyInsightReport(for: $0) },
+                        onSelect: { draftDate = $0 }
+                    )
                     .padding(.horizontal, 18)
-                    .padding(.top, 18)
 
-                RingMonthCalendar(
-                    visibleMonth: visibleMonth,
-                    selectedDate: draftDate,
-                    allowedRange: allowedRange,
-                    locale: locale,
-                    reportForDate: { appViewModel.displayedDailyInsightReport(for: $0) },
-                    onSelect: { draftDate = $0 }
-                )
-                .padding(.horizontal, 18)
-
-                Spacer()
+                    DailyInsightCalendarDetailCard(
+                        date: draftDate,
+                        report: appViewModel.displayedDailyInsightReport(for: draftDate),
+                        locale: locale
+                    )
+                    .padding(.horizontal, 18)
+                }
+                .padding(.bottom, 28)
             }
             .background(AppTheme.background.ignoresSafeArea())
             .navigationTitle(NSLocalizedString("选择日期", comment: ""))
@@ -113,7 +121,7 @@ struct DatePickerSheet: View {
     }
 }
 
-private struct RingMonthCalendar: View {
+struct RingMonthCalendar: View {
     let visibleMonth: Date
     let selectedDate: Date
     let allowedRange: ClosedRange<Date>
@@ -217,7 +225,131 @@ private struct RingMonthCalendar: View {
     }
 }
 
-private struct DailyInsightMiniRings: View {
+struct DailyInsightCalendarDetailCard: View {
+    let date: Date
+    let report: DailyInsightReport?
+    let locale: Locale
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(alignment: .center, spacing: 14) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(date.formattedDayTitle(locale: locale))
+                        .font(.system(size: 18, weight: .bold, design: .rounded))
+                        .foregroundStyle(AppTheme.primaryText)
+
+                    Text(NSLocalizedString("当日分数", comment: ""))
+                        .font(.system(size: 13, weight: .semibold, design: .rounded))
+                        .foregroundStyle(AppTheme.secondaryText)
+                }
+
+                Spacer()
+
+                if let report {
+                    scoreRing(score: report.overallScore)
+                }
+            }
+
+            if let report {
+                VStack(spacing: 12) {
+                    ForEach(report.components) { component in
+                        componentRow(component)
+                    }
+                }
+            } else {
+                Text(NSLocalizedString("还没有可分析的数据", comment: ""))
+                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                    .foregroundStyle(AppTheme.secondaryText)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.vertical, 8)
+            }
+        }
+        .padding(18)
+        .background(AppTheme.cardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .stroke(AppTheme.border, lineWidth: 1)
+        )
+    }
+
+    private func scoreRing(score: Int) -> some View {
+        ZStack {
+            Circle()
+                .stroke(AppTheme.mutedFill, lineWidth: 7)
+
+            Circle()
+                .trim(from: 0, to: CGFloat(max(0, min(score, 100))) / 100)
+                .stroke(
+                    AppTheme.accent,
+                    style: StrokeStyle(lineWidth: 7, lineCap: .round)
+                )
+                .rotationEffect(.degrees(-90))
+
+            Text("\(score)")
+                .font(.system(size: 19, weight: .bold, design: .rounded))
+                .foregroundStyle(AppTheme.primaryText)
+                .monospacedDigit()
+        }
+        .frame(width: 58, height: 58)
+    }
+
+    private func componentRow(_ component: DailyInsightComponent) -> some View {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack(spacing: 9) {
+                Circle()
+                    .fill(componentColor(component))
+                    .frame(width: 9, height: 9)
+
+                Text(component.kind.title)
+                    .font(.system(size: 14, weight: .bold, design: .rounded))
+                    .foregroundStyle(AppTheme.primaryText)
+
+                Spacer()
+
+                Text(component.isIncluded ? "\(component.score)/\(component.maxScore)" : NSLocalizedString("未纳入", comment: ""))
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .foregroundStyle(componentColor(component))
+                    .monospacedDigit()
+            }
+
+            GeometryReader { proxy in
+                ZStack(alignment: .leading) {
+                    Capsule()
+                        .fill(AppTheme.mutedFill)
+
+                    Capsule()
+                        .fill(componentColor(component))
+                        .frame(width: component.isIncluded ? max(8, proxy.size.width * CGFloat(component.scoreRatio)) : 0)
+                }
+            }
+            .frame(height: 7)
+
+            Text(component.detail)
+                .font(.system(size: 12, weight: .medium, design: .rounded))
+                .foregroundStyle(AppTheme.secondaryText)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.vertical, 2)
+    }
+
+    private func componentColor(_ component: DailyInsightComponent) -> Color {
+        guard component.isIncluded else { return AppTheme.secondaryText.opacity(0.45) }
+        switch component.kind {
+        case .sleep:
+            return Color(red: 0.26, green: 0.54, blue: 0.92)
+        case .meals:
+            return Color(red: 0.86, green: 0.57, blue: 0.20)
+        case .shower:
+            return Color(red: 0.24, green: 0.69, blue: 0.76)
+        case .bowelMovement:
+            return Color(red: 0.42, green: 0.66, blue: 0.34)
+        }
+    }
+}
+
+struct DailyInsightMiniRings: View {
     let report: DailyInsightReport?
     let isMuted: Bool
 
@@ -268,7 +400,7 @@ private struct DailyInsightMiniRings: View {
     }
 }
 
-private struct DailyInsightMiniRingMetric {
+struct DailyInsightMiniRingMetric {
     let progress: Double
     let color: Color
 }

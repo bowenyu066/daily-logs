@@ -443,6 +443,7 @@ private struct AIInsightCalendarSheet: View {
     @Environment(\.locale) private var locale
 
     @State private var draftDate: Date
+    @State private var visibleMonth: Date
 
     let allowedRange: ClosedRange<Date>
     let reportProvider: (Date) -> DailyInsightReport?
@@ -454,7 +455,9 @@ private struct AIInsightCalendarSheet: View {
         reportProvider: @escaping (Date) -> DailyInsightReport?,
         onConfirm: @escaping (Date) -> Void
     ) {
-        _draftDate = State(initialValue: selectedDate.startOfDay)
+        let normalizedDate = selectedDate.startOfDay
+        _draftDate = State(initialValue: normalizedDate)
+        _visibleMonth = State(initialValue: Calendar.current.dateInterval(of: .month, for: normalizedDate)?.start ?? normalizedDate)
         self.allowedRange = allowedRange
         self.reportProvider = reportProvider
         self.onConfirm = onConfirm
@@ -467,32 +470,29 @@ private struct AIInsightCalendarSheet: View {
     var body: some View {
         NavigationStack {
             ScrollView(.vertical, showsIndicators: false) {
-                VStack(spacing: 20) {
-                    DatePicker(
-                        NSLocalizedString("选择日期", comment: ""),
-                        selection: $draftDate,
-                        in: allowedRange,
-                        displayedComponents: .date
-                    )
-                    .datePickerStyle(.graphical)
-                    .labelsHidden()
-                    .padding(12)
-                    .background(AppTheme.cardBackground)
-                    .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+                VStack(spacing: 18) {
+                    monthHeader
+                        .padding(.horizontal, 18)
+                        .padding(.top, 18)
 
-                    if let selectedReport {
-                        AIInsightRingCalendarPreview(report: selectedReport, locale: locale)
-                    } else {
-                        Text(NSLocalizedString("还没有可分析的数据", comment: ""))
-                            .font(.system(size: 15, weight: .semibold, design: .rounded))
-                            .foregroundStyle(AppTheme.secondaryText)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 24)
-                            .background(AppTheme.cardBackground)
-                            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-                    }
+                    RingMonthCalendar(
+                        visibleMonth: visibleMonth,
+                        selectedDate: draftDate,
+                        allowedRange: allowedRange,
+                        locale: locale,
+                        reportForDate: reportProvider,
+                        onSelect: { draftDate = $0 }
+                    )
+                    .padding(.horizontal, 18)
+
+                    DailyInsightCalendarDetailCard(
+                        date: draftDate,
+                        report: selectedReport,
+                        locale: locale
+                    )
+                    .padding(.horizontal, 18)
                 }
-                .padding(18)
+                .padding(.bottom, 28)
             }
             .background(AppTheme.background.ignoresSafeArea())
             .navigationTitle(NSLocalizedString("选择日期", comment: ""))
@@ -509,125 +509,64 @@ private struct AIInsightCalendarSheet: View {
                 }
             }
         }
-    }
-}
-
-private struct AIInsightRingCalendarPreview: View {
-    let report: DailyInsightReport
-    let locale: Locale
-
-    private let ringLineWidth: CGFloat = 16
-    private let ringSpacing: CGFloat = 12
-    private let outerRingSize: CGFloat = 252
-
-    private var rings: [CalendarRingMetric] {
-        let overall = CalendarRingMetric(
-            title: NSLocalizedString("当日分数", comment: ""),
-            score: report.overallScore,
-            maxScore: 100,
-            color: AppTheme.accent
-        )
-        let orderedKinds = DailyInsightComponentKind.allCases
-        let orderedComponents = orderedKinds.compactMap { kind in
-            report.components.first(where: { $0.kind == kind })
-        }
-        let components = orderedComponents.map {
-            CalendarRingMetric(
-                title: $0.kind.title,
-                score: $0.score,
-                maxScore: max($0.maxScore, 1),
-                color: color(for: $0.kind)
-            )
-        }
-        return [overall] + components
+        .environment(\.locale, locale)
+        .presentationDetents([.large])
+        .presentationDragIndicator(.visible)
+        .presentationBackground(AppTheme.background)
     }
 
-    var body: some View {
-        VStack(spacing: 20) {
-            ZStack {
-                Circle()
-                    .fill(AppTheme.background.opacity(0.92))
-                    .frame(width: centerDiscSize, height: centerDiscSize)
-
-                ForEach(Array(rings.enumerated()), id: \.offset) { index, ring in
-                    Circle()
-                        .stroke(ring.color.opacity(0.14), lineWidth: ringLineWidth)
-                        .frame(width: ringSize(for: index), height: ringSize(for: index))
-
-                    Circle()
-                        .trim(from: 0.001, to: max(ring.progress, 0.001))
-                        .stroke(
-                            ring.color,
-                            style: StrokeStyle(lineWidth: ringLineWidth, lineCap: .round)
-                        )
-                        .rotationEffect(.degrees(-90))
-                        .frame(width: ringSize(for: index), height: ringSize(for: index))
-                }
-
-                VStack(spacing: 4) {
-                    Text("\(report.overallScore)")
-                        .font(.system(size: 42, weight: .bold, design: .rounded))
-                        .foregroundStyle(AppTheme.primaryText)
-                }
+    private var monthHeader: some View {
+        HStack(spacing: 14) {
+            Button {
+                visibleMonth = month(byAdding: -1)
+            } label: {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 16, weight: .bold))
+                    .frame(width: 38, height: 38)
+                    .background(AppTheme.elevatedSurface)
+                    .clipShape(Circle())
             }
-            .frame(height: 280)
+            .buttonStyle(.plain)
+            .disabled(!canMoveMonth(by: -1))
+            .opacity(canMoveMonth(by: -1) ? 1 : 0.35)
 
-            VStack(spacing: 10) {
-                ForEach(rings) { ring in
-                    HStack(spacing: 10) {
-                        Circle()
-                            .fill(ring.color)
-                            .frame(width: 10, height: 10)
+            Spacer()
 
-                        Text(ring.title)
-                            .font(.system(size: 14, weight: .semibold, design: .rounded))
-                            .foregroundStyle(AppTheme.primaryText)
+            Text(monthTitle)
+                .font(.system(size: 24, weight: .bold, design: .rounded))
+                .foregroundStyle(AppTheme.primaryText)
 
-                        Spacer()
+            Spacer()
 
-                        Text("\(ring.score)/\(ring.maxScore)")
-                            .font(.system(size: 14, weight: .bold, design: .rounded))
-                            .foregroundStyle(ring.color)
-                    }
-                }
+            Button {
+                visibleMonth = month(byAdding: 1)
+            } label: {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 16, weight: .bold))
+                    .frame(width: 38, height: 38)
+                    .background(AppTheme.elevatedSurface)
+                    .clipShape(Circle())
             }
+            .buttonStyle(.plain)
+            .disabled(!canMoveMonth(by: 1))
+            .opacity(canMoveMonth(by: 1) ? 1 : 0.35)
         }
-        .padding(22)
-        .background(AppTheme.cardBackground)
-        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .foregroundStyle(AppTheme.primaryText)
     }
 
-    private func ringSize(for index: Int) -> CGFloat {
-        outerRingSize - CGFloat(index) * (ringLineWidth + ringSpacing)
+    private var monthTitle: String {
+        let formatter = DateFormatter()
+        formatter.locale = locale
+        formatter.setLocalizedDateFormatFromTemplate("yMMMM")
+        return formatter.string(from: visibleMonth)
     }
 
-    private var centerDiscSize: CGFloat {
-        ringSize(for: max(rings.count - 1, 0)) - ringLineWidth - 16
+    private func month(byAdding value: Int) -> Date {
+        Calendar.current.date(byAdding: .month, value: value, to: visibleMonth) ?? visibleMonth
     }
 
-    private func color(for kind: DailyInsightComponentKind) -> Color {
-        switch kind {
-        case .sleep:
-            Color(red: 0.35, green: 0.46, blue: 0.96)
-        case .meals:
-            Color(red: 0.98, green: 0.62, blue: 0.24)
-        case .shower:
-            Color(red: 0.22, green: 0.70, blue: 0.67)
-        case .bowelMovement:
-            Color(red: 0.71, green: 0.49, blue: 0.28)
-        }
-    }
-}
-
-private struct CalendarRingMetric: Identifiable {
-    let id = UUID()
-    let title: String
-    let score: Int
-    let maxScore: Int
-    let color: Color
-
-    var progress: CGFloat {
-        guard maxScore > 0 else { return 0 }
-        return CGFloat(max(0, min(Double(score) / Double(maxScore), 1)))
+    private func canMoveMonth(by value: Int) -> Bool {
+        guard let interval = Calendar.current.dateInterval(of: .month, for: month(byAdding: value)) else { return false }
+        return interval.end > allowedRange.lowerBound.startOfDay && interval.start <= allowedRange.upperBound.startOfDay
     }
 }

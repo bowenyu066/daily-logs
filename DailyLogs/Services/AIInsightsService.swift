@@ -678,7 +678,7 @@ enum DailyInsightAnalyzer {
                     detail: NSLocalizedString("还没有睡眠记录", comment: ""),
                     isIncluded: true
                 ),
-                [NSLocalizedString("昨天还没有睡眠记录，所以这部分暂时没有加分。", comment: "")]
+                [NSLocalizedString("这一天还没有睡眠记录，所以这部分暂时没有加分。", comment: "")]
             )
         }
 
@@ -726,9 +726,9 @@ enum DailyInsightAnalyzer {
 
         var highlights: [String] = []
         if durationHours < 6.5 {
-            highlights.append(NSLocalizedString("睡眠时长偏短，是昨天最明显的扣分点。", comment: ""))
+            highlights.append(NSLocalizedString("睡眠时长偏短，是当天最明显的扣分点。", comment: ""))
         } else if durationHours > 9.5 {
-            highlights.append(NSLocalizedString("睡眠时间偏长，可能说明昨天整体恢复感比较重。", comment: ""))
+            highlights.append(NSLocalizedString("睡眠时间偏长，可能说明当天整体恢复感比较重。", comment: ""))
         } else {
             highlights.append(NSLocalizedString("睡眠时长落在比较稳的区间，整体是加分项。", comment: ""))
         }
@@ -761,7 +761,7 @@ enum DailyInsightAnalyzer {
                     detail: NSLocalizedString("还没有餐食设置", comment: ""),
                     isIncluded: true
                 ),
-                [NSLocalizedString("昨天没有可分析的餐食数据。", comment: "")]
+                [NSLocalizedString("当天没有可分析的餐食数据。", comment: "")]
             )
         }
 
@@ -796,7 +796,7 @@ enum DailyInsightAnalyzer {
 
         var highlights: [String] = []
         if missingCount == 0 {
-            highlights.append(NSLocalizedString("昨天的餐食记录比较完整，这一项整体是加分的。", comment: ""))
+            highlights.append(NSLocalizedString("当天的餐食记录比较完整，这一项整体是加分的。", comment: ""))
         } else {
             highlights.append(String(
                 format: NSLocalizedString("还有 %d 个餐次没有记录，餐食分数主要扣在完整度上。", comment: ""),
@@ -860,7 +860,7 @@ enum DailyInsightAnalyzer {
                     kind: kind,
                     score: 0,
                     maxScore: maxScore,
-                    detail: NSLocalizedString("未纳入昨天的分析范围", comment: ""),
+                    detail: NSLocalizedString("未纳入当天的分析范围", comment: ""),
                     isIncluded: false
                 ),
                 []
@@ -873,10 +873,10 @@ enum DailyInsightAnalyzer {
                     kind: kind,
                     score: 4,
                     maxScore: maxScore,
-                    detail: NSLocalizedString("昨天没有相关记录", comment: ""),
+                    detail: NSLocalizedString("当天没有相关记录", comment: ""),
                     isIncluded: true
                 ),
-                [String(format: NSLocalizedString("%@这部分昨天没有记录，所以分数偏保守。", comment: ""), kind.title)]
+                [String(format: NSLocalizedString("%@这部分当天没有记录，所以分数偏保守。", comment: ""), kind.title)]
             )
         }
 
@@ -966,13 +966,13 @@ enum DailyInsightAnalyzer {
     private static func headline(for score: Int) -> String {
         switch score {
         case 85...:
-            return NSLocalizedString("昨天状态很稳", comment: "")
+            return NSLocalizedString("这一天状态很稳", comment: "")
         case 70...84:
-            return NSLocalizedString("昨天整体不错", comment: "")
+            return NSLocalizedString("这一天整体不错", comment: "")
         case 55...69:
-            return NSLocalizedString("昨天有点乱", comment: "")
+            return NSLocalizedString("这一天有点乱", comment: "")
         default:
-            return NSLocalizedString("昨天需要重整节奏", comment: "")
+            return NSLocalizedString("这一天需要重整节奏", comment: "")
         }
     }
 
@@ -984,7 +984,7 @@ enum DailyInsightAnalyzer {
 
         if best.kind == weakest.kind {
             return String(
-                format: NSLocalizedString("%@是昨天最主要的参考项，目前整体分数在 %d 分。", comment: ""),
+                format: NSLocalizedString("%@是当天最主要的参考项，目前整体分数在 %d 分。", comment: ""),
                 best.kind.title,
                 score
             )
@@ -1000,11 +1000,11 @@ enum DailyInsightAnalyzer {
     private static func fallbackHighlight(for score: Int) -> String {
         switch score {
         case 80...:
-            return NSLocalizedString("昨天的整体节奏比较顺，可以继续保持。", comment: "")
+            return NSLocalizedString("这一天的整体节奏比较顺，可以继续保持。", comment: "")
         case 60...79:
-            return NSLocalizedString("昨天整体还可以，但还有一两项记录不够稳。", comment: "")
+            return NSLocalizedString("这一天整体还可以，但还有一两项记录不够稳。", comment: "")
         default:
-            return NSLocalizedString("昨天的数据提示节奏有些散，今天可以再收一收。", comment: "")
+            return NSLocalizedString("这一天的数据提示节奏有些散，之后可以再收一收。", comment: "")
         }
     }
 

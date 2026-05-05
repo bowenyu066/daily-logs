@@ -644,8 +644,7 @@ final class LocalVideoStorageService: VideoStorageService {
     private let directory: URL
 
     init() {
-        let supportURL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-        let directory = supportURL.appendingPathComponent("DailyLogs/Videos", isDirectory: true)
+        let directory = Self.directoryURL(createIfNeeded: true)
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         self.directory = directory
     }
@@ -656,12 +655,54 @@ final class LocalVideoStorageService: VideoStorageService {
             try FileManager.default.removeItem(at: destinationURL)
         }
         try FileManager.default.copyItem(at: sourceURL, to: destinationURL)
-        return destinationURL.path
+        return destinationURL.lastPathComponent
     }
 
     func deleteVideo(at path: String) throws {
-        guard FileManager.default.fileExists(atPath: path) else { return }
-        try FileManager.default.removeItem(atPath: path)
+        guard let url = Self.resolvedURL(for: path) else { return }
+        try FileManager.default.removeItem(at: url)
+    }
+
+    static func resolvedURL(for reference: String) -> URL? {
+        candidateURLs(for: reference).first { FileManager.default.fileExists(atPath: $0.path) }
+    }
+
+    static func candidateURLs(for reference: String) -> [URL] {
+        let trimmed = reference.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return [] }
+
+        let directory = directoryURL(createIfNeeded: false)
+        var candidates: [URL] = []
+
+        if let fileURL = URL(string: trimmed), fileURL.isFileURL {
+            candidates.append(fileURL)
+            candidates.append(directory.appendingPathComponent(fileURL.lastPathComponent))
+        } else if trimmed.hasPrefix("/") {
+            let absoluteURL = URL(fileURLWithPath: trimmed)
+            candidates.append(absoluteURL)
+            candidates.append(directory.appendingPathComponent(absoluteURL.lastPathComponent))
+        } else {
+            candidates.append(directory.appendingPathComponent(trimmed))
+            candidates.append(directory.appendingPathComponent(URL(fileURLWithPath: trimmed).lastPathComponent))
+        }
+
+        return candidates.reduce(into: []) { unique, candidate in
+            guard !unique.contains(candidate) else { return }
+            unique.append(candidate)
+        }
+    }
+
+    static func isResolvableLocalReference(_ reference: String) -> Bool {
+        resolvedURL(for: reference) != nil
+    }
+
+    private static func directoryURL(createIfNeeded: Bool) -> URL {
+        let supportURL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        let directory = supportURL.appendingPathComponent("DailyLogs/Videos", isDirectory: true)
+        if createIfNeeded {
+            try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        }
+        return directory
     }
 }
 

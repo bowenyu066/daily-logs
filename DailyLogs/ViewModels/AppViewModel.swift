@@ -1370,9 +1370,10 @@ final class AppViewModel: ObservableObject {
                         continue
                     }
                     var mergedRecord = Self.preferredRecord(between: localRecord, and: remoteRecord)
+                    var shouldPushMergedRecord = false
                     if mergedRecord == localRecord {
                         if localRecord != remoteRecord {
-                            recordsToPush.append(localRecord)
+                            shouldPushMergedRecord = true
                         }
                         // Keep remote photo references when the preferred local
                         // copy doesn't currently have an accessible image.
@@ -1390,8 +1391,17 @@ final class AppViewModel: ObservableObject {
                                 mergedRecord.meals[i].photoURLs = remoteMeal.photoURLs
                             }
                         }
+                        if let localVideo = mergedRecord.dailyVideo,
+                           Self.isMissingLocalVideoReference(localVideo.videoURL),
+                           let remoteVideo = remoteRecord.dailyVideo,
+                           Self.isRemoteVideoURL(remoteVideo.videoURL) {
+                            mergedRecord.dailyVideo = remoteVideo
+                        }
                     }
                     merged[key] = mergedRecord.backfillingRecordedTimeZones(TimeZone.autoupdatingCurrent.identifier)
+                    if shouldPushMergedRecord {
+                        recordsToPush.append(mergedRecord)
+                    }
                 }
                 database.recordsByUser[user.userID] = merged
                     .filter { $0.key >= registrationCutoffKey }
@@ -1573,6 +1583,10 @@ final class AppViewModel: ObservableObject {
         urlString.hasPrefix("http://")
             || urlString.hasPrefix("https://")
             || SecureCloudMediaReference.isSecureReference(urlString)
+    }
+
+    private static func isMissingLocalVideoReference(_ urlString: String) -> Bool {
+        !isRemoteVideoURL(urlString) && !LocalVideoStorageService.isResolvableLocalReference(urlString)
     }
 
     nonisolated static func recordsByStorageKey(_ records: [DailyRecord], preferences: UserPreferences) -> [String: DailyRecord] {

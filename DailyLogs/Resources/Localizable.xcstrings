@@ -133,6 +133,22 @@
         }
       }
     },
+    "%@是当天最主要的参考项，目前整体分数在 %d 分。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ was the main reference for that day, with the overall score landing at %2$d."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@是当天最主要的参考项，目前整体分数在 %2$d 分。"
+          }
+        }
+      }
+    },
     "%@有明确记录，这部分拿到了稳定加分。" : {
       "localizations" : {
         "en" : {
@@ -149,6 +165,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ had no records yesterday, so scoring is conservative."
+          }
+        }
+      }
+    },
+    "%@这部分当天没有记录，所以分数偏保守。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ had no records that day, so scoring is conservative."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@这部分当天没有记录，所以分数偏保守。"
+          }
+        }
+      }
+    },
+    "%d 次" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%d times"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%d 次"
           }
         }
       }
@@ -1064,6 +1112,22 @@
         }
       }
     },
+    "保存一段最长 10 秒的生活片段" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save a life clip up to 10 seconds"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存一段最长 10 秒的生活片段"
+          }
+        }
+      }
+    },
     "保存偏好失败：" : {
       "localizations" : {
         "en" : {
@@ -1073,6 +1137,41 @@
           }
         }
       }
+    },
+    "保存片段" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save Clip"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存片段"
+          }
+        }
+      }
+    },
+    "保存片段失败：" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Failed to save clip: "
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存片段失败："
+          }
+        }
+      }
+    },
+    "保存视频失败：" : {
+
     },
     "保存记录失败：" : {
       "localizations" : {
@@ -1312,6 +1411,22 @@
         }
       }
     },
+    "最长 10 秒片段" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clip up to 10 Seconds"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最长 10 秒片段"
+          }
+        }
+      }
+    },
     "凌晨截止前的记录会被算到前一天。" : {
       "localizations" : {
         "en" : {
@@ -1377,6 +1492,41 @@
           }
         }
       }
+    },
+    "删除视频" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete Video"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "删除视频"
+          }
+        }
+      }
+    },
+    "删除视频？" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete video?"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "删除视频？"
+          }
+        }
+      }
+    },
+    "删除视频失败：" : {
+
     },
     "删除记录" : {
       "localizations" : {
@@ -1905,6 +2055,22 @@
         }
       }
     },
+    "在设置里打开洗澡、排便或性生活后，这里会显示频率月历。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Turn on shower, bowel movement, or sexual activity in Settings to show the frequency calendar here."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在设置里打开洗澡、排便或性生活后，这里会显示频率月历。"
+          }
+        }
+      }
+    },
     "地图" : {
       "localizations" : {
         "en" : {
@@ -2423,6 +2589,22 @@
         }
       }
     },
+    "录制视频" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Record Video"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "录制视频"
+          }
+        }
+      }
+    },
     "必须结合起床时间和整天时间线判断，不能凭空批评用户没吃早餐。若起床已接近中午，跳过早餐只能算轻微影响或合理。" : {
       "localizations" : {
         "en" : {
@@ -2650,6 +2832,22 @@
         }
       }
     },
+    "无法读取视频：" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unable to read video: "
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法读取视频："
+          }
+        }
+      }
+    },
     "无记录" : {
       "localizations" : {
         "en" : {
@@ -2788,6 +2986,182 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "时间范围"
+          }
+        }
+      }
+    },
+    "当天没有可分析的餐食数据。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No meal data available to analyze for that day."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "当天没有可分析的餐食数据。"
+          }
+        }
+      }
+    },
+    "当天没有相关记录" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No records for that day"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "当天没有相关记录"
+          }
+        }
+      }
+    },
+    "当天的餐食记录比较完整，这一项整体是加分的。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Meal records for that day were fairly complete, a positive area overall."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "当天的餐食记录比较完整，这一项整体是加分的。"
+          }
+        }
+      }
+    },
+    "这一天整体不错" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "That day went well"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这一天整体不错"
+          }
+        }
+      }
+    },
+    "这一天整体还可以，但还有一两项记录不够稳。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "That day was decent, but a couple of areas were inconsistent."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这一天整体还可以，但还有一两项记录不够稳。"
+          }
+        }
+      }
+    },
+    "这一天有点乱" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "That day was a bit off"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这一天有点乱"
+          }
+        }
+      }
+    },
+    "这一天还没有睡眠记录，所以这部分暂时没有加分。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No sleep records for that day, so this area has no points yet."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这一天还没有睡眠记录，所以这部分暂时没有加分。"
+          }
+        }
+      }
+    },
+    "这一天状态很稳" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "That day was solid"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这一天状态很稳"
+          }
+        }
+      }
+    },
+    "这一天的数据提示节奏有些散，之后可以再收一收。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "That day's data suggests things were scattered, so it may help to reset afterward."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这一天的数据提示节奏有些散，之后可以再收一收。"
+          }
+        }
+      }
+    },
+    "这一天的整体节奏比较顺，可以继续保持。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "That day's rhythm was smooth, worth keeping up."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这一天的整体节奏比较顺，可以继续保持。"
+          }
+        }
+      }
+    },
+    "这一天需要重整节奏" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "That day needed a reset"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这一天需要重整节奏"
           }
         }
       }
@@ -2994,6 +3368,22 @@
         }
       }
     },
+    "更换视频" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Replace Video"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更换视频"
+          }
+        }
+      }
+    },
     "更新之前日期的数据" : {
       "localizations" : {
         "en" : {
@@ -3082,6 +3472,22 @@
         }
       }
     },
+    "未纳入当天的分析范围" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not included in that day's analysis"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未纳入当天的分析范围"
+          }
+        }
+      }
+    },
     "未记录" : {
       "localizations" : {
         "en" : {
@@ -3110,6 +3516,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "检测到旧版云数据，需要升级到加密存储。"
+          }
+        }
+      }
+    },
+    "正在保存片段…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saving clip..."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在保存片段…"
           }
         }
       }
@@ -3278,6 +3700,22 @@
         }
       }
     },
+    "此操作会移除今天的视频片段，且无法撤销。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This will remove today's video clip and cannot be undone."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此操作会移除今天的视频片段，且无法撤销。"
+          }
+        }
+      }
+    },
     "此操作会移除这张照片，且无法撤销。" : {
       "localizations" : {
         "en" : {
@@ -3320,6 +3758,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "每天只记几件事"
+          }
+        }
+      }
+    },
+    "每日视频" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Daily Video"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每日视频"
           }
         }
       }
@@ -3523,6 +3977,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "添加照片"
+          }
+        }
+      }
+    },
+    "添加视频" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add Video"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "添加视频"
           }
         }
       }
@@ -3984,12 +4454,44 @@
         }
       }
     },
+    "睡眠时长偏短，是当天最明显的扣分点。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sleep duration was short, the biggest deduction for that day."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "睡眠时长偏短，是当天最明显的扣分点。"
+          }
+        }
+      }
+    },
     "睡眠时长落在比较稳的区间，整体是加分项。" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Sleep duration was in a good range — a positive contributor overall."
+          }
+        }
+      }
+    },
+    "睡眠时间偏长，可能说明当天整体恢复感比较重。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sleep ran long, which may suggest that day needed more recovery."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "睡眠时间偏长，可能说明当天整体恢复感比较重。"
           }
         }
       }
@@ -4997,6 +5499,22 @@
         }
       }
     },
+    "选择片段" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose Clip"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "选择片段"
+          }
+        }
+      }
+    },
     "选择相册照片" : {
       "localizations" : {
         "en" : {
@@ -5009,6 +5527,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "选择相册照片"
+          }
+        }
+      }
+    },
+    "选择相册视频" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose Library Video"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "选择相册视频"
           }
         }
       }
@@ -5057,6 +5591,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "重试升级"
+          }
+        }
+      }
+    },
+    "频率月历" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Frequency Calendar"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "频率月历"
           }
         }
       }
@@ -5128,294 +5678,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "默认餐次"
-          }
-        }
-      }
-    },
-    "%d 次" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%d times"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%d 次"
-          }
-        }
-      }
-    },
-    "保存片段" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Save Clip"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "保存片段"
-          }
-        }
-      }
-    },
-    "保存片段失败：" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Failed to save clip: "
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "保存片段失败："
-          }
-        }
-      }
-    },
-    "保存一段最长 10 秒的生活片段" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Save a life clip up to 10 seconds"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "保存一段最长 10 秒的生活片段"
-          }
-        }
-      }
-    },
-    "此操作会移除今天的视频片段，且无法撤销。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "This will remove today's video clip and cannot be undone."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "此操作会移除今天的视频片段，且无法撤销。"
-          }
-        }
-      }
-    },
-    "更换视频" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Replace Video"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "更换视频"
-          }
-        }
-      }
-    },
-    "录制视频" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Record Video"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "录制视频"
-          }
-        }
-      }
-    },
-    "每日视频" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Daily Video"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "每日视频"
-          }
-        }
-      }
-    },
-    "频率月历" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Frequency Calendar"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "频率月历"
-          }
-        }
-      }
-    },
-    "删除视频" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Delete Video"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "删除视频"
-          }
-        }
-      }
-    },
-    "删除视频？" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Delete video?"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "删除视频？"
-          }
-        }
-      }
-    },
-    "添加视频" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Add Video"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "添加视频"
-          }
-        }
-      }
-    },
-    "无法读取视频：" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Unable to read video: "
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "无法读取视频："
-          }
-        }
-      }
-    },
-    "选择片段" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Choose Clip"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "选择片段"
-          }
-        }
-      }
-    },
-    "选择相册视频" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Choose Library Video"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "选择相册视频"
-          }
-        }
-      }
-    },
-    "在设置里打开洗澡、排便或性生活后，这里会显示频率月历。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Turn on shower, bowel movement, or sexual activity in Settings to show the frequency calendar here."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "在设置里打开洗澡、排便或性生活后，这里会显示频率月历。"
-          }
-        }
-      }
-    },
-    "正在保存片段…" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Saving clip..."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "正在保存片段…"
-          }
-        }
-      }
-    },
-    "最长 10 秒片段" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Clip up to 10 Seconds"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "最长 10 秒片段"
           }
         }
       }

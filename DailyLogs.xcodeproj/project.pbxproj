@@ -66,9 +66,9 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		08C6218D85AF48AE9D63F201 /* RemoteVideoCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteVideoCache.swift; sourceTree = "<group>"; };
 		0AB65DE0793FD9C1F33F55FA /* HealthKitService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthKitService.swift; sourceTree = "<group>"; };
 		0EE15D79A393C8AB962EBC89 /* DefaultMealSlotsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefaultMealSlotsSheet.swift; sourceTree = "<group>"; };
-		08C6218D85AF48AE9D63F201 /* RemoteVideoCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteVideoCache.swift; sourceTree = "<group>"; };
 		12C02AFAD5427640EE2B07E9 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		189BC1E086E2F96A134F1D4D /* RemotePhotoCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemotePhotoCache.swift; sourceTree = "<group>"; };
 		1952A565E83EBA9DBEAAB3EB /* ShowerEditorSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShowerEditorSheet.swift; sourceTree = "<group>"; };
@@ -129,14 +129,14 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-			004E7AF789649DDDCA8353E3 /* Components */ = {
-				isa = PBXGroup;
-				children = (
-					EE60FE8CF9037EBAB7A0F009 /* PhotoContentView.swift */,
-					432E478CA32978E10CBE8E93 /* SectionHeader.swift */,
-					E5A341935FF077F6662CD605 /* TimeZoneModePicker.swift */,
-					2CF09C1F474A4E6AA8D51001 /* VideoContentView.swift */,
-				);
+		004E7AF789649DDDCA8353E3 /* Components */ = {
+			isa = PBXGroup;
+			children = (
+				EE60FE8CF9037EBAB7A0F009 /* PhotoContentView.swift */,
+				432E478CA32978E10CBE8E93 /* SectionHeader.swift */,
+				E5A341935FF077F6662CD605 /* TimeZoneModePicker.swift */,
+				2CF09C1F474A4E6AA8D51001 /* VideoContentView.swift */,
+			);
 			path = Components;
 			sourceTree = "<group>";
 		};
@@ -225,11 +225,11 @@
 				960FB10CC796935FB009AF75 /* AIInsightsService.swift */,
 				91DBA8249D731FF743149D0B /* CloudEncryptionService.swift */,
 				6CDD5864423CDE853439D36C /* CloudSyncService.swift */,
-					0AB65DE0793FD9C1F33F55FA /* HealthKitService.swift */,
-					189BC1E086E2F96A134F1D4D /* RemotePhotoCache.swift */,
-					08C6218D85AF48AE9D63F201 /* RemoteVideoCache.swift */,
-					829D2D327EEAB6E3CF6799DA /* Services.swift */,
-				);
+				0AB65DE0793FD9C1F33F55FA /* HealthKitService.swift */,
+				189BC1E086E2F96A134F1D4D /* RemotePhotoCache.swift */,
+				08C6218D85AF48AE9D63F201 /* RemoteVideoCache.swift */,
+				829D2D327EEAB6E3CF6799DA /* Services.swift */,
+			);
 			path = Services;
 			sourceTree = "<group>";
 		};
@@ -255,9 +255,9 @@
 			isa = PBXGroup;
 			children = (
 				AD29B42237DCB9360592DF9A /* BowelMovementEditorSheet.swift */,
-					198E27C836AFF86BB0557E27 /* CloudEncryptionPassphraseSheet.swift */,
-					3FBD3D5751714E029C7F1501 /* DailyVideoTrimmerSheet.swift */,
-					D93232686CA86483D4885BF9 /* DatePickerSheet.swift */,
+				198E27C836AFF86BB0557E27 /* CloudEncryptionPassphraseSheet.swift */,
+				3FBD3D5751714E029C7F1501 /* DailyVideoTrimmerSheet.swift */,
+				D93232686CA86483D4885BF9 /* DatePickerSheet.swift */,
 				0EE15D79A393C8AB962EBC89 /* DefaultMealSlotsSheet.swift */,
 				743200E304D39F61C77AA89B /* LocationPickerSheet.swift */,
 				68D65F2FD02AA371BF0CB871 /* MealEditorSheet.swift */,
@@ -379,11 +379,11 @@
 				0F4D96EB490F357AA03163DB /* AuthGateView.swift in Sources */,
 				78454DF12F9F5A0C8DE78515 /* BowelMovementEditorSheet.swift in Sources */,
 				5D39C007A6C7115A144F6CB9 /* CloudEncryptionPassphraseSheet.swift in Sources */,
-					1DF532FF5704CB47F17C666B /* CloudEncryptionService.swift in Sources */,
-					9A2C915E57D90F1BA038BCB9 /* CloudSyncService.swift in Sources */,
-					BBEB885C4F2E713F4B1045E8 /* DailyLogsApp.swift in Sources */,
-					AE1FAE401D9E4A44AB2F4601 /* DailyVideoTrimmerSheet.swift in Sources */,
-					A60312D032FE078B28B9F654 /* Date+Helpers.swift in Sources */,
+				1DF532FF5704CB47F17C666B /* CloudEncryptionService.swift in Sources */,
+				9A2C915E57D90F1BA038BCB9 /* CloudSyncService.swift in Sources */,
+				BBEB885C4F2E713F4B1045E8 /* DailyLogsApp.swift in Sources */,
+				AE1FAE401D9E4A44AB2F4601 /* DailyVideoTrimmerSheet.swift in Sources */,
+				A60312D032FE078B28B9F654 /* Date+Helpers.swift in Sources */,
 				2C14620AD9C4B1DF01917190 /* DatePickerSheet.swift in Sources */,
 				FAA742A273B4A2565F8E72C3 /* DefaultMealSlotsSheet.swift in Sources */,
 				962DA889F821F8F05A79CD34 /* FirebaseAppDelegate.swift in Sources */,
@@ -392,21 +392,21 @@
 				4A81D9C20B78C778A68D7514 /* LocationPickerSheet.swift in Sources */,
 				3F0A3F64BDF1AF401997CFD1 /* MainTabView.swift in Sources */,
 				D945D660D8D556FA0B7E6900 /* MealEditorSheet.swift in Sources */,
-					A689B0A49862ECE1CD6E0896 /* Models.swift in Sources */,
-					94B70837350058DC1C22E8A5 /* PhotoContentView.swift in Sources */,
-					FF08C0273CB48779032AC8FC /* RemotePhotoCache.swift in Sources */,
-					66B18B493C7D4F39B08B2601 /* RemoteVideoCache.swift in Sources */,
-					EBAD80E1B4B1CBBB28DBAC22 /* RootView.swift in Sources */,
+				A689B0A49862ECE1CD6E0896 /* Models.swift in Sources */,
+				94B70837350058DC1C22E8A5 /* PhotoContentView.swift in Sources */,
+				FF08C0273CB48779032AC8FC /* RemotePhotoCache.swift in Sources */,
+				66B18B493C7D4F39B08B2601 /* RemoteVideoCache.swift in Sources */,
+				EBAD80E1B4B1CBBB28DBAC22 /* RootView.swift in Sources */,
 				DEAFBF139E59BF3CD1C66C1A /* SectionHeader.swift in Sources */,
 				C856BAB61B27C87C412FA4E4 /* Services.swift in Sources */,
 				3110D21E6C502FB22566E967 /* SettingsView.swift in Sources */,
 				5D3C7D1194B50AE98537A1D5 /* SexualActivityEditorSheet.swift in Sources */,
 				54428D63B958275E3244C408 /* ShowerEditorSheet.swift in Sources */,
 				33EE19C380FDBA8C2032C9D4 /* SleepEditorSheet.swift in Sources */,
-					6198659370A6DC59287FCEFB /* TargetBedtimeSheet.swift in Sources */,
-					050DF3172673A5665AAEED59 /* TimeZoneModePicker.swift in Sources */,
-					08F8B9E2F6244B44B8A1F901 /* VideoContentView.swift in Sources */,
-				);
+				6198659370A6DC59287FCEFB /* TargetBedtimeSheet.swift in Sources */,
+				050DF3172673A5665AAEED59 /* TimeZoneModePicker.swift in Sources */,
+				08F8B9E2F6244B44B8A1F901 /* VideoContentView.swift in Sources */,
+			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		42B5368147DEFBC752C998B2 /* Sources */ = {
@@ -497,7 +497,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 8;
+				CURRENT_PROJECT_VERSION = 9;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -576,7 +576,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 8;
+				CURRENT_PROJECT_VERSION = 9;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
