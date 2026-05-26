@@ -400,6 +400,7 @@ struct MealEditorSheet: View {
             entry.latitude = nil
             entry.longitude = nil
             entry.isLocationManuallyEdited = false
+            entry.travelContext = nil
         }
         return entry
     }

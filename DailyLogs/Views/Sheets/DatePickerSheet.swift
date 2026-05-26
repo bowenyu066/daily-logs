@@ -7,13 +7,26 @@ struct DatePickerSheet: View {
     @State private var draftDate: Date
     @State private var visibleMonth: Date
     let allowedRange: ClosedRange<Date>
+    let overlayRange: ClosedRange<Date>
+    let travelPlansForDate: (Date) -> [TravelPlan]
+    let onTravelPlanSelected: (TravelPlan) -> Void
     let onConfirm: (Date) -> Void
 
-    init(selectedDate: Date, allowedRange: ClosedRange<Date>, onConfirm: @escaping (Date) -> Void) {
+    init(
+        selectedDate: Date,
+        allowedRange: ClosedRange<Date>,
+        overlayRange: ClosedRange<Date>? = nil,
+        travelPlansForDate: @escaping (Date) -> [TravelPlan] = { _ in [] },
+        onTravelPlanSelected: @escaping (TravelPlan) -> Void = { _ in },
+        onConfirm: @escaping (Date) -> Void
+    ) {
         let normalizedDate = selectedDate.startOfDay
         _draftDate = State(initialValue: normalizedDate)
         _visibleMonth = State(initialValue: Calendar.current.dateInterval(of: .month, for: normalizedDate)?.start ?? normalizedDate)
         self.allowedRange = allowedRange
+        self.overlayRange = overlayRange ?? allowedRange
+        self.travelPlansForDate = travelPlansForDate
+        self.onTravelPlanSelected = onTravelPlanSelected
         self.onConfirm = onConfirm
     }
 
@@ -29,8 +42,14 @@ struct DatePickerSheet: View {
                         visibleMonth: visibleMonth,
                         selectedDate: draftDate,
                         allowedRange: allowedRange,
+                        overlayRange: overlayRange,
                         locale: locale,
                         reportForDate: { appViewModel.displayedDailyInsightReport(for: $0) },
+                        travelPlansForDate: travelPlansForDate,
+                        onTravelPlanSelected: { plan in
+                            onTravelPlanSelected(plan)
+                            dismiss()
+                        },
                         onSelect: { draftDate = $0 }
                     )
                     .padding(.horizontal, 18)
@@ -56,6 +75,7 @@ struct DatePickerSheet: View {
                         onConfirm(draftDate.startOfDay)
                         dismiss()
                     }
+                    .disabled(!allowedRange.contains(draftDate.startOfDay))
                 }
             }
         }
@@ -117,7 +137,7 @@ struct DatePickerSheet: View {
 
     private func canMoveMonth(by value: Int) -> Bool {
         guard let interval = Calendar.current.dateInterval(of: .month, for: month(byAdding: value)) else { return false }
-        return interval.end > allowedRange.lowerBound.startOfDay && interval.start <= allowedRange.upperBound.startOfDay
+        return interval.end > overlayRange.lowerBound.startOfDay && interval.start <= overlayRange.upperBound.startOfDay
     }
 }
 
@@ -125,8 +145,11 @@ struct RingMonthCalendar: View {
     let visibleMonth: Date
     let selectedDate: Date
     let allowedRange: ClosedRange<Date>
+    let overlayRange: ClosedRange<Date>
     let locale: Locale
     let reportForDate: (Date) -> DailyInsightReport?
+    let travelPlansForDate: (Date) -> [TravelPlan]
+    let onTravelPlanSelected: (TravelPlan) -> Void
     let onSelect: (Date) -> Void
 
     private let columns = Array(repeating: GridItem(.flexible(), spacing: 6), count: 7)
@@ -167,35 +190,55 @@ struct RingMonthCalendar: View {
         let normalizedDate = date.startOfDay
         let isSelected = Calendar.current.isDate(normalizedDate, inSameDayAs: selectedDate)
         let isAllowed = allowedRange.contains(normalizedDate)
+        let plans = travelPlansForDate(normalizedDate)
 
-        return Button {
-            guard isAllowed else { return }
-            onSelect(normalizedDate)
-        } label: {
-            VStack(spacing: 3) {
-                ZStack {
-                    if isSelected {
-                        Circle()
-                            .fill(AppTheme.accent)
-                            .frame(width: 24, height: 24)
+        return ZStack(alignment: .bottomTrailing) {
+            Button {
+                guard isAllowed else { return }
+                onSelect(normalizedDate)
+            } label: {
+                VStack(spacing: 3) {
+                    ZStack {
+                        if isSelected {
+                            Circle()
+                                .fill(AppTheme.accent)
+                                .frame(width: 24, height: 24)
+                        }
+
+                        Text("\(Calendar.current.component(.day, from: normalizedDate))")
+                            .font(.system(size: 15, weight: isSelected ? .bold : .semibold, design: .rounded))
+                            .foregroundStyle(isSelected ? Color.white : AppTheme.primaryText)
+                            .monospacedDigit()
                     }
+                    .frame(height: 21)
 
-                    Text("\(Calendar.current.component(.day, from: normalizedDate))")
-                        .font(.system(size: 15, weight: isSelected ? .bold : .semibold, design: .rounded))
-                        .foregroundStyle(isSelected ? Color.white : AppTheme.primaryText)
-                        .monospacedDigit()
+                    DailyInsightMiniRings(report: reportForDate(normalizedDate), isMuted: !isAllowed)
+                        .frame(width: 40, height: 40)
                 }
-                .frame(height: 21)
-
-                DailyInsightMiniRings(report: reportForDate(normalizedDate), isMuted: !isAllowed)
-                    .frame(width: 40, height: 40)
+                .frame(height: 64)
+                .frame(maxWidth: .infinity)
+                .opacity(isAllowed ? 1 : 0.28)
             }
-            .frame(height: 64)
-            .frame(maxWidth: .infinity)
-            .opacity(isAllowed ? 1 : 0.28)
+            .buttonStyle(.plain)
+            .disabled(!isAllowed)
+
+            if let plan = plans.first {
+                Button {
+                    onTravelPlanSelected(plan)
+                } label: {
+                    Image(systemName: "airplane")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(Color.white)
+                        .frame(width: 22, height: 22)
+                        .background(AppTheme.accent)
+                        .clipShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(Text(plan.displayTitle))
+            }
         }
-        .buttonStyle(.plain)
-        .disabled(!isAllowed)
+        .frame(height: 64)
+        .frame(maxWidth: .infinity)
     }
 
     private var monthCells: [Date?] {
@@ -353,11 +396,16 @@ struct DailyInsightMiniRings: View {
     let report: DailyInsightReport?
     let isMuted: Bool
 
-    private let lineWidth: CGFloat = 4.8
-    private let ringGap: CGFloat = 12.0
     private let outerSize: CGFloat = 36
+    private let overallLineWidth: CGFloat = 5.6
+    private let componentDotSize: CGFloat = 5.2
 
-    private var rings: [DailyInsightMiniRingMetric] {
+    private var overallProgress: Double {
+        guard let report else { return 0 }
+        return Double(max(0, min(report.overallScore, 100))) / 100
+    }
+
+    private var componentDots: [DailyInsightMiniRingMetric] {
         guard let report else { return [] }
 
         let sleep = report.components.first(where: { $0.kind == .sleep }).map {
@@ -372,31 +420,38 @@ struct DailyInsightMiniRings: View {
             DailyInsightMiniRingMetric(progress: $0, color: Color(red: 1.00, green: 0.16, blue: 0.36))
         }
 
-        return [care, meals, sleep].compactMap { $0 }
+        return [sleep, meals, care].compactMap { $0 }
     }
 
     var body: some View {
         ZStack {
-            ForEach(Array(rings.enumerated()), id: \.offset) { index, ring in
-                Circle()
-                    .stroke(ring.color.opacity(isMuted ? 0.14 : 0.30), lineWidth: lineWidth)
-                    .frame(width: ringSize(for: index), height: ringSize(for: index))
+            Circle()
+                .stroke(AppTheme.accent.opacity(isMuted ? 0.12 : 0.22), lineWidth: overallLineWidth)
+                .frame(width: outerSize, height: outerSize)
 
-                Circle()
-                    .trim(from: 0.001, to: max(CGFloat(ring.progress), 0.001))
-                    .stroke(
-                        ring.color.opacity(isMuted ? 0.44 : 1.0),
-                        style: StrokeStyle(lineWidth: lineWidth, lineCap: .round)
-                    )
-                    .rotationEffect(.degrees(-90))
-                    .frame(width: ringSize(for: index), height: ringSize(for: index))
-                    .shadow(color: ring.color.opacity(isMuted ? 0 : 0.10), radius: 0.8, x: 0, y: 0)
+            Circle()
+                .trim(from: 0.001, to: max(CGFloat(overallProgress), 0.001))
+                .stroke(
+                    AppTheme.accent.opacity(isMuted ? 0.42 : 1.0),
+                    style: StrokeStyle(lineWidth: overallLineWidth, lineCap: .round)
+                )
+                .rotationEffect(.degrees(-90))
+                .frame(width: outerSize, height: outerSize)
+                .shadow(color: AppTheme.accent.opacity(isMuted ? 0 : 0.12), radius: 0.8, x: 0, y: 0)
+
+            HStack(spacing: 3.2) {
+                ForEach(Array(componentDots.enumerated()), id: \.offset) { _, dot in
+                    Circle()
+                        .fill(dot.color.opacity(componentOpacity(for: dot.progress)))
+                        .frame(width: componentDotSize, height: componentDotSize)
+                }
             }
         }
     }
 
-    private func ringSize(for index: Int) -> CGFloat {
-        max(8, outerSize - CGFloat(index) * ringGap)
+    private func componentOpacity(for progress: Double) -> Double {
+        guard !isMuted else { return 0.24 }
+        return 0.28 + max(0, min(progress, 1)) * 0.72
     }
 }
 

@@ -1,6 +1,9 @@
 {
   "sourceLanguage" : "zh-Hans",
   "strings" : {
+    " 转机中 · 下一程 " : {
+
+    },
     "--" : {
       "localizations" : {
         "en" : {
@@ -101,34 +104,22 @@
         }
       }
     },
-    "%@/%@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$@/%2$@"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$@/%2$@"
-          }
-        }
-      }
+    "%@ 转机餐食" : {
+
     },
-    "%@是昨天最主要的参考项，目前整体分数在 %d 分。" : {
+    "%@/%@" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%1$@ was yesterday's main driver, with the overall score landing at %2$d."
+            "value" : "%1$@/%2$@"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "%1$@是昨天最主要的参考项，目前整体分数在 %2$d 分。"
+            "value" : "%1$@/%2$@"
           }
         }
       }
@@ -149,22 +140,29 @@
         }
       }
     },
+    "%@是昨天最主要的参考项，目前整体分数在 %d 分。" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ was yesterday's main driver, with the overall score landing at %2$d."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@是昨天最主要的参考项，目前整体分数在 %2$d 分。"
+          }
+        }
+      }
+    },
     "%@有明确记录，这部分拿到了稳定加分。" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ has clear records, earning stable points here."
-          }
-        }
-      }
-    },
-    "%@这部分昨天没有记录，所以分数偏保守。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ had no records yesterday, so scoring is conservative."
           }
         }
       }
@@ -181,6 +179,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@这部分当天没有记录，所以分数偏保守。"
+          }
+        }
+      }
+    },
+    "%@这部分昨天没有记录，所以分数偏保守。" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ had no records yesterday, so scoring is conservative."
           }
         }
       }
@@ -326,6 +335,9 @@
           }
         }
       }
+    },
+    "affectedStorageKeys" : {
+
     },
     "AI" : {
       "localizations" : {
@@ -591,6 +603,9 @@
         }
       }
     },
+    "legacyNaturalKeys" : {
+
+    },
     "REM 时长" : {
       "localizations" : {
         "en" : {
@@ -606,6 +621,9 @@
           }
         }
       }
+    },
+    "UTC 未知" : {
+
     },
     "一" : {
       "localizations" : {
@@ -661,6 +679,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Score high when all meals are logged with clear times and a sensible timeline."
+          }
+        }
+      }
+    },
+    "上一阶段" : {
+
+    },
+    "下一程 " : {
+
+    },
+    "下一程第 %d / 共 %d 段 · %@" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "下一程第 %1$d / 共 %2$d 段 · %3$@"
           }
         }
       }
@@ -1096,6 +1130,12 @@
         }
       }
     },
+    "例如 BA238" : {
+
+    },
+    "例如 BOS-PKX 旅程" : {
+
+    },
     "保存" : {
       "localizations" : {
         "en" : {
@@ -1137,6 +1177,21 @@
           }
         }
       }
+    },
+    "保存到相册" : {
+
+    },
+    "保存到相册失败，请稍后再试。" : {
+
+    },
+    "保存失败" : {
+
+    },
+    "保存旅行睡眠失败：" : {
+
+    },
+    "保存旅行计划失败：" : {
+
     },
     "保存片段" : {
       "localizations" : {
@@ -1343,6 +1398,16 @@
         }
       }
     },
+    "共 %d 段行程 · %@" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "共 %1$d 段行程 · %2$@"
+          }
+        }
+      }
+    },
     "关闭" : {
       "localizations" : {
         "en" : {
@@ -1447,6 +1512,15 @@
         }
       }
     },
+    "出发前" : {
+
+    },
+    "出发前餐食" : {
+
+    },
+    "出发地" : {
+
+    },
     "初始化失败：" : {
       "localizations" : {
         "en" : {
@@ -1456,6 +1530,21 @@
           }
         }
       }
+    },
+    "删除" : {
+
+    },
+    "删除旅行睡眠失败：" : {
+
+    },
+    "删除旅行计划" : {
+
+    },
+    "删除旅行计划？" : {
+
+    },
+    "删除旅行计划失败：" : {
+
     },
     "删除照片" : {
       "localizations" : {
@@ -1493,6 +1582,12 @@
         }
       }
     },
+    "删除睡眠记录" : {
+
+    },
+    "删除睡眠记录？" : {
+
+    },
     "删除视频" : {
       "localizations" : {
         "en" : {
@@ -1526,6 +1621,12 @@
       }
     },
     "删除视频失败：" : {
+
+    },
+    "删除航段" : {
+
+    },
+    "删除航段？" : {
 
     },
     "删除记录" : {
@@ -1600,6 +1701,21 @@
         }
       }
     },
+    "删除默认餐次？" : {
+
+    },
+    "到达后餐食" : {
+
+    },
+    "到达时间" : {
+
+    },
+    "到达时间：" : {
+
+    },
+    "刷新旅行计划失败：" : {
+
+    },
     "刷新记录失败：" : {
       "localizations" : {
         "en" : {
@@ -1658,6 +1774,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Midnight mode"
+          }
+        }
+      }
+    },
+    "午夜模式：%@ · cutoff %@:00" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "午夜模式：%1$@ · cutoff %2$@:00"
           }
         }
       }
@@ -1827,6 +1953,9 @@
           }
         }
       }
+    },
+    "名称，例如 飞机小睡" : {
+
     },
     "含备注" : {
       "localizations" : {
@@ -2087,6 +2216,9 @@
         }
       }
     },
+    "填入 BOS-PKX 示例" : {
+
+    },
     "增加 %@" : {
       "localizations" : {
         "en" : {
@@ -2171,6 +2303,9 @@
         }
       }
     },
+    "小睡" : {
+
+    },
     "尚未记录超过7天，请等待使用7天后再来浏览数据趋势哦" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2209,6 +2344,18 @@
           }
         }
       }
+    },
+    "已保存" : {
+
+    },
+    "已到达" : {
+
+    },
+    "已抵达" : {
+
+    },
+    "已结束" : {
+
     },
     "已记录" : {
       "localizations" : {
@@ -2451,6 +2598,9 @@
         }
       }
     },
+    "开始本程" : {
+
+    },
     "当前" : {
       "localizations" : {
         "en" : {
@@ -2460,6 +2610,15 @@
           }
         }
       }
+    },
+    "当前：" : {
+
+    },
+    "当前：出发前 · " : {
+
+    },
+    "当前：本程飞行中 · " : {
+
     },
     "当前仍是普通云同步" : {
       "localizations" : {
@@ -2546,6 +2705,19 @@
         }
       }
     },
+    "当前没有旅行计划" : {
+
+    },
+    "当前第 %d / 共 %d 段 · %@" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "当前第 %1$d / 共 %2$d 段 · %3$@"
+          }
+        }
+      }
+    },
     "当前设备未启用云同步。" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2559,6 +2731,63 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "当前设备未启用云同步。"
+          }
+        }
+      }
+    },
+    "当前选择日：%@" : {
+
+    },
+    "当地" : {
+
+    },
+    "当地时间 " : {
+
+    },
+    "当天没有可分析的餐食数据。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No meal data available to analyze for that day."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "当天没有可分析的餐食数据。"
+          }
+        }
+      }
+    },
+    "当天没有相关记录" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No records for that day"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "当天没有相关记录"
+          }
+        }
+      }
+    },
+    "当天的餐食记录比较完整，这一项整体是加分的。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Meal records for that day were fairly complete, a positive area overall."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "当天的餐食记录比较完整，这一项整体是加分的。"
           }
         }
       }
@@ -2688,6 +2917,12 @@
           }
         }
       }
+    },
+    "手机" : {
+
+    },
+    "抵达" : {
+
     },
     "拍照" : {
       "localizations" : {
@@ -2832,6 +3067,54 @@
         }
       }
     },
+    "新航段" : {
+
+    },
+    "旅程其他阶段" : {
+
+    },
+    "旅程名称" : {
+
+    },
+    "旅程已抵达：" : {
+
+    },
+    "旅程已结束" : {
+
+    },
+    "旅程模式已结束：" : {
+
+    },
+    "旅行" : {
+
+    },
+    "旅行中的餐食、洗澡、排便等记录会按航段显示在这里" : {
+
+    },
+    "旅行数据" : {
+
+    },
+    "旅行睡眠" : {
+
+    },
+    "旅行计划数量：%@" : {
+
+    },
+    "旅行记录" : {
+
+    },
+    "旅行餐食" : {
+
+    },
+    "旅途中" : {
+
+    },
+    "无日期" : {
+
+    },
+    "无法保存，请在系统设置里允许保存到照片。" : {
+
+    },
     "无法读取视频：" : {
       "localizations" : {
         "en" : {
@@ -2847,6 +3130,9 @@
           }
         }
       }
+    },
+    "无法读取这个媒体文件。" : {
+
     },
     "无记录" : {
       "localizations" : {
@@ -2990,183 +3276,11 @@
         }
       }
     },
-    "当天没有可分析的餐食数据。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No meal data available to analyze for that day."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "当天没有可分析的餐食数据。"
-          }
-        }
-      }
-    },
-    "当天没有相关记录" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No records for that day"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "当天没有相关记录"
-          }
-        }
-      }
-    },
-    "当天的餐食记录比较完整，这一项整体是加分的。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Meal records for that day were fairly complete, a positive area overall."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "当天的餐食记录比较完整，这一项整体是加分的。"
-          }
-        }
-      }
-    },
-    "这一天整体不错" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "That day went well"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "这一天整体不错"
-          }
-        }
-      }
-    },
-    "这一天整体还可以，但还有一两项记录不够稳。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "That day was decent, but a couple of areas were inconsistent."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "这一天整体还可以，但还有一两项记录不够稳。"
-          }
-        }
-      }
-    },
-    "这一天有点乱" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "That day was a bit off"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "这一天有点乱"
-          }
-        }
-      }
-    },
-    "这一天还没有睡眠记录，所以这部分暂时没有加分。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No sleep records for that day, so this area has no points yet."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "这一天还没有睡眠记录，所以这部分暂时没有加分。"
-          }
-        }
-      }
-    },
-    "这一天状态很稳" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "That day was solid"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "这一天状态很稳"
-          }
-        }
-      }
-    },
-    "这一天的数据提示节奏有些散，之后可以再收一收。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "That day's data suggests things were scattered, so it may help to reset afterward."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "这一天的数据提示节奏有些散，之后可以再收一收。"
-          }
-        }
-      }
-    },
-    "这一天的整体节奏比较顺，可以继续保持。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "That day's rhythm was smooth, worth keeping up."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "这一天的整体节奏比较顺，可以继续保持。"
-          }
-        }
-      }
-    },
-    "这一天需要重整节奏" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "That day needed a reset"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "这一天需要重整节奏"
-          }
-        }
-      }
+    "时间记录方式" : {
+
     },
     "昨天整体不错" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -3177,6 +3291,7 @@
       }
     },
     "昨天整体还可以，但还有一两项记录不够稳。" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -3187,6 +3302,7 @@
       }
     },
     "昨天有点乱" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -3197,6 +3313,7 @@
       }
     },
     "昨天没有可分析的餐食数据。" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -3207,6 +3324,7 @@
       }
     },
     "昨天没有相关记录" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -3217,6 +3335,7 @@
       }
     },
     "昨天状态很稳" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -3227,6 +3346,7 @@
       }
     },
     "昨天的数据提示节奏有些散，今天可以再收一收。" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -3237,6 +3357,7 @@
       }
     },
     "昨天的整体节奏比较顺，可以继续保持。" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -3264,6 +3385,7 @@
       }
     },
     "昨天的餐食记录比较完整，这一项整体是加分的。" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -3274,6 +3396,7 @@
       }
     },
     "昨天还没有睡眠记录，所以这部分暂时没有加分。" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -3284,6 +3407,7 @@
       }
     },
     "昨天需要重整节奏" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -3368,6 +3492,15 @@
         }
       }
     },
+    "暂无时间线" : {
+
+    },
+    "暂无睡眠记录" : {
+
+    },
+    "暂无航段" : {
+
+    },
     "更换视频" : {
       "localizations" : {
         "en" : {
@@ -3383,6 +3516,9 @@
           }
         }
       }
+    },
+    "更改" : {
+
     },
     "更新之前日期的数据" : {
       "localizations" : {
@@ -3404,6 +3540,9 @@
         }
       }
     },
+    "更新旅行状态失败：" : {
+
+    },
     "更新餐食失败：" : {
       "localizations" : {
         "en" : {
@@ -3413,6 +3552,12 @@
           }
         }
       }
+    },
+    "未命名旅程" : {
+
+    },
+    "未开始" : {
+
     },
     "未检测到云同步。" : {
       "localizations" : {
@@ -3462,16 +3607,6 @@
         }
       }
     },
-    "未纳入昨天的分析范围" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Not included in yesterday's analysis"
-          }
-        }
-      }
-    },
     "未纳入当天的分析范围" : {
       "localizations" : {
         "en" : {
@@ -3484,6 +3619,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "未纳入当天的分析范围"
+          }
+        }
+      }
+    },
+    "未纳入昨天的分析范围" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not included in yesterday's analysis"
           }
         }
       }
@@ -3680,6 +3826,12 @@
         }
       }
     },
+    "此操作会从当前旅行计划里移除这一航段。" : {
+
+    },
+    "此操作会删除整个旅行计划，且无法撤销。" : {
+
+    },
     "此操作会删除整个餐次，且无法撤销。" : {
       "localizations" : {
         "en" : {
@@ -3689,6 +3841,9 @@
           }
         }
       }
+    },
+    "此操作会删除这个默认餐次，且无法撤销。" : {
+
     },
     "此操作会清除当前时间记录，且无法撤销。" : {
       "localizations" : {
@@ -3745,6 +3900,9 @@
           }
         }
       }
+    },
+    "段" : {
+
     },
     "每天只记几件事" : {
       "localizations" : {
@@ -3868,6 +4026,9 @@
         }
       }
     },
+    "测试操作" : {
+
+    },
     "深睡" : {
       "localizations" : {
         "en" : {
@@ -3965,6 +4126,9 @@
         }
       }
     },
+    "添加旅行" : {
+
+    },
     "添加照片" : {
       "localizations" : {
         "en" : {
@@ -3996,6 +4160,9 @@
           }
         }
       }
+    },
+    "添加航段" : {
+
     },
     "添加记录" : {
       "localizations" : {
@@ -4204,6 +4371,9 @@
         }
       }
     },
+    "现在你在旅途中" : {
+
+    },
     "现在的数据还不足以形成稳定分析。" : {
       "localizations" : {
         "en" : {
@@ -4375,6 +4545,9 @@
         }
       }
     },
+    "目的地" : {
+
+    },
     "相册" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -4444,16 +4617,6 @@
         }
       }
     },
-    "睡眠时长偏短，是昨天最明显的扣分点。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sleep duration was short — the biggest deduction from yesterday."
-          }
-        }
-      }
-    },
     "睡眠时长偏短，是当天最明显的扣分点。" : {
       "localizations" : {
         "en" : {
@@ -4466,6 +4629,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "睡眠时长偏短，是当天最明显的扣分点。"
+          }
+        }
+      }
+    },
+    "睡眠时长偏短，是昨天最明显的扣分点。" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sleep duration was short — the biggest deduction from yesterday."
           }
         }
       }
@@ -4497,6 +4671,7 @@
       }
     },
     "睡眠时间偏长，可能说明昨天整体恢复感比较重。" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -4703,6 +4878,9 @@
         }
       }
     },
+    "结束旅行模式" : {
+
+    },
     "结束游客模式" : {
       "localizations" : {
         "en" : {
@@ -4735,6 +4913,9 @@
           }
         }
       }
+    },
+    "编辑旅行" : {
+
     },
     "编辑照片" : {
       "extractionState" : "stale",
@@ -4818,6 +4999,9 @@
         }
       }
     },
+    "航班号" : {
+
+    },
     "范围" : {
       "localizations" : {
         "en" : {
@@ -4849,6 +5033,12 @@
           }
         }
       }
+    },
+    "计划第一程：" : {
+
+    },
+    "计划起飞：" : {
+
     },
     "记录了 %d 次" : {
       "localizations" : {
@@ -4983,6 +5173,9 @@
         }
       }
     },
+    "请选择列表中的机场" : {
+
+    },
     "账号" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -5065,6 +5258,15 @@
         }
       }
     },
+    "起飞后 " : {
+
+    },
+    "起飞时间" : {
+
+    },
+    "起飞机场" : {
+
+    },
     "跟随系统" : {
       "localizations" : {
         "en" : {
@@ -5096,6 +5298,21 @@
           }
         }
       }
+    },
+    "转机" : {
+
+    },
+    "转机中" : {
+
+    },
+    "转机餐食" : {
+
+    },
+    "输入 BOS / Boston / Logan" : {
+
+    },
+    "输入 PKX / Beijing / Daxing" : {
+
     },
     "输入你想使用的昵称" : {
       "localizations" : {
@@ -5245,6 +5462,9 @@
         }
       }
     },
+    "还没有航段" : {
+
+    },
     "还没有足够的睡眠阶段数据。" : {
       "localizations" : {
         "en" : {
@@ -5330,12 +5550,140 @@
         }
       }
     },
+    "这一天整体不错" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "That day went well"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这一天整体不错"
+          }
+        }
+      }
+    },
+    "这一天整体还可以，但还有一两项记录不够稳。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "That day was decent, but a couple of areas were inconsistent."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这一天整体还可以，但还有一两项记录不够稳。"
+          }
+        }
+      }
+    },
+    "这一天有点乱" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "That day was a bit off"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这一天有点乱"
+          }
+        }
+      }
+    },
+    "这一天状态很稳" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "That day was solid"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这一天状态很稳"
+          }
+        }
+      }
+    },
+    "这一天的数据提示节奏有些散，之后可以再收一收。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "That day's data suggests things were scattered, so it may help to reset afterward."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这一天的数据提示节奏有些散，之后可以再收一收。"
+          }
+        }
+      }
+    },
+    "这一天的整体节奏比较顺，可以继续保持。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "That day's rhythm was smooth, worth keeping up."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这一天的整体节奏比较顺，可以继续保持。"
+          }
+        }
+      }
+    },
     "这一天的观察" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Today's observations"
+          }
+        }
+      }
+    },
+    "这一天还没有睡眠记录，所以这部分暂时没有加分。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No sleep records for that day, so this area has no points yet."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这一天还没有睡眠记录，所以这部分暂时没有加分。"
+          }
+        }
+      }
+    },
+    "这一天需要重整节奏" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "That day needed a reset"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这一天需要重整节奏"
           }
         }
       }
@@ -5430,6 +5778,12 @@
           }
         }
       }
+    },
+    "进入旅行模式" : {
+
+    },
+    "进入旅行模式后可添加多段睡眠" : {
+
     },
     "进入游客模式失败：" : {
       "localizations" : {
@@ -5547,6 +5901,12 @@
         }
       }
     },
+    "醒来" : {
+
+    },
+    "醒来：" : {
+
+    },
     "重新检查同步密钥" : {
       "localizations" : {
         "en" : {
@@ -5595,6 +5955,9 @@
         }
       }
     },
+    "降落机场" : {
+
+    },
     "频率月历" : {
       "localizations" : {
         "en" : {
@@ -5610,6 +5973,12 @@
           }
         }
       }
+    },
+    "飞机餐" : {
+
+    },
+    "飞行中" : {
+
     },
     "餐食" : {
       "localizations" : {

@@ -22,6 +22,18 @@ protocol DailyRecordRepository {
     func loadAllRecords(userID: String, preferences: UserPreferences) throws -> [DailyRecord]
 }
 
+protocol TravelPlanRepository {
+    func loadTravelPlans(userID: String) throws -> [TravelPlan]
+    func saveTravelPlan(_ plan: TravelPlan, userID: String) throws
+    func deleteTravelPlan(_ plan: TravelPlan, userID: String) throws
+}
+
+struct NoopTravelPlanRepository: TravelPlanRepository {
+    func loadTravelPlans(userID: String) throws -> [TravelPlan] { [] }
+    func saveTravelPlan(_ plan: TravelPlan, userID: String) throws {}
+    func deleteTravelPlan(_ plan: TravelPlan, userID: String) throws {}
+}
+
 protocol PreferencesStore {
     func loadPreferences(userID: String?) throws -> UserPreferences
     func savePreferences(_ preferences: UserPreferences, userID: String?) throws
@@ -456,11 +468,13 @@ final class LocalAuthService: AuthService {
 final class LocalJSONStore {
     struct Database: Codable {
         var recordsByUser: [String: [String: DailyRecord]] = [:]
+        var travelPlansByUser: [String: [TravelPlan]] = [:]
         var preferencesByUser: [String: UserPreferences] = [:]
         var profilesByUser: [String: UserProfile] = [:]
 
         enum CodingKeys: String, CodingKey {
             case recordsByUser
+            case travelPlansByUser
             case preferencesByUser
             case profilesByUser
         }
@@ -470,6 +484,7 @@ final class LocalJSONStore {
         init(from decoder: any Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
             recordsByUser = try container.decodeIfPresent([String: [String: DailyRecord]].self, forKey: .recordsByUser) ?? [:]
+            travelPlansByUser = try container.decodeIfPresent([String: [TravelPlan]].self, forKey: .travelPlansByUser) ?? [:]
             preferencesByUser = try container.decodeIfPresent([String: UserPreferences].self, forKey: .preferencesByUser) ?? [:]
             profilesByUser = try container.decodeIfPresent([String: UserProfile].self, forKey: .profilesByUser) ?? [:]
         }
@@ -592,6 +607,44 @@ final class LocalDailyRecordRepository: DailyRecordRepository {
         if record.sunTimes != nil { score += 1 }
         if record.weatherSnapshot != nil { score += 1 }
         return score
+    }
+}
+
+final class LocalTravelPlanRepository: TravelPlanRepository {
+    private let store: LocalJSONStore
+
+    init(store: LocalJSONStore) {
+        self.store = store
+    }
+
+    func loadTravelPlans(userID: String) throws -> [TravelPlan] {
+        let database = try store.load()
+        return (database.travelPlansByUser[userID] ?? [])
+            .sorted { lhs, rhs in
+                (lhs.earliestCalendarDate ?? .distantFuture) < (rhs.earliestCalendarDate ?? .distantFuture)
+            }
+    }
+
+    func saveTravelPlan(_ plan: TravelPlan, userID: String) throws {
+        var database = try store.load()
+        var plans = database.travelPlansByUser[userID] ?? []
+        if let index = plans.firstIndex(where: { $0.id == plan.id }) {
+            plans[index] = plan
+        } else {
+            plans.append(plan)
+        }
+        database.travelPlansByUser[userID] = plans.sorted {
+            ($0.earliestCalendarDate ?? .distantFuture) < ($1.earliestCalendarDate ?? .distantFuture)
+        }
+        try store.save(database)
+    }
+
+    func deleteTravelPlan(_ plan: TravelPlan, userID: String) throws {
+        var database = try store.load()
+        var plans = database.travelPlansByUser[userID] ?? []
+        plans.removeAll { $0.id == plan.id }
+        database.travelPlansByUser[userID] = plans
+        try store.save(database)
     }
 }
 

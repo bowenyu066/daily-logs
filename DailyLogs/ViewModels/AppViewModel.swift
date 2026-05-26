@@ -22,6 +22,7 @@ final class AppViewModel: ObservableObject {
     @Published var selectedDate: Date
     @Published private(set) var dailyRecord: DailyRecord
     @Published private(set) var allRecords: [DailyRecord] = []
+    @Published private(set) var travelPlans: [TravelPlan] = []
     @Published private(set) var preferences: UserPreferences
     @Published var analyticsRange: AnalyticsRange = .week
     @Published var analyticsCustomDateRange: ClosedRange<Date> = Date().startOfDay.adding(days: -29)...Date().startOfDay
@@ -47,6 +48,7 @@ final class AppViewModel: ObservableObject {
 
     private let authService: AuthService
     private let repository: DailyRecordRepository
+    private let travelPlanRepository: TravelPlanRepository
     private let preferencesStore: PreferencesStore
     private let photoStorageService: PhotoStorageService
     private let videoStorageService: VideoStorageService
@@ -66,6 +68,7 @@ final class AppViewModel: ObservableObject {
         return AppViewModel(
             authService: LocalAuthService(store: store),
             repository: LocalDailyRecordRepository(store: store),
+            travelPlanRepository: LocalTravelPlanRepository(store: store),
             preferencesStore: LocalPreferencesStore(store: store),
             photoStorageService: LocalPhotoStorageService(),
             videoStorageService: LocalVideoStorageService(),
@@ -85,6 +88,7 @@ final class AppViewModel: ObservableObject {
     init(
         authService: AuthService,
         repository: DailyRecordRepository,
+        travelPlanRepository: TravelPlanRepository = NoopTravelPlanRepository(),
         preferencesStore: PreferencesStore,
         photoStorageService: PhotoStorageService,
         videoStorageService: VideoStorageService,
@@ -101,6 +105,7 @@ final class AppViewModel: ObservableObject {
     ) {
         self.authService = authService
         self.repository = repository
+        self.travelPlanRepository = travelPlanRepository
         self.preferencesStore = preferencesStore
         self.photoStorageService = photoStorageService
         self.videoStorageService = videoStorageService
@@ -142,6 +147,12 @@ final class AppViewModel: ObservableObject {
 
     var availableDateRange: ClosedRange<Date> {
         availableStartDate...logicalToday
+    }
+
+    var travelOverlayDateRange: ClosedRange<Date> {
+        let travelStart = travelPlans.compactMap { $0.earliestCalendarDate(using: preferences) }.min() ?? availableStartDate
+        let travelEnd = travelPlans.compactMap { $0.latestCalendarDate(using: preferences) }.max() ?? logicalToday
+        return min(availableStartDate, travelStart)...max(logicalToday, travelEnd)
     }
 
     var aiInsightCalendarDateRange: ClosedRange<Date>? {
@@ -260,6 +271,7 @@ final class AppViewModel: ObservableObject {
                 selectedDate = min(max(selectedDate, user.createdAt.startOfDay), logicalToday)
                 analyticsCustomDateRange = defaultAnalyticsCustomRange(startingAt: user.createdAt)
                 try loadAllRecords(for: user.userID)
+                try loadTravelPlans(for: user.userID)
                 if shouldMigrateMidnightModeKeys {
                     try rekeyAllRecords(for: user.userID)
                 }
@@ -360,6 +372,7 @@ final class AppViewModel: ObservableObject {
             selectedDate = max(logicalToday, availableStartDate)
             analyticsCustomDateRange = defaultAnalyticsCustomRange(startingAt: availableStartDate)
             try loadAllRecords(for: user?.userID ?? "")
+            try loadTravelPlans(for: user?.userID ?? "")
             try loadSelectedRecord()
             if let user {
                 await refreshFromCloudIfNeeded(for: user)
@@ -387,6 +400,7 @@ final class AppViewModel: ObservableObject {
             selectedDate = max(logicalToday, availableStartDate)
             analyticsCustomDateRange = defaultAnalyticsCustomRange(startingAt: availableStartDate)
             try loadAllRecords(for: user?.userID ?? "")
+            try loadTravelPlans(for: user?.userID ?? "")
             try loadSelectedRecord()
             if let user {
                 await refreshFromCloudIfNeeded(for: user)
@@ -452,6 +466,7 @@ final class AppViewModel: ObservableObject {
             user = nil
             refreshOpenAIConfigurationState()
             allRecords = []
+            travelPlans = []
             selectedDate = logicalToday
             dailyRecord = DailyRecord.empty(for: selectedDate, preferences: preferences)
             cloudEncryptionState = .unavailable
@@ -508,6 +523,178 @@ final class AppViewModel: ObservableObject {
         } catch {
             errorMessage = NSLocalizedString("加载记录失败：", comment: "") + error.localizedDescription
         }
+    }
+
+    func travelPlans(on date: Date) -> [TravelPlan] {
+        let key = date.startOfDay.storageKey()
+        return travelPlans.filter { $0.affectedStorageKeys(using: preferences).contains(key) }
+    }
+
+    func activeTravelPlan(on date: Date) -> TravelPlan? {
+        travelPlans(on: date).first {
+            switch $0.status {
+            case .planned, .completed:
+                false
+            case .preDeparture, .inFlight, .layover, .arrived:
+                true
+            }
+        }
+    }
+
+    func saveTravelPlan(_ plan: TravelPlan) async {
+        guard let user else { return }
+        var updated = plan
+        updated.modifiedAt = .now
+        do {
+            try travelPlanRepository.saveTravelPlan(updated, userID: user.userID)
+            try loadTravelPlans(for: user.userID)
+        } catch {
+            errorMessage = NSLocalizedString("保存旅行计划失败：", comment: "") + error.localizedDescription
+        }
+    }
+
+    func deleteTravelPlan(_ plan: TravelPlan) async {
+        guard let user else { return }
+        do {
+            try travelPlanRepository.deleteTravelPlan(plan, userID: user.userID)
+            try loadTravelPlans(for: user.userID)
+        } catch {
+            errorMessage = NSLocalizedString("删除旅行计划失败：", comment: "") + error.localizedDescription
+        }
+    }
+
+    func saveTravelSleepSession(_ session: TravelSleepSession, in plan: TravelPlan) async {
+        guard let user, var updated = travelPlans.first(where: { $0.id == plan.id }) else { return }
+        var normalized = session
+        if normalized.endTime < normalized.startTime {
+            normalized.endTime = normalized.startTime
+        }
+        if let index = updated.sleepSessions.firstIndex(where: { $0.id == normalized.id }) {
+            updated.sleepSessions[index] = normalized
+        } else {
+            updated.sleepSessions.append(normalized)
+        }
+        updated.sleepSessions.sort { $0.startTime < $1.startTime }
+        updated.modifiedAt = .now
+        do {
+            try travelPlanRepository.saveTravelPlan(updated, userID: user.userID)
+            try loadTravelPlans(for: user.userID)
+        } catch {
+            errorMessage = NSLocalizedString("保存旅行睡眠失败：", comment: "") + error.localizedDescription
+        }
+    }
+
+    func deleteTravelSleepSession(_ session: TravelSleepSession, in plan: TravelPlan) async {
+        guard let user, var updated = travelPlans.first(where: { $0.id == plan.id }) else { return }
+        updated.sleepSessions.removeAll { $0.id == session.id }
+        updated.modifiedAt = .now
+        do {
+            try travelPlanRepository.saveTravelPlan(updated, userID: user.userID)
+            try loadTravelPlans(for: user.userID)
+        } catch {
+            errorMessage = NSLocalizedString("删除旅行睡眠失败：", comment: "") + error.localizedDescription
+        }
+    }
+
+    func addSampleTravelPlan() async {
+        await saveTravelPlan(TravelPlan.sampleBOSPKX())
+    }
+
+#if DEBUG
+    func startDebugHypotheticalTravel() async {
+        guard let user else { return }
+        do {
+            for plan in travelPlans where plan.title.hasPrefix(Self.debugTravelPlanTitlePrefix) {
+                try travelPlanRepository.deleteTravelPlan(plan, userID: user.userID)
+            }
+            try travelPlanRepository.saveTravelPlan(Self.makeDebugHypotheticalTravelPlan(now: .now), userID: user.userID)
+            try loadTravelPlans(for: user.userID)
+            selectedDate = logicalToday
+            try loadSelectedRecord()
+        } catch {
+            errorMessage = "启动假想旅行失败：" + error.localizedDescription
+        }
+    }
+
+    func clearDebugHypotheticalTravel() async {
+        guard let user else { return }
+        do {
+            for plan in travelPlans where plan.title.hasPrefix(Self.debugTravelPlanTitlePrefix) {
+                try travelPlanRepository.deleteTravelPlan(plan, userID: user.userID)
+            }
+            try loadTravelPlans(for: user.userID)
+        } catch {
+            errorMessage = "清除假想旅行失败：" + error.localizedDescription
+        }
+    }
+
+    private static let debugTravelPlanTitlePrefix = "[DEBUG]"
+
+    private static func makeDebugHypotheticalTravelPlan(now: Date) -> TravelPlan {
+        let bosTimeZone = "America/New_York"
+        let lhrTimeZone = "Europe/London"
+        let pkxTimeZone = "Asia/Shanghai"
+        let firstDeparture = now.addingTimeInterval(10 * 60)
+        let firstArrival = now.addingTimeInterval(45 * 60)
+        let secondDeparture = now.addingTimeInterval(65 * 60)
+        let secondArrival = now.addingTimeInterval(120 * 60)
+        return TravelPlan(
+            title: debugTravelPlanTitlePrefix + " 假想旅行",
+            segments: [
+                TravelSegment(
+                    flightNumber: "DBG001",
+                    originCode: "BOS",
+                    destinationCode: "LHR",
+                    plannedDepartureTime: firstDeparture,
+                    plannedArrivalTime: firstArrival,
+                    departureTimeZoneIdentifier: bosTimeZone,
+                    arrivalTimeZoneIdentifier: lhrTimeZone
+                ),
+                TravelSegment(
+                    flightNumber: "DBG002",
+                    originCode: "LHR",
+                    destinationCode: "PKX",
+                    plannedDepartureTime: secondDeparture,
+                    plannedArrivalTime: secondArrival,
+                    departureTimeZoneIdentifier: lhrTimeZone,
+                    arrivalTimeZoneIdentifier: pkxTimeZone
+                )
+            ],
+            status: .planned,
+            createdAt: now
+        )
+    }
+#endif
+
+    func advanceTravelPlan(_ plan: TravelPlan) async {
+        guard let user, var updated = travelPlans.first(where: { $0.id == plan.id }) else { return }
+        updated.advance()
+        do {
+            try travelPlanRepository.saveTravelPlan(updated, userID: user.userID)
+            try loadTravelPlans(for: user.userID)
+        } catch {
+            errorMessage = NSLocalizedString("更新旅行状态失败：", comment: "") + error.localizedDescription
+        }
+    }
+
+    func retreatTravelPlan(_ plan: TravelPlan) async {
+        guard let user, var updated = travelPlans.first(where: { $0.id == plan.id }) else { return }
+        updated.retreat()
+        do {
+            try travelPlanRepository.saveTravelPlan(updated, userID: user.userID)
+            try loadTravelPlans(for: user.userID)
+        } catch {
+            errorMessage = NSLocalizedString("更新旅行状态失败：", comment: "") + error.localizedDescription
+        }
+    }
+
+    func travelContextForCurrentRecording() -> TravelRecordContext? {
+        guard let plan = activeTravelPlan(on: selectedDate) else { return nil }
+        return TravelRecordContext(
+            planID: plan.id,
+            segmentID: plan.currentSegment?.id,
+            phase: plan.status
+        )
     }
 
     func updateSleep(bedtime: Date?, wakeTime: Date?) async {
@@ -696,6 +883,7 @@ final class AppViewModel: ObservableObject {
                 updatedEntry.timeZoneIdentifier = updatedEntry.time != nil
                     ? editedTimeZoneIdentifier(for: existingEntry?.timeZoneIdentifier ?? updatedEntry.timeZoneIdentifier)
                     : nil
+                updatedEntry.travelContext = travelContextForCurrentRecording() ?? updatedEntry.travelContext
             }
             if let index = existingMatch?.index {
                 dailyRecord.meals[index] = updatedEntry
@@ -747,6 +935,7 @@ final class AppViewModel: ObservableObject {
             updatedEntry.latitude = nil
             updatedEntry.longitude = nil
             updatedEntry.isLocationManuallyEdited = false
+            updatedEntry.travelContext = nil
             if let index = existingMatch?.index {
                 dailyRecord.meals[index] = updatedEntry
             } else {
@@ -800,6 +989,7 @@ final class AppViewModel: ObservableObject {
             updatedEntry.latitude = nil
             updatedEntry.longitude = nil
             updatedEntry.isLocationManuallyEdited = false
+            updatedEntry.travelContext = travelContextForCurrentRecording()
             if let index = existingMatch?.index {
                 dailyRecord.meals[index] = updatedEntry
             } else {
@@ -849,6 +1039,7 @@ final class AppViewModel: ObservableObject {
         var updatedShower = shower
         updatedShower.timeZoneIdentifier = shower.time != nil ? editedTimeZoneIdentifier(for: shower.timeZoneIdentifier) : nil
         updatedShower.note = trimmedNote(shower.note)
+        updatedShower.travelContext = travelContextForCurrentRecording() ?? shower.travelContext
         if let index = dailyRecord.showers.firstIndex(where: { $0.id == shower.id }) {
             dailyRecord.showers[index] = updatedShower
         } else {
@@ -871,6 +1062,7 @@ final class AppViewModel: ObservableObject {
         var updated = entry
         updated.timeZoneIdentifier = entry.time != nil ? editedTimeZoneIdentifier(for: entry.timeZoneIdentifier) : nil
         updated.note = trimmedNote(entry.note)
+        updated.travelContext = travelContextForCurrentRecording() ?? entry.travelContext
         if let index = dailyRecord.bowelMovements.firstIndex(where: { $0.id == entry.id }) {
             dailyRecord.bowelMovements[index] = updated
         } else {
@@ -895,6 +1087,7 @@ final class AppViewModel: ObservableObject {
         if updated.time != nil {
             updated.timeZoneIdentifier = editedTimeZoneIdentifier(for: entry.timeZoneIdentifier)
         }
+        updated.travelContext = travelContextForCurrentRecording() ?? entry.travelContext
         if let index = dailyRecord.sexualActivities.firstIndex(where: { $0.id == entry.id }) {
             dailyRecord.sexualActivities[index] = updated
         } else {
@@ -972,6 +1165,11 @@ final class AppViewModel: ObservableObject {
         }
         if let user {
             await refreshFromCloudIfNeeded(for: user)
+            do {
+                try loadTravelPlans(for: user.userID)
+            } catch {
+                errorMessage = NSLocalizedString("刷新旅行计划失败：", comment: "") + error.localizedDescription
+            }
         }
         do {
             try loadSelectedRecord()
@@ -1073,6 +1271,10 @@ final class AppViewModel: ObservableObject {
             .filter { $0.date >= availableStartDate }
         allRecords = try migrateRecordedTimeZonesIfNeeded(in: records, userID: userID)
         Task { await refreshRemotePhotoCache() }
+    }
+
+    private func loadTravelPlans(for userID: String) throws {
+        travelPlans = try travelPlanRepository.loadTravelPlans(userID: userID)
     }
 
     private func persistCurrentRecord() {
@@ -1832,6 +2034,32 @@ final class AppViewModel: ObservableObject {
         }
     }
 
+    func travelTimeDisplay(for date: Date?, context: TravelRecordContext?) -> TravelTimeDisplay? {
+        guard let date else { return nil }
+
+        if let context,
+           let plan = travelPlans.first(where: { $0.id == context.planID }) {
+            let segment = context.segmentID.flatMap { segmentID in
+                plan.segments.first(where: { $0.id == segmentID })
+            } ?? travelSegment(containing: date, in: plan) ?? plan.currentSegment
+            return travelTimeDisplay(for: date, phase: context.phase, segment: segment)
+        }
+
+        for plan in travelPlans {
+            if let segment = travelSegment(containing: date, in: plan),
+               let display = travelTimeDisplay(for: date, phase: .inFlight, segment: segment) {
+                return display
+            }
+        }
+        return nil
+    }
+
+    func travelTimeText(for date: Date?, context: TravelRecordContext?) -> String? {
+        guard let display = travelTimeDisplay(for: date, context: context) else { return nil }
+        guard let secondary = display.secondary else { return display.primary }
+        return "\(display.primary) · \(secondary)"
+    }
+
     func displayedTimeZone(for recordedTimeZoneIdentifier: String?) -> TimeZone {
         switch preferences.timeDisplayMode {
         case .current:
@@ -1957,6 +2185,53 @@ final class AppViewModel: ObservableObject {
         case .recorded:
             return recordedTimeZoneIdentifier ?? TimeZone.autoupdatingCurrent.identifier
         }
+    }
+
+    private func travelTimeDisplay(
+        for date: Date,
+        phase: TravelPlanStatus,
+        segment: TravelSegment?
+    ) -> TravelTimeDisplay? {
+        guard let segment else { return nil }
+        switch phase {
+        case .inFlight:
+            let elapsed = max(0, date.timeIntervalSince(segment.departureTime))
+            return TravelTimeDisplay(
+                primary: "\(segment.routeTitle) " + NSLocalizedString("起飞后 ", comment: "") + compactDurationText(elapsed),
+                secondary: "\(segment.originCode) \(date.displayClockTime(in: segment.departureTimeZone)) / \(segment.destinationCode) \(date.displayClockTime(in: segment.arrivalTimeZone))"
+            )
+        case .preDeparture, .planned:
+            return TravelTimeDisplay(
+                primary: "\(segment.originCode) " + date.displayClockTime(in: segment.departureTimeZone),
+                secondary: NSLocalizedString("出发前", comment: "")
+            )
+        case .layover:
+            return TravelTimeDisplay(
+                primary: "\(segment.originCode) " + date.displayClockTime(in: segment.departureTimeZone),
+                secondary: NSLocalizedString("转机中", comment: "")
+            )
+        case .arrived, .completed:
+            return TravelTimeDisplay(
+                primary: "\(segment.destinationCode) " + date.displayClockTime(in: segment.arrivalTimeZone),
+                secondary: phase.title
+            )
+        }
+    }
+
+    private func travelSegment(containing date: Date, in plan: TravelPlan) -> TravelSegment? {
+        plan.segments.first { segment in
+            date >= segment.departureTime && date <= segment.arrivalTime
+        }
+    }
+
+    private func compactDurationText(_ duration: TimeInterval) -> String {
+        let totalMinutes = max(0, Int(duration.rounded() / 60))
+        let hours = totalMinutes / 60
+        let minutes = totalMinutes % 60
+        if hours == 0 {
+            return "\(minutes)m"
+        }
+        return "\(hours)h \(minutes)m"
     }
 
     private func resolvedTimestamp(for logicalDate: Date, hour: Int, minute: Int, timeZone: TimeZone) -> Date {

@@ -3279,6 +3279,9 @@ private struct MealPhotoPreview: View {
     @Environment(\.dismiss) private var dismiss
 
     let photoURL: String
+    @State private var isSavingToLibrary = false
+    @State private var didSaveToLibrary = false
+    @State private var saveErrorMessage: String?
 
     var body: some View {
         NavigationStack {
@@ -3287,6 +3290,15 @@ private struct MealPhotoPreview: View {
 
                 PhotoContentView(photoURL: photoURL, contentMode: .fit)
                     .padding(24)
+            }
+            .overlay(alignment: .topLeading) {
+                mediaSaveButton(
+                    isSaving: isSavingToLibrary,
+                    didSave: didSaveToLibrary,
+                    action: savePhotoToLibrary
+                )
+                .padding(.top, 54)
+                .padding(.leading, 18)
             }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -3297,6 +3309,30 @@ private struct MealPhotoPreview: View {
                     .foregroundStyle(Color.white)
                 }
             }
+            .alert(NSLocalizedString("保存失败", comment: ""), isPresented: Binding(
+                get: { saveErrorMessage != nil },
+                set: { if !$0 { saveErrorMessage = nil } }
+            )) {
+                Button(NSLocalizedString("知道了", comment: ""), role: .cancel) {}
+            } message: {
+                Text(saveErrorMessage ?? "")
+            }
+        }
+    }
+
+    private func savePhotoToLibrary() {
+        guard !isSavingToLibrary else { return }
+        didSaveToLibrary = false
+        isSavingToLibrary = true
+
+        Task {
+            do {
+                try await MediaLibrarySaver.savePhoto(from: photoURL)
+                didSaveToLibrary = true
+            } catch {
+                saveErrorMessage = error.localizedDescription
+            }
+            isSavingToLibrary = false
         }
     }
 }

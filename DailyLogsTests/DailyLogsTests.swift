@@ -2450,6 +2450,180 @@ struct DailyLogsTests {
         #expect(decoded.locationName == "Legacy Cafe")
         #expect(decoded.isLocationManuallyEdited == true)
     }
+
+    @Test
+    func travelPlanManualStateMachineStoresActualTimes() throws {
+        var plan = TravelPlan.sampleBOSPKX()
+        let firstSegment = try #require(plan.segments.first)
+        let secondSegment = try #require(plan.segments.dropFirst().first)
+        let actualDeparture = firstSegment.plannedDepartureTime.addingTimeInterval(12 * 60)
+        let actualArrival = firstSegment.plannedArrivalTime.addingTimeInterval(18 * 60)
+
+        plan.advance(now: actualDeparture.addingTimeInterval(-30 * 60))
+        #expect(plan.status == .preDeparture)
+        #expect(plan.currentSegmentID == firstSegment.id)
+        #expect(plan.segments.first?.actualDepartureTime == nil)
+
+        plan.advance(now: actualDeparture)
+        #expect(plan.status == .inFlight)
+        #expect(plan.segments.first?.actualDepartureTime == actualDeparture)
+
+        plan.advance(now: actualArrival)
+        #expect(plan.status == .layover)
+        #expect(plan.currentSegmentID == secondSegment.id)
+        #expect(plan.segments.first?.actualArrivalTime == actualArrival)
+
+        plan.advance(now: secondSegment.plannedDepartureTime)
+        #expect(plan.status == .inFlight)
+        #expect(plan.currentSegmentID == secondSegment.id)
+    }
+
+    @Test
+    func travelPlanAffectedDatesCoverFutureOverlayDays() {
+        let plan = TravelPlan.sampleBOSPKX()
+
+        #expect(plan.affectedStorageKeys.contains("2026-05-21"))
+        #expect(plan.affectedStorageKeys.contains("2026-05-22"))
+        #expect(plan.earliestCalendarDate?.storageKey() == "2026-05-21")
+        #expect(plan.latestCalendarDate?.storageKey() == "2026-05-22")
+    }
+
+    @Test @MainActor
+    func travelPlansRespectMidnightModeForEarlyMorningFlights() async throws {
+        let bostonTimeZone = try #require(TimeZone(identifier: "America/New_York"))
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = bostonTimeZone
+        let departure = try #require(calendar.date(from: DateComponents(
+            timeZone: bostonTimeZone,
+            year: 2026,
+            month: 5,
+            day: 22,
+            hour: 1,
+            minute: 0
+        )))
+        let arrival = try #require(calendar.date(from: DateComponents(
+            timeZone: bostonTimeZone,
+            year: 2026,
+            month: 5,
+            day: 22,
+            hour: 3,
+            minute: 10
+        )))
+        let plan = TravelPlan(
+            title: "BOS-JFK 旅程",
+            segments: [
+                TravelSegment(
+                    flightNumber: "DL001",
+                    originCode: "BOS",
+                    destinationCode: "JFK",
+                    plannedDepartureTime: departure,
+                    plannedArrivalTime: arrival,
+                    departureTimeZoneIdentifier: "America/New_York",
+                    arrivalTimeZoneIdentifier: "America/New_York"
+                )
+            ]
+        )
+        let preferences = UserPreferences(
+            midnightMode: MidnightModeSettings(isEnabled: true, cutoffHour: 4, effectiveFrom: nil)
+        )
+        let user = UserAccount(
+            userID: "midnight-traveler",
+            displayName: "Traveler",
+            email: nil,
+            authMode: .guest,
+            createdAt: departure.addingTimeInterval(-86_400)
+        )
+        let selectedDate = try #require(Calendar.current.date(from: DateComponents(year: 2026, month: 5, day: 21)))
+        let viewModel = AppViewModel(
+            authService: MockAuthService(user: user),
+            repository: InMemoryDailyRecordRepository(records: [:]),
+            travelPlanRepository: InMemoryTravelPlanRepository(plans: [plan]),
+            preferencesStore: MockPreferencesStore(preferences: preferences),
+            photoStorageService: MockPhotoStorageService(),
+            videoStorageService: MockVideoStorageService(),
+            sunTimesService: MockSunTimesService(),
+            weatherService: MockWeatherService(),
+            healthSyncAdapter: MockHealthSyncAdapter(sleepRecord: nil),
+            cloudSyncService: NoopCloudSyncService(),
+            aiInsightNarrativeService: MockAIInsightNarrativeService(responses: []),
+            openAIKeyStore: MockOpenAIKeyStore(key: nil),
+            locationService: LocationService(),
+            selectedDate: selectedDate,
+            dailyRecord: DailyRecord.empty(for: selectedDate, preferences: preferences),
+            preferences: preferences
+        )
+
+        await viewModel.bootstrap()
+
+        #expect(plan.affectedStorageKeys(using: preferences).contains("2026-05-21"))
+        #expect(plan.earliestCalendarDate(using: preferences)?.storageKey() == "2026-05-21")
+        #expect(viewModel.travelPlans(on: selectedDate).contains { $0.id == plan.id })
+    }
+
+    @Test
+    func airportCatalogLoadsGlobalAirportData() throws {
+        #expect(AirportCatalog.airports.count > 7_000)
+        #expect(AirportCatalog.airport(for: "BOS")?.timeZoneIdentifier == "America/New_York")
+        #expect(AirportCatalog.airport(for: "LHR")?.timeZoneIdentifier == "Europe/London")
+        #expect(AirportCatalog.airport(for: "PKX")?.timeZoneIdentifier == "Asia/Shanghai")
+        #expect(AirportCatalog.search("Beijing").contains { $0.code == "PKX" })
+    }
+
+    @Test
+    func timeZoneDisplayIncludesUtcOffsetForTravelAirports() throws {
+        let travelDate = try #require(Calendar(identifier: .gregorian).date(from: DateComponents(
+            timeZone: TimeZone(identifier: "UTC"),
+            year: 2026,
+            month: 5,
+            day: 21,
+            hour: 12
+        )))
+
+        #expect(TimeZoneDisplay.utcOffsetText(for: "America/New_York", at: travelDate) == "UTC-04:00")
+        #expect(TimeZoneDisplay.utcOffsetText(for: "Europe/London", at: travelDate) == "UTC+01:00")
+        #expect(TimeZoneDisplay.userFacingTimeZoneText(for: "Asia/Shanghai", at: travelDate) == "UTC+08:00 · Asia/Shanghai")
+    }
+
+    @Test @MainActor
+    func travelTimeDisplayUsesFlightRelativeClock() async throws {
+        let user = UserAccount(
+            userID: "traveler",
+            displayName: "Traveler",
+            email: nil,
+            authMode: .guest,
+            createdAt: Date()
+        )
+        let plan = TravelPlan.sampleBOSPKX()
+        let segment = try #require(plan.segments.first)
+        let viewModel = AppViewModel(
+            authService: MockAuthService(user: user),
+            repository: InMemoryDailyRecordRepository(records: [:]),
+            travelPlanRepository: InMemoryTravelPlanRepository(plans: [plan]),
+            preferencesStore: MockPreferencesStore(preferences: UserPreferences()),
+            photoStorageService: MockPhotoStorageService(),
+            videoStorageService: MockVideoStorageService(),
+            sunTimesService: MockSunTimesService(),
+            weatherService: MockWeatherService(),
+            healthSyncAdapter: MockHealthSyncAdapter(sleepRecord: nil),
+            cloudSyncService: NoopCloudSyncService(),
+            aiInsightNarrativeService: MockAIInsightNarrativeService(responses: []),
+            openAIKeyStore: MockOpenAIKeyStore(key: nil),
+            locationService: LocationService(),
+            selectedDate: Date(),
+            dailyRecord: DailyRecord.empty(for: Date(), preferences: UserPreferences()),
+            preferences: UserPreferences()
+        )
+        await viewModel.bootstrap()
+
+        let display = try #require(viewModel.travelTimeDisplay(
+            for: segment.plannedDepartureTime.addingTimeInterval(65 * 60),
+            context: TravelRecordContext(planID: plan.id, segmentID: segment.id, phase: .inFlight)
+        ))
+
+        #expect(display.primary.contains("BOS-LHR"))
+        #expect(display.primary.contains("1h 5m"))
+        #expect(display.secondary == "BOS 08:30 / LHR 13:30")
+    }
 }
 
 @MainActor
@@ -2498,6 +2672,30 @@ private final class InMemoryDailyRecordRepository: DailyRecordRepository {
 
     func loadAllRecords(userID: String, preferences: UserPreferences) throws -> [DailyRecord] {
         Array(records.values)
+    }
+}
+
+private final class InMemoryTravelPlanRepository: TravelPlanRepository {
+    private var plans: [TravelPlan]
+
+    init(plans: [TravelPlan] = []) {
+        self.plans = plans
+    }
+
+    func loadTravelPlans(userID: String) throws -> [TravelPlan] {
+        plans
+    }
+
+    func saveTravelPlan(_ plan: TravelPlan, userID: String) throws {
+        if let index = plans.firstIndex(where: { $0.id == plan.id }) {
+            plans[index] = plan
+        } else {
+            plans.append(plan)
+        }
+    }
+
+    func deleteTravelPlan(_ plan: TravelPlan, userID: String) throws {
+        plans.removeAll { $0.id == plan.id }
     }
 }
 

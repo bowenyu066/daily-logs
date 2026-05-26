@@ -1,6 +1,34 @@
 import Foundation
 import SwiftUI
 
+private extension String {
+    var nilIfEmpty: String? {
+        isEmpty ? nil : self
+    }
+}
+
+enum TimeZoneDisplay {
+    static func utcOffsetText(for timeZoneIdentifier: String, at date: Date = .now) -> String {
+        guard let timeZone = TimeZone(identifier: timeZoneIdentifier) else {
+            return NSLocalizedString("UTC 未知", comment: "")
+        }
+        return utcOffsetText(for: timeZone, at: date)
+    }
+
+    static func userFacingTimeZoneText(for timeZoneIdentifier: String, at date: Date = .now) -> String {
+        utcOffsetText(for: timeZoneIdentifier, at: date) + " · " + timeZoneIdentifier
+    }
+
+    private static func utcOffsetText(for timeZone: TimeZone, at date: Date) -> String {
+        let seconds = timeZone.secondsFromGMT(for: date)
+        let sign = seconds >= 0 ? "+" : "-"
+        let absoluteSeconds = abs(seconds)
+        let hours = absoluteSeconds / 3_600
+        let minutes = (absoluteSeconds % 3_600) / 60
+        return String(format: "UTC%@%02d:%02d", sign, hours, minutes)
+    }
+}
+
 enum AppLanguage: String, Codable, CaseIterable, Identifiable {
     case system
     case zhHans
@@ -352,6 +380,7 @@ struct MealEntry: Codable, Equatable, Identifiable {
     var latitude: Double?
     var longitude: Double?
     var isLocationManuallyEdited: Bool
+    var travelContext: TravelRecordContext?
 
     var displayTitle: String {
         customTitle?.isEmpty == false ? customTitle! : mealKind.title
@@ -396,6 +425,7 @@ struct MealEntry: Codable, Equatable, Identifiable {
     enum CodingKeys: String, CodingKey {
         case id, mealKind, customTitle, status, time, photoURL, photoURLs, timeZoneIdentifier
         case note, locationName, latitude, longitude, isLocationManuallyEdited
+        case travelContext
     }
 
     init(
@@ -411,7 +441,8 @@ struct MealEntry: Codable, Equatable, Identifiable {
         locationName: String? = nil,
         latitude: Double? = nil,
         longitude: Double? = nil,
-        isLocationManuallyEdited: Bool = false
+        isLocationManuallyEdited: Bool = false,
+        travelContext: TravelRecordContext? = nil
     ) {
         self.id = id
         self.mealKind = mealKind
@@ -425,6 +456,7 @@ struct MealEntry: Codable, Equatable, Identifiable {
         self.latitude = latitude
         self.longitude = longitude
         self.isLocationManuallyEdited = isLocationManuallyEdited
+        self.travelContext = travelContext
     }
 
     init(from decoder: any Decoder) throws {
@@ -447,6 +479,7 @@ struct MealEntry: Codable, Equatable, Identifiable {
         longitude = try container.decodeIfPresent(Double.self, forKey: .longitude)
         isLocationManuallyEdited = try container.decodeIfPresent(Bool.self, forKey: .isLocationManuallyEdited)
             ?? (locationName != nil || latitude != nil || longitude != nil)
+        travelContext = try container.decodeIfPresent(TravelRecordContext.self, forKey: .travelContext)
     }
 
     func encode(to encoder: any Encoder) throws {
@@ -464,6 +497,7 @@ struct MealEntry: Codable, Equatable, Identifiable {
         try container.encodeIfPresent(latitude, forKey: .latitude)
         try container.encodeIfPresent(longitude, forKey: .longitude)
         try container.encode(isLocationManuallyEdited, forKey: .isLocationManuallyEdited)
+        try container.encodeIfPresent(travelContext, forKey: .travelContext)
     }
 }
 
@@ -529,21 +563,24 @@ struct ShowerEntry: Codable, Equatable, Identifiable {
     var time: Date?
     var timeZoneIdentifier: String?
     var note: String?
+    var travelContext: TravelRecordContext?
 
     enum CodingKeys: String, CodingKey {
-        case id, time, timeZoneIdentifier, note
+        case id, time, timeZoneIdentifier, note, travelContext
     }
 
     init(
         id: UUID = UUID(),
         time: Date? = nil,
         timeZoneIdentifier: String? = nil,
-        note: String? = nil
+        note: String? = nil,
+        travelContext: TravelRecordContext? = nil
     ) {
         self.id = id
         self.time = time
         self.timeZoneIdentifier = timeZoneIdentifier
         self.note = note
+        self.travelContext = travelContext
     }
 
     init(from decoder: any Decoder) throws {
@@ -552,6 +589,7 @@ struct ShowerEntry: Codable, Equatable, Identifiable {
         time = try container.decodeIfPresent(Date.self, forKey: .time)
         timeZoneIdentifier = try container.decodeIfPresent(String.self, forKey: .timeZoneIdentifier)
         note = try container.decodeIfPresent(String.self, forKey: .note)
+        travelContext = try container.decodeIfPresent(TravelRecordContext.self, forKey: .travelContext)
     }
 }
 
@@ -560,21 +598,24 @@ struct BowelMovementEntry: Codable, Equatable, Identifiable {
     var time: Date?
     var timeZoneIdentifier: String?
     var note: String?
+    var travelContext: TravelRecordContext?
 
     enum CodingKeys: String, CodingKey {
-        case id, time, timeZoneIdentifier, note
+        case id, time, timeZoneIdentifier, note, travelContext
     }
 
     init(
         id: UUID = UUID(),
         time: Date? = nil,
         timeZoneIdentifier: String? = nil,
-        note: String? = nil
+        note: String? = nil,
+        travelContext: TravelRecordContext? = nil
     ) {
         self.id = id
         self.time = time
         self.timeZoneIdentifier = timeZoneIdentifier
         self.note = note
+        self.travelContext = travelContext
     }
 
     init(from decoder: any Decoder) throws {
@@ -583,6 +624,7 @@ struct BowelMovementEntry: Codable, Equatable, Identifiable {
         time = try container.decodeIfPresent(Date.self, forKey: .time)
         timeZoneIdentifier = try container.decodeIfPresent(String.self, forKey: .timeZoneIdentifier)
         note = try container.decodeIfPresent(String.self, forKey: .note)
+        travelContext = try container.decodeIfPresent(TravelRecordContext.self, forKey: .travelContext)
     }
 }
 
@@ -593,9 +635,10 @@ struct SexualActivityEntry: Codable, Equatable, Identifiable {
     var isMasturbation: Bool = false
     var timeZoneIdentifier: String?
     var note: String?
+    var travelContext: TravelRecordContext?
 
     enum CodingKeys: String, CodingKey {
-        case id, date, time, isMasturbation, timeZoneIdentifier, note
+        case id, date, time, isMasturbation, timeZoneIdentifier, note, travelContext
     }
 
     init(
@@ -604,7 +647,8 @@ struct SexualActivityEntry: Codable, Equatable, Identifiable {
         time: Date? = nil,
         isMasturbation: Bool = false,
         timeZoneIdentifier: String? = nil,
-        note: String? = nil
+        note: String? = nil,
+        travelContext: TravelRecordContext? = nil
     ) {
         self.id = id
         self.date = date
@@ -612,6 +656,7 @@ struct SexualActivityEntry: Codable, Equatable, Identifiable {
         self.isMasturbation = isMasturbation
         self.timeZoneIdentifier = timeZoneIdentifier
         self.note = note
+        self.travelContext = travelContext
     }
 
     init(from decoder: any Decoder) throws {
@@ -622,6 +667,550 @@ struct SexualActivityEntry: Codable, Equatable, Identifiable {
         isMasturbation = try container.decodeIfPresent(Bool.self, forKey: .isMasturbation) ?? false
         timeZoneIdentifier = try container.decodeIfPresent(String.self, forKey: .timeZoneIdentifier)
         note = try container.decodeIfPresent(String.self, forKey: .note)
+        travelContext = try container.decodeIfPresent(TravelRecordContext.self, forKey: .travelContext)
+    }
+}
+
+enum TravelPlanStatus: String, Codable, CaseIterable {
+    case planned
+    case preDeparture
+    case inFlight
+    case layover
+    case arrived
+    case completed
+
+    var title: String {
+        switch self {
+        case .planned: NSLocalizedString("未开始", comment: "")
+        case .preDeparture: NSLocalizedString("出发前", comment: "")
+        case .inFlight: NSLocalizedString("飞行中", comment: "")
+        case .layover: NSLocalizedString("转机中", comment: "")
+        case .arrived: NSLocalizedString("已到达", comment: "")
+        case .completed: NSLocalizedString("已结束", comment: "")
+        }
+    }
+
+    var allowsPlanEditing: Bool {
+        switch self {
+        case .planned, .preDeparture, .layover:
+            true
+        case .inFlight, .arrived, .completed:
+            false
+        }
+    }
+}
+
+struct TravelRecordContext: Codable, Equatable {
+    var planID: UUID
+    var segmentID: UUID?
+    var phase: TravelPlanStatus
+
+    enum CodingKeys: String, CodingKey {
+        case planID, segmentID, phase
+    }
+}
+
+struct TravelTimeDisplay: Equatable {
+    var primary: String
+    var secondary: String?
+}
+
+struct AirportInfo: Codable, Equatable, Identifiable {
+    var code: String
+    var name: String
+    var city: String
+    var country: String
+    var timeZoneIdentifier: String
+
+    var id: String { code }
+
+    var displayTitle: String {
+        "\(code) · \(city)"
+    }
+
+    var detailText: String {
+        "\(name) · \(country)"
+    }
+}
+
+enum AirportCatalog {
+    private final class BundleToken {}
+
+    static let airports: [AirportInfo] = loadAirports()
+    private static let airportsByCode: [String: AirportInfo] = {
+        var indexed: [String: AirportInfo] = [:]
+        for airport in airports where indexed[airport.code] == nil {
+            indexed[airport.code] = airport
+        }
+        return indexed
+    }()
+
+    static func airport(for code: String) -> AirportInfo? {
+        airportsByCode[code.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()]
+    }
+
+    static func search(_ query: String, limit: Int = 8) -> [AirportInfo] {
+        let normalized = normalizedSearchText(query)
+        guard !normalized.isEmpty else { return [] }
+
+        let scored = airports.compactMap { airport -> (AirportInfo, Int)? in
+            let code = airport.code
+            let city = normalizedSearchText(airport.city)
+            let name = normalizedSearchText(airport.name)
+            let country = normalizedSearchText(airport.country)
+
+            if code == normalized.uppercased() { return (airport, 0) }
+            if code.hasPrefix(normalized.uppercased()) { return (airport, 1) }
+            if city.hasPrefix(normalized) { return (airport, 2) }
+            if name.hasPrefix(normalized) { return (airport, 3) }
+            if city.contains(normalized) || name.contains(normalized) || country.contains(normalized) {
+                return (airport, 4)
+            }
+            return nil
+        }
+
+        return scored
+            .sorted {
+                if $0.1 != $1.1 { return $0.1 < $1.1 }
+                if $0.0.city != $1.0.city { return $0.0.city < $1.0.city }
+                return $0.0.code < $1.0.code
+            }
+            .prefix(limit)
+            .map(\.0)
+    }
+
+    private static func loadAirports() -> [AirportInfo] {
+        let candidateBundles = [Bundle.main, Bundle(for: BundleToken.self)]
+        for bundle in candidateBundles {
+            guard let url = bundle.url(forResource: "airports", withExtension: "json"),
+                  let data = try? Data(contentsOf: url),
+                  let airports = try? JSONDecoder().decode([AirportInfo].self, from: data),
+                  !airports.isEmpty else {
+                continue
+            }
+            return airports.sorted { $0.code < $1.code }
+        }
+
+        return fallbackAirports
+    }
+
+    private static func normalizedSearchText(_ text: String) -> String {
+        text.trimmingCharacters(in: .whitespacesAndNewlines)
+            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+            .lowercased()
+    }
+
+    private static let fallbackAirports: [AirportInfo] = [
+        AirportInfo(code: "BOS", name: "General Edward Lawrence Logan International Airport", city: "Boston", country: "US", timeZoneIdentifier: "America/New_York"),
+        AirportInfo(code: "LHR", name: "London Heathrow Airport", city: "London", country: "GB", timeZoneIdentifier: "Europe/London"),
+        AirportInfo(code: "PKX", name: "Beijing Daxing International Airport", city: "Beijing", country: "CN", timeZoneIdentifier: "Asia/Shanghai")
+    ]
+}
+
+struct TravelSleepSession: Codable, Equatable, Identifiable {
+    var id: UUID = UUID()
+    var segmentID: UUID?
+    var phase: TravelPlanStatus
+    var title: String
+    var startTime: Date
+    var endTime: Date
+    var timeZoneIdentifier: String?
+    var source: RecordSource = .manual
+    var note: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id, segmentID, phase, title, startTime, endTime, timeZoneIdentifier, source, note
+    }
+
+    init(
+        id: UUID = UUID(),
+        segmentID: UUID? = nil,
+        phase: TravelPlanStatus,
+        title: String,
+        startTime: Date,
+        endTime: Date,
+        timeZoneIdentifier: String? = nil,
+        source: RecordSource = .manual,
+        note: String? = nil
+    ) {
+        self.id = id
+        self.segmentID = segmentID
+        self.phase = phase
+        self.title = title.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+            ?? NSLocalizedString("睡眠", comment: "")
+        self.startTime = startTime
+        self.endTime = max(startTime, endTime)
+        self.timeZoneIdentifier = timeZoneIdentifier
+        self.source = source
+        self.note = note?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+    }
+
+    var duration: TimeInterval {
+        max(0, endTime.timeIntervalSince(startTime))
+    }
+}
+
+struct TravelSegment: Codable, Equatable, Identifiable {
+    var id: UUID = UUID()
+    var flightNumber: String?
+    var originCode: String
+    var destinationCode: String
+    var plannedDepartureTime: Date
+    var plannedArrivalTime: Date
+    var departureTimeZoneIdentifier: String
+    var arrivalTimeZoneIdentifier: String
+    var actualDepartureTime: Date?
+    var actualArrivalTime: Date?
+
+    enum CodingKeys: String, CodingKey {
+        case id, flightNumber, originCode, destinationCode, plannedDepartureTime, plannedArrivalTime
+        case departureTimeZoneIdentifier, arrivalTimeZoneIdentifier, actualDepartureTime, actualArrivalTime
+    }
+
+    init(
+        id: UUID = UUID(),
+        flightNumber: String? = nil,
+        originCode: String,
+        destinationCode: String,
+        plannedDepartureTime: Date,
+        plannedArrivalTime: Date,
+        departureTimeZoneIdentifier: String,
+        arrivalTimeZoneIdentifier: String,
+        actualDepartureTime: Date? = nil,
+        actualArrivalTime: Date? = nil
+    ) {
+        self.id = id
+        self.flightNumber = flightNumber?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+        self.originCode = originCode.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        self.destinationCode = destinationCode.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        self.plannedDepartureTime = plannedDepartureTime
+        self.plannedArrivalTime = plannedArrivalTime
+        self.departureTimeZoneIdentifier = departureTimeZoneIdentifier
+        self.arrivalTimeZoneIdentifier = arrivalTimeZoneIdentifier
+        self.actualDepartureTime = actualDepartureTime
+        self.actualArrivalTime = actualArrivalTime
+    }
+
+    var departureTimeZone: TimeZone {
+        TimeZone(identifier: departureTimeZoneIdentifier) ?? .autoupdatingCurrent
+    }
+
+    var arrivalTimeZone: TimeZone {
+        TimeZone(identifier: arrivalTimeZoneIdentifier) ?? .autoupdatingCurrent
+    }
+
+    var departureTime: Date {
+        actualDepartureTime ?? plannedDepartureTime
+    }
+
+    var arrivalTime: Date {
+        actualArrivalTime ?? plannedArrivalTime
+    }
+
+    var plannedDuration: TimeInterval {
+        plannedArrivalTime.timeIntervalSince(plannedDepartureTime)
+    }
+
+    var actualDuration: TimeInterval? {
+        guard let actualDepartureTime, let actualArrivalTime else { return nil }
+        return actualArrivalTime.timeIntervalSince(actualDepartureTime)
+    }
+
+    var routeTitle: String {
+        "\(originCode)-\(destinationCode)"
+    }
+
+    var flightDisplayTitle: String {
+        guard let flightNumber, !flightNumber.isEmpty else { return routeTitle }
+        return "\(flightNumber) · \(routeTitle)"
+    }
+}
+
+struct TravelPlan: Codable, Equatable, Identifiable {
+    var id: UUID = UUID()
+    var title: String
+    var segments: [TravelSegment]
+    var sleepSessions: [TravelSleepSession] = []
+    var status: TravelPlanStatus = .planned
+    var currentSegmentID: UUID?
+    var createdAt: Date = .now
+    var modifiedAt: Date?
+
+    enum CodingKeys: String, CodingKey {
+        case id, title, segments, sleepSessions, status, currentSegmentID, createdAt, modifiedAt
+    }
+
+    init(
+        id: UUID = UUID(),
+        title: String,
+        segments: [TravelSegment],
+        sleepSessions: [TravelSleepSession] = [],
+        status: TravelPlanStatus = .planned,
+        currentSegmentID: UUID? = nil,
+        createdAt: Date = .now,
+        modifiedAt: Date? = nil
+    ) {
+        self.id = id
+        self.title = title.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+            ?? NSLocalizedString("未命名旅程", comment: "")
+        self.segments = segments
+        self.sleepSessions = sleepSessions.sorted { $0.startTime < $1.startTime }
+        self.status = status
+        self.currentSegmentID = currentSegmentID
+        self.createdAt = createdAt
+        self.modifiedAt = modifiedAt
+    }
+
+    init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        title = try container.decodeIfPresent(String.self, forKey: .title) ?? NSLocalizedString("未命名旅程", comment: "")
+        segments = try container.decodeIfPresent([TravelSegment].self, forKey: .segments) ?? []
+        sleepSessions = try container.decodeIfPresent([TravelSleepSession].self, forKey: .sleepSessions) ?? []
+        status = try container.decodeIfPresent(TravelPlanStatus.self, forKey: .status) ?? .planned
+        currentSegmentID = try container.decodeIfPresent(UUID.self, forKey: .currentSegmentID)
+        createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt) ?? .now
+        modifiedAt = try container.decodeIfPresent(Date.self, forKey: .modifiedAt)
+    }
+
+    var routeSummary: String {
+        guard let first = segments.first, let last = segments.last else { return title }
+        return "\(first.originCode)-\(last.destinationCode)"
+    }
+
+    var displayTitle: String {
+        title == routeSummary ? title : "\(title) · \(routeSummary)"
+    }
+
+    var currentSegmentIndex: Int? {
+        if let currentSegmentID,
+           let index = segments.firstIndex(where: { $0.id == currentSegmentID }) {
+            return index
+        }
+        return segments.isEmpty ? nil : 0
+    }
+
+    var currentSegment: TravelSegment? {
+        guard let currentSegmentIndex else { return nil }
+        return segments[currentSegmentIndex]
+    }
+
+    var affectedStorageKeys: Set<String> {
+        var keys: Set<String> = []
+        for segment in segments {
+            keys.insert(segment.plannedDepartureTime.storageKey(in: segment.departureTimeZone))
+            keys.insert(segment.plannedArrivalTime.storageKey(in: segment.arrivalTimeZone))
+            if let actualDepartureTime = segment.actualDepartureTime {
+                keys.insert(actualDepartureTime.storageKey(in: segment.departureTimeZone))
+            }
+            if let actualArrivalTime = segment.actualArrivalTime {
+                keys.insert(actualArrivalTime.storageKey(in: segment.arrivalTimeZone))
+            }
+        }
+
+        guard let earliest = segments.map(\.plannedDepartureTime).min(),
+              let latest = segments.map(\.plannedArrivalTime).max() else {
+            return keys
+        }
+        var day = earliest.startOfDay
+        let finalDay = latest.startOfDay
+        while day <= finalDay {
+            keys.insert(day.storageKey())
+            day = day.adding(days: 1)
+        }
+        return keys
+    }
+
+    func affectedStorageKeys(using preferences: UserPreferences) -> Set<String> {
+        var keys = affectedStorageKeys
+        for segment in segments {
+            keys.insert(preferences.storageKey(
+                for: segment.plannedDepartureTime,
+                timeZoneIdentifier: segment.departureTimeZoneIdentifier,
+                fallbackTimeZone: segment.departureTimeZone
+            ))
+            keys.insert(preferences.storageKey(
+                for: segment.plannedArrivalTime,
+                timeZoneIdentifier: segment.arrivalTimeZoneIdentifier,
+                fallbackTimeZone: segment.arrivalTimeZone
+            ))
+            if let actualDepartureTime = segment.actualDepartureTime {
+                keys.insert(preferences.storageKey(
+                    for: actualDepartureTime,
+                    timeZoneIdentifier: segment.departureTimeZoneIdentifier,
+                    fallbackTimeZone: segment.departureTimeZone
+                ))
+            }
+            if let actualArrivalTime = segment.actualArrivalTime {
+                keys.insert(preferences.storageKey(
+                    for: actualArrivalTime,
+                    timeZoneIdentifier: segment.arrivalTimeZoneIdentifier,
+                    fallbackTimeZone: segment.arrivalTimeZone
+                ))
+            }
+        }
+
+        let keyDates = keys.compactMap(Self.date(fromStorageKey:))
+        guard let earliest = keyDates.min(), let latest = keyDates.max() else {
+            return keys
+        }
+        var day = earliest.startOfDay
+        let finalDay = latest.startOfDay
+        while day <= finalDay {
+            keys.insert(day.storageKey())
+            day = day.adding(days: 1)
+        }
+        return keys
+    }
+
+    var earliestCalendarDate: Date? {
+        segments.map(\.plannedDepartureTime).min()?.startOfDay
+    }
+
+    var latestCalendarDate: Date? {
+        segments.map(\.plannedArrivalTime).max()?.startOfDay
+    }
+
+    func earliestCalendarDate(using preferences: UserPreferences) -> Date? {
+        affectedStorageKeys(using: preferences)
+            .compactMap(Self.date(fromStorageKey:))
+            .min()
+    }
+
+    func latestCalendarDate(using preferences: UserPreferences) -> Date? {
+        affectedStorageKeys(using: preferences)
+            .compactMap(Self.date(fromStorageKey:))
+            .max()
+    }
+
+    mutating func advance(now: Date = .now) {
+        guard !segments.isEmpty else { return }
+        switch status {
+        case .planned:
+            currentSegmentID = segments.first?.id
+            status = .preDeparture
+        case .preDeparture:
+            markCurrentSegmentDeparture(now)
+            status = .inFlight
+        case .inFlight:
+            markCurrentSegmentArrival(now)
+            if let nextSegment = nextSegmentAfterCurrent() {
+                currentSegmentID = nextSegment.id
+                status = .layover
+            } else {
+                status = .arrived
+            }
+        case .layover:
+            markCurrentSegmentDeparture(now)
+            status = .inFlight
+        case .arrived:
+            status = .completed
+        case .completed:
+            break
+        }
+        modifiedAt = now
+    }
+
+    mutating func retreat(now: Date = .now) {
+        guard !segments.isEmpty else { return }
+        switch status {
+        case .planned:
+            break
+        case .preDeparture:
+            status = .planned
+            currentSegmentID = nil
+        case .inFlight:
+            status = (currentSegmentIndex ?? 0) == 0 ? .preDeparture : .layover
+        case .layover:
+            if let previousSegment = previousSegmentBeforeCurrent() {
+                currentSegmentID = previousSegment.id
+            }
+            status = .inFlight
+        case .arrived:
+            currentSegmentID = segments.last?.id
+            status = .inFlight
+        case .completed:
+            status = .arrived
+        }
+        modifiedAt = now
+    }
+
+    private mutating func markCurrentSegmentDeparture(_ date: Date) {
+        guard let index = currentSegmentIndex else { return }
+        segments[index].actualDepartureTime = date
+    }
+
+    private mutating func markCurrentSegmentArrival(_ date: Date) {
+        guard let index = currentSegmentIndex else { return }
+        segments[index].actualArrivalTime = date
+    }
+
+    private func nextSegmentAfterCurrent() -> TravelSegment? {
+        guard let index = currentSegmentIndex else { return nil }
+        let nextIndex = segments.index(after: index)
+        guard segments.indices.contains(nextIndex) else { return nil }
+        return segments[nextIndex]
+    }
+
+    private func previousSegmentBeforeCurrent() -> TravelSegment? {
+        guard let index = currentSegmentIndex, index > segments.startIndex else { return nil }
+        return segments[segments.index(before: index)]
+    }
+
+    private static func date(fromStorageKey key: String) -> Date? {
+        let parts = key.split(separator: "-").compactMap { Int($0) }
+        guard parts.count == 3 else { return nil }
+        return Calendar.current.date(from: DateComponents(year: parts[0], month: parts[1], day: parts[2]))?.startOfDay
+    }
+
+    static func sampleBOSPKX() -> TravelPlan {
+        let bosTimeZone = "America/New_York"
+        let lhrTimeZone = "Europe/London"
+        let pkxTimeZone = "Asia/Shanghai"
+        return TravelPlan(
+            title: "BOS-PKX 旅程",
+            segments: [
+                TravelSegment(
+                    flightNumber: "BA238",
+                    originCode: "BOS",
+                    destinationCode: "LHR",
+                    plannedDepartureTime: zonedDate(year: 2026, month: 5, day: 21, hour: 7, minute: 25, timeZoneID: bosTimeZone),
+                    plannedArrivalTime: zonedDate(year: 2026, month: 5, day: 21, hour: 18, minute: 55, timeZoneID: lhrTimeZone),
+                    departureTimeZoneIdentifier: bosTimeZone,
+                    arrivalTimeZoneIdentifier: lhrTimeZone
+                ),
+                TravelSegment(
+                    flightNumber: "BA089",
+                    originCode: "LHR",
+                    destinationCode: "PKX",
+                    plannedDepartureTime: zonedDate(year: 2026, month: 5, day: 21, hour: 21, minute: 0, timeZoneID: lhrTimeZone),
+                    plannedArrivalTime: zonedDate(year: 2026, month: 5, day: 22, hour: 14, minute: 15, timeZoneID: pkxTimeZone),
+                    departureTimeZoneIdentifier: lhrTimeZone,
+                    arrivalTimeZoneIdentifier: pkxTimeZone
+                )
+            ]
+        )
+    }
+
+    private static func zonedDate(
+        year: Int,
+        month: Int,
+        day: Int,
+        hour: Int,
+        minute: Int,
+        timeZoneID: String
+    ) -> Date {
+        let timeZone = TimeZone(identifier: timeZoneID) ?? .autoupdatingCurrent
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timeZone
+        return calendar.date(from: DateComponents(
+            timeZone: timeZone,
+            year: year,
+            month: month,
+            day: day,
+            hour: hour,
+            minute: minute
+        )) ?? .now
     }
 }
 

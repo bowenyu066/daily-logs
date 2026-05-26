@@ -479,8 +479,11 @@ private struct AIInsightCalendarSheet: View {
                         visibleMonth: visibleMonth,
                         selectedDate: draftDate,
                         allowedRange: allowedRange,
+                        overlayRange: allowedRange,
                         locale: locale,
                         reportForDate: reportProvider,
+                        travelPlansForDate: { _ in [] },
+                        onTravelPlanSelected: { _ in },
                         onSelect: { draftDate = $0 }
                     )
                     .padding(.horizontal, 18)

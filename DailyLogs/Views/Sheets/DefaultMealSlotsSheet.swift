@@ -4,6 +4,7 @@ struct DefaultMealSlotsSheet: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var appViewModel: AppViewModel
     @State private var title = ""
+    @State private var slotPendingDeletion: MealSlot?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -16,7 +17,7 @@ struct DefaultMealSlotsSheet: View {
                         title: slot.displayTitle,
                         isLocked: false,
                         onDelete: {
-                            Task { await appViewModel.deleteDefaultMealSlot(slot) }
+                            slotPendingDeletion = slot
                         }
                     )
                 }
@@ -54,6 +55,32 @@ struct DefaultMealSlotsSheet: View {
         .padding(.horizontal, 20)
         .padding(.bottom, 18)
         .background(AppTheme.background.ignoresSafeArea())
+        .alert(
+            NSLocalizedString("删除默认餐次？", comment: ""),
+            isPresented: showingDeleteConfirmation,
+            presenting: slotPendingDeletion
+        ) { slot in
+            Button(NSLocalizedString("取消", comment: ""), role: .cancel) {
+                slotPendingDeletion = nil
+            }
+            Button(NSLocalizedString("删除餐次", comment: ""), role: .destructive) {
+                Task { await appViewModel.deleteDefaultMealSlot(slot) }
+                slotPendingDeletion = nil
+            }
+        } message: { _ in
+            Text(NSLocalizedString("此操作会删除这个默认餐次，且无法撤销。", comment: ""))
+        }
+    }
+
+    private var showingDeleteConfirmation: Binding<Bool> {
+        Binding(
+            get: { slotPendingDeletion != nil },
+            set: { isPresented in
+                if !isPresented {
+                    slotPendingDeletion = nil
+                }
+            }
+        )
     }
 
     private var headerBar: some View {
@@ -87,9 +114,9 @@ private struct MealSlotChip: View {
 
             if let onDelete, !isLocked {
                 Button(action: onDelete) {
-                    Image(systemName: "xmark")
+                    Image(systemName: "trash")
                         .font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(AppTheme.secondaryText)
+                        .foregroundStyle(AppTheme.warning)
                 }
                 .buttonStyle(.plain)
             }
