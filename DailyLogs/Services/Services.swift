@@ -672,8 +672,7 @@ final class LocalPhotoStorageService: PhotoStorageService {
     private let directory: URL
 
     init() {
-        let supportURL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-        let directory = supportURL.appendingPathComponent("DailyLogs/Photos", isDirectory: true)
+        let directory = Self.directoryURL(createIfNeeded: true)
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         self.directory = directory
     }
@@ -684,12 +683,54 @@ final class LocalPhotoStorageService: PhotoStorageService {
             throw CocoaError(.fileWriteUnknown)
         }
         try data.write(to: url, options: .atomic)
-        return url.path
+        return url.lastPathComponent
     }
 
     func deletePhoto(at path: String) throws {
-        guard FileManager.default.fileExists(atPath: path) else { return }
-        try FileManager.default.removeItem(atPath: path)
+        guard let url = Self.resolvedURL(for: path) else { return }
+        try FileManager.default.removeItem(at: url)
+    }
+
+    static func resolvedURL(for reference: String) -> URL? {
+        candidateURLs(for: reference).first { FileManager.default.fileExists(atPath: $0.path) }
+    }
+
+    static func candidateURLs(for reference: String) -> [URL] {
+        let trimmed = reference.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return [] }
+
+        let directory = directoryURL(createIfNeeded: false)
+        var candidates: [URL] = []
+
+        if let fileURL = URL(string: trimmed), fileURL.isFileURL {
+            candidates.append(fileURL)
+            candidates.append(directory.appendingPathComponent(fileURL.lastPathComponent))
+        } else if trimmed.hasPrefix("/") {
+            let absoluteURL = URL(fileURLWithPath: trimmed)
+            candidates.append(absoluteURL)
+            candidates.append(directory.appendingPathComponent(absoluteURL.lastPathComponent))
+        } else {
+            candidates.append(directory.appendingPathComponent(trimmed))
+            candidates.append(directory.appendingPathComponent(URL(fileURLWithPath: trimmed).lastPathComponent))
+        }
+
+        return candidates.reduce(into: []) { unique, candidate in
+            guard !unique.contains(candidate) else { return }
+            unique.append(candidate)
+        }
+    }
+
+    static func isResolvableLocalReference(_ reference: String) -> Bool {
+        resolvedURL(for: reference) != nil
+    }
+
+    private static func directoryURL(createIfNeeded: Bool) -> URL {
+        let supportURL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        let directory = supportURL.appendingPathComponent("DailyLogs/Photos", isDirectory: true)
+        if createIfNeeded {
+            try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        }
+        return directory
     }
 }
 
@@ -934,7 +975,9 @@ extension LocationService: CLLocationManagerDelegate {
 
 struct AstronomySunTimesService: SunTimesService {
     func sunTimes(for date: Date, coordinate: CLLocationCoordinate2D, timeZone: TimeZone) -> SunTimes? {
-        let dayOfYear = Calendar.current.ordinality(of: .day, in: .year, for: date) ?? 1
+        var calendar = Calendar.current
+        calendar.timeZone = timeZone
+        let dayOfYear = calendar.ordinality(of: .day, in: .year, for: date) ?? 1
         let sunriseUTC = solarTime(dayOfYear: dayOfYear, coordinate: coordinate, zenith: 90.833, isSunrise: true)
         let sunsetUTC = solarTime(dayOfYear: dayOfYear, coordinate: coordinate, zenith: 90.833, isSunrise: false)
         guard let sunriseUTC, let sunsetUTC else { return nil }
@@ -944,8 +987,8 @@ struct AstronomySunTimesService: SunTimesService {
         let sunsetLocal = sunsetUTC + offset
 
         return SunTimes(
-            sunrise: localDate(for: date, hourFraction: sunriseLocal),
-            sunset: localDate(for: date, hourFraction: sunsetLocal),
+            sunrise: localDate(for: date, hourFraction: sunriseLocal, timeZone: timeZone),
+            sunset: localDate(for: date, hourFraction: sunsetLocal, timeZone: timeZone),
             timeZoneIdentifier: timeZone.identifier
         )
     }
@@ -977,10 +1020,13 @@ struct AstronomySunTimesService: SunTimesService {
         return utc
     }
 
-    private func localDate(for day: Date, hourFraction: Double) -> Date {
-        let calendar = Calendar.current
+    private func localDate(for day: Date, hourFraction: Double, timeZone: TimeZone) -> Date {
+        var calendar = Calendar.current
+        calendar.timeZone = timeZone
+        let wrappedHourFraction = hourFraction.truncatingRemainder(dividingBy: 24)
+        let normalizedHourFraction = wrappedHourFraction >= 0 ? wrappedHourFraction : wrappedHourFraction + 24
         let dayStart = calendar.startOfDay(for: day)
-        return dayStart.addingTimeInterval(hourFraction * 3600)
+        return dayStart.addingTimeInterval(normalizedHourFraction * 3600)
     }
 
     private func normalizedDegrees(_ value: Double) -> Double {

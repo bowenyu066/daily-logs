@@ -16,6 +16,7 @@ protocol CloudSyncService: Sendable {
     func pushPreferences(_ preferences: UserPreferences, user: UserAccount) async throws
     func pushRecord(_ record: DailyRecord, user: UserAccount) async throws
     func pushProfile(_ user: UserAccount) async throws
+    func deletePhotoReference(_ photoReference: String, user: UserAccount) async throws
     func protectionSnapshot(for user: UserAccount) async throws -> CloudProtectionSnapshot
     func enableAutomaticEndToEndEncryption(
         user: UserAccount,
@@ -37,6 +38,8 @@ struct NoopCloudSyncService: CloudSyncService {
     func pushRecord(_ record: DailyRecord, user: UserAccount) async throws {}
 
     func pushProfile(_ user: UserAccount) async throws {}
+
+    func deletePhotoReference(_ photoReference: String, user: UserAccount) async throws {}
 
     func protectionSnapshot(for user: UserAccount) async throws -> CloudProtectionSnapshot {
         CloudProtectionSnapshot(mode: .unavailable, localKeyAvailable: false)
@@ -221,6 +224,19 @@ final class FirebaseCloudSyncService: CloudSyncService, Sendable {
         try await upsertProfile(user, encrypted: false)
     }
 
+    func deletePhotoReference(_ photoReference: String, user _: UserAccount) async throws {
+        guard !storages.isEmpty else { return }
+
+        if SecureCloudPhotoReference.isSecureReference(photoReference) {
+            try await deleteSecurePhoto(at: photoReference)
+            return
+        }
+
+        if photoReference.hasPrefix("http://") || photoReference.hasPrefix("https://") {
+            try await deleteLegacyPhoto(at: photoReference)
+        }
+    }
+
     func enableAutomaticEndToEndEncryption(
         user: UserAccount,
         localPreferences: UserPreferences,
@@ -297,11 +313,11 @@ final class FirebaseCloudSyncService: CloudSyncService, Sendable {
                     uploadedPhotoURLs.append(photoURL)
                     continue
                 }
-                guard FileManager.default.fileExists(atPath: photoURL) else {
+                guard let localPhotoURL = LocalPhotoStorageService.resolvedURL(for: photoURL) else {
                     continue
                 }
                 do {
-                    let data = try Data(contentsOf: URL(fileURLWithPath: photoURL))
+                    let data = try Data(contentsOf: localPhotoURL)
                     let filename = "\(updated.meals[index].id.uuidString)-\(photoIndex).jpg"
                     let path = "users/\(userID)/meal-photos/\(filename)"
                     let meta = StorageMetadata()
@@ -509,8 +525,8 @@ final class FirebaseCloudSyncService: CloudSyncService, Sendable {
             return data
         }
 
-        guard FileManager.default.fileExists(atPath: photoReference) else { return nil }
-        return try Data(contentsOf: URL(fileURLWithPath: photoReference))
+        guard let localPhotoURL = LocalPhotoStorageService.resolvedURL(for: photoReference) else { return nil }
+        return try Data(contentsOf: localPhotoURL)
     }
 
     private func loadVideoData(for videoReference: String) async throws -> Data? {
@@ -792,6 +808,24 @@ final class FirebaseCloudSyncService: CloudSyncService, Sendable {
         }
     }
 
+    private func deleteSecurePhoto(at photoReference: String) async throws {
+        guard let parsed = SecureCloudPhotoReference.parse(photoReference) else { return }
+        var lastError: Error?
+
+        for storage in storageDeletionCandidates(preferredBucket: parsed.bucket) {
+            do {
+                try await storage.reference(withPath: parsed.path).deleteAsync()
+                return
+            } catch {
+                lastError = error
+            }
+        }
+
+        if let lastError {
+            throw lastError
+        }
+    }
+
     private func deleteLegacyPhoto(at photoReference: String) async throws {
         guard photoReference.hasPrefix("http://") || photoReference.hasPrefix("https://") else { return }
         for storage in storages {
@@ -802,6 +836,18 @@ final class FirebaseCloudSyncService: CloudSyncService, Sendable {
             } catch {
                 continue
             }
+        }
+    }
+
+    private func storageDeletionCandidates(preferredBucket: String) -> [Storage] {
+        var candidates: [Storage] = []
+        let bucketURL = preferredBucket.hasPrefix("gs://") ? preferredBucket : "gs://\(preferredBucket)"
+        candidates.append(Storage.storage(url: bucketURL))
+        candidates.append(contentsOf: storages)
+
+        var seenBuckets = Set<String>()
+        return candidates.filter { storage in
+            seenBuckets.insert(storage.reference().bucket).inserted
         }
     }
 

@@ -60,6 +60,19 @@ actor RemotePhotoCache {
         await cleanup()
     }
 
+    func remove(_ sources: [String]) async {
+        await loadMetadataIfNeeded()
+
+        for source in sources {
+            protectedURLs.remove(source)
+            guard let entry = entriesByURL.removeValue(forKey: source) else { continue }
+            let fileURL = directory.appendingPathComponent(entry.filename)
+            try? fileManager.removeItem(at: fileURL)
+        }
+
+        persistMetadata()
+    }
+
     private func loadMetadataIfNeeded() async {
         guard !hasLoadedMetadata else { return }
         defer { hasLoadedMetadata = true }

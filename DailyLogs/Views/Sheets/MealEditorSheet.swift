@@ -62,12 +62,7 @@ struct MealEditorSheet: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
                     if draft.mealKind == .custom {
-                        TextField(NSLocalizedString("名称", comment: ""), text: Binding(
-                            get: { draft.customTitle ?? "" },
-                            set: { draft.customTitle = $0 }
-                        ))
-                        .textFieldStyle(.roundedBorder)
-                        .disabled(!isEditable)
+                        customTitleField
                     }
 
                     timeSection
@@ -77,7 +72,7 @@ struct MealEditorSheet: View {
                 }
                 .padding(24)
             }
-            .background(AppTheme.background.ignoresSafeArea())
+            .background(editorBackground.ignoresSafeArea())
             .navigationTitle(draft.displayTitle)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -147,6 +142,30 @@ struct MealEditorSheet: View {
         }
     }
 
+    private var isTravelModeEditor: Bool {
+        draft.travelContext != nil || appViewModel.travelContextForCurrentRecording() != nil
+    }
+
+    private var editorBackground: Color {
+        isTravelModeEditor ? AppTheme.travelBackground : AppTheme.background
+    }
+
+    private var editorSurface: Color {
+        isTravelModeEditor ? AppTheme.travelSurface : AppTheme.elevatedSurface
+    }
+
+    private var editorAccent: Color {
+        isTravelModeEditor ? AppTheme.travelAccent : AppTheme.accent
+    }
+
+    private var editorAccentSoft: Color {
+        isTravelModeEditor ? AppTheme.travelAccentSoft : AppTheme.accentSoft
+    }
+
+    private var editorBorder: Color {
+        isTravelModeEditor ? AppTheme.travelBorder : AppTheme.border.opacity(0.7)
+    }
+
     private var timeSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             Toggle(NSLocalizedString("仅记录有/无", comment: ""), isOn: $logsExistenceOnly)
@@ -185,9 +204,36 @@ struct MealEditorSheet: View {
                 }
                 .padding(18)
                 .frame(maxWidth: .infinity)
-                .background(AppTheme.elevatedSurface)
+                .background(editorSurface)
                 .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 24, style: .continuous)
+                        .strokeBorder(editorBorder, lineWidth: 1)
+                }
             }
+        }
+    }
+
+    private var customTitleField: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(NSLocalizedString("名称", comment: ""))
+                .font(.system(size: 16, weight: .semibold, design: .rounded))
+                .foregroundStyle(AppTheme.secondaryText)
+
+            TextField(NSLocalizedString("名称", comment: ""), text: Binding(
+                get: { draft.customTitle ?? "" },
+                set: { draft.customTitle = $0 }
+            ))
+            .font(.system(size: 18, weight: .semibold, design: .rounded))
+            .padding(.horizontal, 18)
+            .padding(.vertical, 14)
+            .background(editorSurface)
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .strokeBorder(editorBorder, lineWidth: 1)
+            }
+            .disabled(!isEditable)
         }
     }
 
@@ -229,10 +275,10 @@ struct MealEditorSheet: View {
                 photoSourceTrigger {
                     Text(NSLocalizedString("添加照片", comment: ""))
                         .font(.system(size: 15, weight: .semibold, design: .rounded))
-                        .foregroundStyle(AppTheme.accent)
+                        .foregroundStyle(editorAccent)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 12)
-                        .background(AppTheme.accentSoft)
+                        .background(editorAccentSoft)
                         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                 }
             }
@@ -260,7 +306,7 @@ struct MealEditorSheet: View {
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 12)
-                    .background(AppTheme.surface)
+                    .background(editorSurface)
                     .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
                 }
 
@@ -270,12 +316,12 @@ struct MealEditorSheet: View {
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 12)
-                .background(AppTheme.surface)
+                .background(editorSurface)
                 .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
             }
             .padding(14)
             .frame(width: 250)
-            .background(AppTheme.background)
+            .background(editorBackground)
             .presentationCompactAdaptation(.popover)
         }
     }
@@ -307,7 +353,7 @@ struct MealEditorSheet: View {
         RecordNoteSection(note: Binding(
             get: { draft.note ?? "" },
             set: { draft.note = $0.isEmpty ? nil : $0 }
-        ))
+        ), surface: editorSurface)
         .disabled(!isEditable)
     }
 
@@ -320,7 +366,7 @@ struct MealEditorSheet: View {
             if let locationName = draft.locationName {
                 HStack {
                     Image(systemName: "mappin.circle.fill")
-                        .foregroundStyle(AppTheme.accent)
+                        .foregroundStyle(editorAccent)
                     Text(locationName)
                         .font(.system(size: 16, design: .rounded))
                         .foregroundStyle(AppTheme.primaryText)
@@ -339,8 +385,12 @@ struct MealEditorSheet: View {
                 }
                 .padding(.horizontal, 18)
                 .padding(.vertical, 14)
-                .background(AppTheme.elevatedSurface)
+                .background(editorSurface)
                 .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .strokeBorder(editorBorder, lineWidth: 1)
+                }
                 .onTapGesture {
                     guard isEditable else { return }
                     showingLocationPicker = true
@@ -351,12 +401,16 @@ struct MealEditorSheet: View {
                 } label: {
                     Label(NSLocalizedString("添加位置", comment: ""), systemImage: "mappin.circle")
                         .font(.system(size: 16, weight: .medium, design: .rounded))
-                        .foregroundStyle(AppTheme.accent)
+                        .foregroundStyle(editorAccent)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.horizontal, 18)
                         .padding(.vertical, 14)
-                        .background(AppTheme.elevatedSurface)
+                        .background(editorSurface)
                         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                .strokeBorder(editorBorder, lineWidth: 1)
+                        }
                 }
                 .buttonStyle(.plain)
                 .disabled(!isEditable)
@@ -425,11 +479,18 @@ struct MealEditorSheet: View {
     }
 
     private var timeAccent: Color {
+        if isTravelModeEditor {
+            return AppTheme.travelAccent
+        }
         switch draft.mealKind {
-        case .breakfast: AppTheme.wakeAccent
-        case .lunch: AppTheme.accent
-        case .dinner: AppTheme.sleepAccent
-        case .custom: AppTheme.sunriseAccent
+        case .breakfast:
+            return AppTheme.wakeAccent
+        case .lunch:
+            return AppTheme.accent
+        case .dinner:
+            return AppTheme.sleepAccent
+        case .custom:
+            return AppTheme.sunriseAccent
         }
     }
 

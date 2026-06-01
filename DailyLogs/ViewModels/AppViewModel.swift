@@ -6,6 +6,12 @@ import Foundation
 import SwiftUI
 import UIKit
 
+struct CloudRecordReconciliationResult: Equatable {
+    var record: DailyRecord
+    var shouldPushRecord: Bool
+    var discardedRemotePhotoReferences: Set<String>
+}
+
 @MainActor
 final class AppViewModel: ObservableObject {
     private static let minimumAnalyticsRecordStreak = 7
@@ -533,9 +539,9 @@ final class AppViewModel: ObservableObject {
     func activeTravelPlan(on date: Date) -> TravelPlan? {
         travelPlans(on: date).first {
             switch $0.status {
-            case .planned, .completed:
+            case .planned, .arrived, .completed:
                 false
-            case .preDeparture, .inFlight, .layover, .arrived:
+            case .preDeparture, .inFlight, .layover:
                 true
             }
         }
@@ -862,6 +868,9 @@ final class AppViewModel: ObservableObject {
     func saveMeal(_ entry: MealEntry, images: [UIImage]) async {
         guard canEditSelectedDate else { return }
         var updatedEntry = entry
+        if updatedEntry.travelContext == nil, let context = travelContextForCurrentRecording() {
+            updatedEntry.travelContext = context
+        }
         do {
             let existingMatch = existingMealMatch(for: updatedEntry)
             let existingEntry = existingMatch?.entry
@@ -872,9 +881,7 @@ final class AppViewModel: ObservableObject {
             let existingPhotoURLs = existingEntry?.photoURLs ?? []
             let retainedPhotoURLs = updatedEntry.photoURLs
             let removedPhotoURLs = Set(existingPhotoURLs).subtracting(retainedPhotoURLs)
-            for photoURL in removedPhotoURLs {
-                try deletePhotoIfLocal(at: photoURL)
-            }
+            try await deleteMealPhotos(Array(removedPhotoURLs))
             let savedNewPhotoURLs = try images.map { try photoStorageService.savePhoto($0) }
             updatedEntry.photoURLs = retainedPhotoURLs + savedNewPhotoURLs
 
@@ -905,7 +912,7 @@ final class AppViewModel: ObservableObject {
         guard canEditSelectedDate, canDeleteMealEntry(entry) else { return }
         do {
             let existingEntry = existingMealMatch(for: entry)?.entry ?? entry
-            try deleteMealPhotosIfLocal(existingEntry.photoURLs)
+            try await deleteMealPhotos(existingEntry.photoURLs)
             removeMealEntry(entry)
             persistCurrentRecord()
             await syncCurrentRecordToCloudIfNeeded()
@@ -919,7 +926,7 @@ final class AppViewModel: ObservableObject {
         do {
             let existingMatch = existingMealMatch(for: entry)
             let existingEntry = existingMatch?.entry ?? entry
-            try deleteMealPhotosIfLocal(existingEntry.photoURLs)
+            try await deleteMealPhotos(existingEntry.photoURLs)
             if canDeleteMealEntry(entry) {
                 removeMealEntry(entry)
                 persistCurrentRecord()
@@ -954,7 +961,7 @@ final class AppViewModel: ObservableObject {
             let existingMatch = existingMealMatch(for: entry)
             let existingEntry = existingMatch?.entry ?? entry
             let photoURLsToDelete = photoURL.map { [$0] } ?? existingEntry.photoURLs
-            try deleteMealPhotosIfLocal(photoURLsToDelete)
+            try await deleteMealPhotos(photoURLsToDelete)
             var updatedEntry = existingEntry
             if let photoURL {
                 updatedEntry.photoURLs.removeAll { $0 == photoURL }
@@ -979,7 +986,7 @@ final class AppViewModel: ObservableObject {
         do {
             let existingMatch = existingMealMatch(for: entry)
             let existingEntry = existingMatch?.entry ?? entry
-            try deleteMealPhotosIfLocal(existingEntry.photoURLs)
+            try await deleteMealPhotos(existingEntry.photoURLs)
             var updatedEntry = existingEntry
             updatedEntry.status = .skipped
             updatedEntry.time = nil
@@ -1207,6 +1214,7 @@ final class AppViewModel: ObservableObject {
                 for: selectedDate,
                 after: user.createdAt
             ) else { return }
+            guard !healthKitSleepOverlapsTravel(hkSleep) else { return }
 
             dailyRecord.sleepRecord.bedtimePreviousNight = hkSleep.bedtimePreviousNight
             dailyRecord.sleepRecord.wakeTimeCurrentDay = hkSleep.wakeTimeCurrentDay
@@ -1487,7 +1495,7 @@ final class AppViewModel: ObservableObject {
             dailyRecord.weatherSnapshot = snapshot
             persistEnvironmentSnapshotIfNeeded()
         } catch {
-            currentWeather = nil
+            currentWeather = dailyRecord.weatherSnapshot
         }
     }
 
@@ -1565,44 +1573,18 @@ final class AppViewModel: ObservableObject {
                 let remoteRecordMap = Self.recordsByStorageKey(payload.records, preferences: preferences)
                 var merged = remoteRecordMap
                 var recordsToPush: [DailyRecord] = []
+                var discardedRemotePhotoReferences = Set<String>()
                 for (key, localRecord) in localRecordMap {
                     guard let remoteRecord = merged[key] else {
                         merged[key] = localRecord
                         recordsToPush.append(localRecord)
                         continue
                     }
-                    var mergedRecord = Self.preferredRecord(between: localRecord, and: remoteRecord)
-                    var shouldPushMergedRecord = false
-                    if mergedRecord == localRecord {
-                        if localRecord != remoteRecord {
-                            shouldPushMergedRecord = true
-                        }
-                        // Keep remote photo references when the preferred local
-                        // copy doesn't currently have an accessible image.
-                        for i in mergedRecord.meals.indices {
-                            let localPhotos = mergedRecord.meals[i].photoURLs
-                            let missingLocalPhotos = localPhotos.filter {
-                                !Self.isRemotePhotoURL($0) && !FileManager.default.fileExists(atPath: $0)
-                            }
-                            guard !missingLocalPhotos.isEmpty || localPhotos.isEmpty else {
-                                continue
-                            }
-
-                            if let remoteMeal = remoteRecord.meals.first(where: { $0.id == mergedRecord.meals[i].id }),
-                               !remoteMeal.photoURLs.isEmpty {
-                                mergedRecord.meals[i].photoURLs = remoteMeal.photoURLs
-                            }
-                        }
-                        if let localVideo = mergedRecord.dailyVideo,
-                           Self.isMissingLocalVideoReference(localVideo.videoURL),
-                           let remoteVideo = remoteRecord.dailyVideo,
-                           Self.isRemoteVideoURL(remoteVideo.videoURL) {
-                            mergedRecord.dailyVideo = remoteVideo
-                        }
-                    }
-                    merged[key] = mergedRecord.backfillingRecordedTimeZones(TimeZone.autoupdatingCurrent.identifier)
-                    if shouldPushMergedRecord {
-                        recordsToPush.append(mergedRecord)
+                    let reconciliation = Self.reconcileCloudRecord(localRecord: localRecord, remoteRecord: remoteRecord)
+                    merged[key] = reconciliation.record.backfillingRecordedTimeZones(TimeZone.autoupdatingCurrent.identifier)
+                    discardedRemotePhotoReferences.formUnion(reconciliation.discardedRemotePhotoReferences)
+                    if reconciliation.shouldPushRecord {
+                        recordsToPush.append(reconciliation.record)
                     }
                 }
                 database.recordsByUser[user.userID] = merged
@@ -1616,6 +1598,8 @@ final class AppViewModel: ObservableObject {
                     .filter { $0.date >= user.createdAt.startOfDay }
                     .sorted { $0.date < $1.date } ?? []
                 await refreshRemotePhotoCache()
+
+                await deleteCloudPhotoReferencesIfPossible(Array(discardedRemotePhotoReferences))
 
                 for record in deduplicatedPendingUploads(recordsToPush) {
                     try await cloudSyncService.pushRecord(record, user: user)
@@ -1632,6 +1616,48 @@ final class AppViewModel: ObservableObject {
             } else {
                 errorMessage = NSLocalizedString("云端同步失败：", comment: "") + error.localizedDescription
             }
+        }
+    }
+
+    static func reconcileCloudRecord(localRecord: DailyRecord, remoteRecord: DailyRecord) -> CloudRecordReconciliationResult {
+        var mergedRecord = preferredRecord(between: localRecord, and: remoteRecord)
+        var shouldPushRecord = false
+        var discardedRemotePhotoReferences = Set<String>()
+
+        if mergedRecord == localRecord {
+            shouldPushRecord = localRecord != remoteRecord
+            restoreRemoteMediaForMissingLocalReferences(in: &mergedRecord, from: remoteRecord)
+            discardedRemotePhotoReferences = remotePhotoReferences(in: remoteRecord, excluding: mergedRecord)
+        }
+
+        return CloudRecordReconciliationResult(
+            record: mergedRecord,
+            shouldPushRecord: shouldPushRecord,
+            discardedRemotePhotoReferences: discardedRemotePhotoReferences
+        )
+    }
+
+    private static func restoreRemoteMediaForMissingLocalReferences(in record: inout DailyRecord, from remoteRecord: DailyRecord) {
+        for index in record.meals.indices {
+            let localPhotos = record.meals[index].photoURLs
+            let missingLocalPhotos = localPhotos.filter {
+                Self.isMissingLocalPhotoReference($0)
+            }
+            guard !missingLocalPhotos.isEmpty else {
+                continue
+            }
+
+            if let remoteMeal = remoteRecord.meals.first(where: { $0.id == record.meals[index].id }),
+               !remoteMeal.photoURLs.isEmpty {
+                record.meals[index].photoURLs = remoteMeal.photoURLs
+            }
+        }
+
+        if let localVideo = record.dailyVideo,
+           Self.isMissingLocalVideoReference(localVideo.videoURL),
+           let remoteVideo = remoteRecord.dailyVideo,
+           Self.isRemoteVideoURL(remoteVideo.videoURL) {
+            record.dailyVideo = remoteVideo
         }
     }
 
@@ -1787,6 +1813,19 @@ final class AppViewModel: ObservableObject {
             || SecureCloudMediaReference.isSecureReference(urlString)
     }
 
+    private static func remotePhotoReferences(in source: DailyRecord, excluding retained: DailyRecord) -> Set<String> {
+        let retainedPhotoReferences = Set(retained.meals.flatMap(\.photoURLs))
+        return Set(
+            source.meals
+                .flatMap(\.photoURLs)
+                .filter { isRemotePhotoURL($0) && !retainedPhotoReferences.contains($0) }
+        )
+    }
+
+    private static func isMissingLocalPhotoReference(_ urlString: String) -> Bool {
+        !isRemotePhotoURL(urlString) && !LocalPhotoStorageService.isResolvableLocalReference(urlString)
+    }
+
     private static func isMissingLocalVideoReference(_ urlString: String) -> Bool {
         !isRemoteVideoURL(urlString) && !LocalVideoStorageService.isResolvableLocalReference(urlString)
     }
@@ -1933,6 +1972,7 @@ final class AppViewModel: ObservableObject {
         if let index = dailyRecord.meals.firstIndex(where: { $0.id == entry.id }) {
             return (index, dailyRecord.meals[index])
         }
+        guard entry.travelContext == nil else { return nil }
         guard let slotKey = logicalMealSlotKey(for: entry) else { return nil }
         guard let index = dailyRecord.meals.firstIndex(where: { logicalMealSlotKey(for: $0) == slotKey }) else {
             return nil
@@ -2001,6 +2041,7 @@ final class AppViewModel: ObservableObject {
     }
 
     private func logicalMealSlotKey(for entry: MealEntry) -> String? {
+        guard entry.travelContext == nil else { return nil }
         switch entry.mealKind {
         case .breakfast, .lunch, .dinner:
             return entry.mealKind.rawValue
@@ -2028,9 +2069,34 @@ final class AppViewModel: ObservableObject {
         try videoStorageService.deleteVideo(at: path)
     }
 
-    private func deleteMealPhotosIfLocal(_ photoURLs: [String]) throws {
+    private func deleteMealPhotos(_ photoURLs: [String]) async throws {
+        await RemotePhotoCache.shared.remove(photoURLs.filter(Self.isRemotePhotoURL))
         for photoURL in photoURLs {
-            try deletePhotoIfLocal(at: photoURL)
+            if Self.isRemotePhotoURL(photoURL) {
+                await deleteCloudPhotoReferenceIfPossible(photoURL)
+            } else {
+                try deletePhotoIfLocal(at: photoURL)
+            }
+        }
+    }
+
+    private func deleteCloudPhotoReferencesIfPossible(_ photoReferences: [String]) async {
+        for photoReference in Set(photoReferences.filter(Self.isRemotePhotoURL)) {
+            await deleteCloudPhotoReferenceIfPossible(photoReference)
+        }
+    }
+
+    private func deleteCloudPhotoReferenceIfPossible(_ photoReference: String) async {
+        guard let user, !user.isGuest, cloudSyncService.isAvailable else { return }
+        do {
+            try await cloudSyncService.deletePhotoReference(photoReference, user: user)
+        } catch {
+            if isConnectivityError(error) {
+                return
+            }
+            #if DEBUG
+            print("CloudSync: failed to delete meal photo \(photoReference): \(error)")
+            #endif
         }
     }
 
@@ -2195,7 +2261,7 @@ final class AppViewModel: ObservableObject {
         guard let segment else { return nil }
         switch phase {
         case .inFlight:
-            let elapsed = max(0, date.timeIntervalSince(segment.departureTime))
+            let elapsed = max(0, date.timeIntervalSince(segment.plannedDepartureTime))
             return TravelTimeDisplay(
                 primary: "\(segment.routeTitle) " + NSLocalizedString("起飞后 ", comment: "") + compactDurationText(elapsed),
                 secondary: "\(segment.originCode) \(date.displayClockTime(in: segment.departureTimeZone)) / \(segment.destinationCode) \(date.displayClockTime(in: segment.arrivalTimeZone))"
@@ -2220,7 +2286,7 @@ final class AppViewModel: ObservableObject {
 
     private func travelSegment(containing date: Date, in plan: TravelPlan) -> TravelSegment? {
         plan.segments.first { segment in
-            date >= segment.departureTime && date <= segment.arrivalTime
+            date >= segment.plannedDepartureTime && date <= segment.plannedArrivalTime
         }
     }
 
@@ -2266,6 +2332,14 @@ final class AppViewModel: ObservableObject {
             return false
         }
         return !dailyRecord.sleepRecord.hasSleepData
+    }
+
+    private func healthKitSleepOverlapsTravel(_ sleepRecord: SleepRecord) -> Bool {
+        guard let sleepInterval = sleepRecord.recordedInterval else { return false }
+        return travelPlans.contains { plan in
+            guard let travelInterval = plan.plannedTravelInterval else { return false }
+            return sleepInterval.intersects(travelInterval)
+        }
     }
 
     private func nextDayDisplaySuffix(for date: Date, displayedTimeZone: TimeZone) -> String {

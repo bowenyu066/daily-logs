@@ -41,7 +41,7 @@ struct DailyInsightComponent: Identifiable, Equatable {
 }
 
 struct DailyInsightNarrative: Codable, Equatable {
-    static let currentScoringVersion = 2
+    static let currentScoringVersion = 3
 
     struct ComponentScoreOverride: Codable, Equatable {
         var score: Int?
@@ -221,6 +221,41 @@ struct DailyInsightPayload: Codable {
         var standardDeviation: Double?
     }
 
+    struct TrendSummary: Codable {
+        var currentAverage: Double?
+        var previousAverage: Double?
+        var changeFromPreviousAverage: Double?
+        var direction: String
+        var volatility: String
+        var observedDays: Int
+        var comparisonDays: Int
+    }
+
+    struct TargetDaySummary: Codable {
+        var sleepDurationHours: Double?
+        var trackedMealCount: Int
+        var loggedMealCount: Int
+        var skippedMealCount: Int
+        var unrecordedMealCount: Int
+        var timedLoggedMealCount: Int
+        var showerCount: Int
+        var hasShowerRecord: Bool
+        var bowelMovementCount: Int
+        var hasBowelMovementRecord: Bool
+        var timelineEventCount: Int
+        var authoritativeNote: String
+    }
+
+    struct HistoryDaySnapshot: Codable {
+        var date: String
+        var sleepDurationHours: Double?
+        var mealCompletionRate: Double
+        var timedMealLoggingRate: Double
+        var showerCount: Int?
+        var bowelMovementCount: Int?
+        var bedtimeDeviationMinutes: Double?
+    }
+
     struct HistoryWindowSummary: Codable {
         var windowDays: Int
         var recordedDays: Int
@@ -230,12 +265,19 @@ struct DailyInsightPayload: Codable {
         var showerCount: StatisticSummary
         var bowelMovementCount: StatisticSummary
         var bedtimeDeviationMinutes: StatisticSummary
+        var sleepDurationTrend: TrendSummary
+        var mealCompletionTrend: TrendSummary
+        var timedMealLoggingTrend: TrendSummary
+        var showerCountTrend: TrendSummary
+        var bowelMovementCountTrend: TrendSummary
+        var bedtimeDeviationTrend: TrendSummary
         var note: String?
     }
 
     struct HistoryContext: Codable {
         var trailing7Days: HistoryWindowSummary
         var trailing30Days: HistoryWindowSummary
+        var dailySnapshots: [HistoryDaySnapshot]
     }
 
     struct SleepSection: Codable {
@@ -298,6 +340,7 @@ struct DailyInsightPayload: Codable {
     var analysisDateTitle: String
     var appTimeZoneIdentifier: String
     var funOnlyDisclaimer: String
+    var targetDay: TargetDaySummary
     var sleep: SleepSection
     var meals: [MealSection]
     var showerEnabled: Bool
@@ -402,6 +445,7 @@ enum DailyInsightAnalyzer {
         }
 
         let timeline = dailyTimeline(for: record)
+        let targetDay = targetDaySummary(for: record, timeline: timeline)
 
         return DailyInsightPayload(
             language: language.displayNameForPrompt,
@@ -409,6 +453,7 @@ enum DailyInsightAnalyzer {
             analysisDateTitle: record.date.formattedDayTitle(locale: locale),
             appTimeZoneIdentifier: TimeZone.autoupdatingCurrent.identifier,
             funOnlyDisclaimer: NSLocalizedString("这是趣味性 AI 分析，不是医疗或健康建议。", comment: ""),
+            targetDay: targetDay,
             sleep: DailyInsightPayload.SleepSection(
                 source: record.sleepRecord.source.rawValue,
                 bedtimeISO8601: record.sleepRecord.bedtimePreviousNight?.displayISO8601,
@@ -436,6 +481,34 @@ enum DailyInsightAnalyzer {
         )
     }
 
+    private static func targetDaySummary(
+        for record: DailyRecord,
+        timeline: [DailyInsightPayload.TimelineEntry]
+    ) -> DailyInsightPayload.TargetDaySummary {
+        let mealStatuses = record.meals.map { mealStatusName($0, recordDate: record.date) }
+        let loggedCount = mealStatuses.filter { $0.hasPrefix("logged") }.count
+        let skippedCount = mealStatuses.filter { $0 == "skipped" }.count
+        let unrecordedCount = mealStatuses.filter { $0 == "unrecorded" }.count
+        let timedLoggedCount = record.meals.filter {
+            mealStatusName($0, recordDate: record.date).hasPrefix("logged") && $0.time != nil
+        }.count
+
+        return DailyInsightPayload.TargetDaySummary(
+            sleepDurationHours: record.sleepRecord.duration.map { rounded($0 / 3600, places: 1) },
+            trackedMealCount: record.meals.count,
+            loggedMealCount: loggedCount,
+            skippedMealCount: skippedCount,
+            unrecordedMealCount: unrecordedCount,
+            timedLoggedMealCount: timedLoggedCount,
+            showerCount: record.showers.count,
+            hasShowerRecord: !record.showers.isEmpty,
+            bowelMovementCount: record.bowelMovements.count,
+            hasBowelMovementRecord: !record.bowelMovements.isEmpty,
+            timelineEventCount: timeline.count,
+            authoritativeNote: NSLocalizedString("这些是目标当天的权威计数；历史窗口只用于趋势对比，不能当作当天记录。", comment: "")
+        )
+    }
+
     private static func historyContext(
         for record: DailyRecord,
         preferences: UserPreferences,
@@ -449,6 +522,12 @@ enum DailyInsightAnalyzer {
                 history: history
             ),
             trailing30Days: historyWindowSummary(
+                for: record,
+                lookbackDays: 30,
+                preferences: preferences,
+                history: history
+            ),
+            dailySnapshots: historyDaySnapshots(
                 for: record,
                 lookbackDays: 30,
                 preferences: preferences,
@@ -617,10 +696,17 @@ enum DailyInsightAnalyzer {
     ) -> DailyInsightPayload.HistoryWindowSummary {
         let endDate = record.date.startOfDay
         let startDate = endDate.adding(days: -lookbackDays)
+        let previousStartDate = startDate.adding(days: -lookbackDays)
         let windowRecords = history
             .filter {
                 let day = $0.date.startOfDay
                 return day >= startDate && day < endDate
+            }
+            .sorted { $0.date < $1.date }
+        let previousWindowRecords = history
+            .filter {
+                let day = $0.date.startOfDay
+                return day >= previousStartDate && day < startDate
             }
             .sorted { $0.date < $1.date }
 
@@ -634,6 +720,18 @@ enum DailyInsightAnalyzer {
             ? windowRecords.map { Double($0.bowelMovements.count) }
             : []
         let bedtimeDeviationValues = windowRecords.compactMap {
+            bedtimeDeviationMinutes(for: $0.sleepRecord)
+        }
+        let previousSleepHours = previousWindowRecords.compactMap { $0.sleepRecord.duration.map { ($0 / 3600 * 10).rounded() / 10 } }
+        let previousMealCompletionRates = previousWindowRecords.map(mealCompletionRate(for:))
+        let previousTimedMealLoggingRates = previousWindowRecords.map(timedMealLoggingRate(for:))
+        let previousShowerCounts = preferences.visibleHomeSections.contains(.showers)
+            ? previousWindowRecords.map { Double($0.showers.count) }
+            : []
+        let previousBowelMovementCounts = preferences.visibleHomeSections.contains(.bowelMovements)
+            ? previousWindowRecords.map { Double($0.bowelMovements.count) }
+            : []
+        let previousBedtimeDeviationValues = previousWindowRecords.compactMap {
             bedtimeDeviationMinutes(for: $0.sleepRecord)
         }
 
@@ -659,8 +757,44 @@ enum DailyInsightAnalyzer {
             showerCount: statisticSummary(for: showerCounts),
             bowelMovementCount: statisticSummary(for: bowelMovementCounts),
             bedtimeDeviationMinutes: statisticSummary(for: bedtimeDeviationValues),
+            sleepDurationTrend: trendSummary(for: sleepHours, previousValues: previousSleepHours),
+            mealCompletionTrend: trendSummary(for: mealCompletionRates, previousValues: previousMealCompletionRates),
+            timedMealLoggingTrend: trendSummary(for: timedMealLoggingRates, previousValues: previousTimedMealLoggingRates),
+            showerCountTrend: trendSummary(for: showerCounts, previousValues: previousShowerCounts),
+            bowelMovementCountTrend: trendSummary(for: bowelMovementCounts, previousValues: previousBowelMovementCounts),
+            bedtimeDeviationTrend: trendSummary(for: bedtimeDeviationValues, previousValues: previousBedtimeDeviationValues),
             note: note
         )
+    }
+
+    private static func historyDaySnapshots(
+        for record: DailyRecord,
+        lookbackDays: Int,
+        preferences: UserPreferences,
+        history: [DailyRecord]
+    ) -> [DailyInsightPayload.HistoryDaySnapshot] {
+        let endDate = record.date.startOfDay
+        let startDate = endDate.adding(days: -lookbackDays)
+        let showerEnabled = preferences.visibleHomeSections.contains(.showers)
+        let bowelEnabled = preferences.visibleHomeSections.contains(.bowelMovements)
+
+        return history
+            .filter {
+                let day = $0.date.startOfDay
+                return day >= startDate && day < endDate
+            }
+            .sorted { $0.date < $1.date }
+            .map { historicalRecord in
+                DailyInsightPayload.HistoryDaySnapshot(
+                    date: historicalRecord.date.storageKey(),
+                    sleepDurationHours: historicalRecord.sleepRecord.duration.map { rounded($0 / 3600, places: 1) },
+                    mealCompletionRate: mealCompletionRate(for: historicalRecord),
+                    timedMealLoggingRate: timedMealLoggingRate(for: historicalRecord),
+                    showerCount: showerEnabled ? historicalRecord.showers.count : nil,
+                    bowelMovementCount: bowelEnabled ? historicalRecord.bowelMovements.count : nil,
+                    bedtimeDeviationMinutes: bedtimeDeviationMinutes(for: historicalRecord.sleepRecord)
+                )
+            }
     }
 
     private static func sleepComponent(
@@ -956,6 +1090,59 @@ enum DailyInsightAnalyzer {
             average: (average * 100).rounded() / 100,
             standardDeviation: (sqrt(variance) * 100).rounded() / 100
         )
+    }
+
+    private static func trendSummary(
+        for currentValues: [Double],
+        previousValues: [Double]
+    ) -> DailyInsightPayload.TrendSummary {
+        let current = statisticSummary(for: currentValues)
+        let previous = statisticSummary(for: previousValues)
+        let change: Double? = {
+            guard let currentAverage = current.average,
+                  let previousAverage = previous.average else {
+                return nil
+            }
+            return rounded(currentAverage - previousAverage, places: 2)
+        }()
+
+        return DailyInsightPayload.TrendSummary(
+            currentAverage: current.average,
+            previousAverage: previous.average,
+            changeFromPreviousAverage: change,
+            direction: trendDirection(change: change, previousAverage: previous.average),
+            volatility: volatilityLevel(standardDeviation: current.standardDeviation, average: current.average),
+            observedDays: currentValues.count,
+            comparisonDays: previousValues.count
+        )
+    }
+
+    private static func trendDirection(change: Double?, previousAverage: Double?) -> String {
+        guard let change else { return "unknown" }
+        let threshold = max(0.05, abs(previousAverage ?? 0) * 0.05)
+        if abs(change) <= threshold {
+            return "flat"
+        }
+        return change > 0 ? "up" : "down"
+    }
+
+    private static func volatilityLevel(standardDeviation: Double?, average: Double?) -> String {
+        guard let standardDeviation else { return "unknown" }
+        let denominator = max(abs(average ?? 0), 1)
+        let coefficient = standardDeviation / denominator
+        switch coefficient {
+        case ..<0.15:
+            return "low"
+        case ..<0.35:
+            return "medium"
+        default:
+            return "high"
+        }
+    }
+
+    private static func rounded(_ value: Double, places: Int) -> Double {
+        let multiplier = pow(10.0, Double(places))
+        return (value * multiplier).rounded() / multiplier
     }
 
     private static func normalizedBedtimeMinutes(hour: Int, minute: Int) -> Int {
@@ -1549,13 +1736,16 @@ private func makeRequestBody(from payload: DailyInsightPayload, model: String) t
         Use only the provided JSON.
         First reconstruct the user's full day timeline from the previous-night bedtime through wake time, meals, showers, and bowel events.
         Use the timeline to avoid contradictions. Example: if wake time is near noon, skipping breakfast is not automatically a serious problem.
-        The payload includes the target day, an ordered timeline, a fixed scoring rubric, and trailing 7-day/30-day statistics.
-        Use the target day as the baseline, the 7-day summary for short-term trend context, and the 30-day summary for habit stability context.
+        The payload includes an authoritative targetDay summary, detailed target-day sections, an ordered timeline, a fixed scoring rubric, trailing 7-day/30-day statistics, trend summaries, volatility labels, and recent daily snapshots.
+        Treat targetDay counts and the target-day arrays as the source of truth for the day being scored. Historical averages, trends, and snapshots are comparison context only; never infer a target-day shower, bowel event, or meal from history.
+        Use the target day as the scoring baseline, the 7-day summary for short-term trend context, the 30-day summary for habit stability context, and dailySnapshots to notice streaks, rebounds, and volatility.
         The payload does not include any precomputed score. Compute every score yourself from the raw data and the provided rubric.
         Respect whether a section is excluded, skipped, logged without time, or simply unrecorded.
         Logged without time still counts as completed logging. It should lose only a small amount of completeness credit, not be treated as missing.
         Follow the fixed section maxima exactly: sleep 45, meals 35, shower 10, bowelMovement 10.
         If a section is not enabled, set included=false, score=0, and explain that it was not included.
+        If targetDay.showerCount is 0, do not say or imply that the target day had a shower record even when historical shower averages are above zero.
+        Avoid single-point scoring. In headline, summary, bullets, and component details, mention meaningful trend/stability context when it changes the interpretation of the target day.
         Never invent habits or judge a meal pattern without timeline support.
         Be concrete about times and counts when present.
         Keep the tone warm, brief, lightly playful, and non-judgmental.
@@ -1983,6 +2173,7 @@ extension DailyInsightPayload {
         SignatureSeed(
             analysisDate: analysisDate,
             appTimeZoneIdentifier: appTimeZoneIdentifier,
+            targetDay: SignatureSeed.TargetDaySummary(from: targetDay),
             sleep: SignatureSeed.Sleep(
                 source: sleep.source,
                 bedtimeISO8601: sleep.bedtimeISO8601,
@@ -2020,7 +2211,10 @@ extension DailyInsightPayload {
             },
             comparisonContext: SignatureSeed.HistoryContext(
                 trailing7Days: SignatureSeed.HistoryWindowSummary(from: comparisonContext.trailing7Days),
-                trailing30Days: SignatureSeed.HistoryWindowSummary(from: comparisonContext.trailing30Days)
+                trailing30Days: SignatureSeed.HistoryWindowSummary(from: comparisonContext.trailing30Days),
+                dailySnapshots: comparisonContext.dailySnapshots.map {
+                    SignatureSeed.HistoryDaySnapshot(from: $0)
+                }
             ),
             scoringRubric: SignatureSeed.ScoringRubric(
                 sampleCount: scoringRubric.sampleCount,
@@ -2032,6 +2226,34 @@ extension DailyInsightPayload {
     }
 
     private struct SignatureSeed: Encodable {
+        struct TargetDaySummary: Encodable {
+            var sleepDurationHours: Double?
+            var trackedMealCount: Int
+            var loggedMealCount: Int
+            var skippedMealCount: Int
+            var unrecordedMealCount: Int
+            var timedLoggedMealCount: Int
+            var showerCount: Int
+            var hasShowerRecord: Bool
+            var bowelMovementCount: Int
+            var hasBowelMovementRecord: Bool
+            var timelineEventCount: Int
+
+            init(from source: DailyInsightPayload.TargetDaySummary) {
+                sleepDurationHours = source.sleepDurationHours
+                trackedMealCount = source.trackedMealCount
+                loggedMealCount = source.loggedMealCount
+                skippedMealCount = source.skippedMealCount
+                unrecordedMealCount = source.unrecordedMealCount
+                timedLoggedMealCount = source.timedLoggedMealCount
+                showerCount = source.showerCount
+                hasShowerRecord = source.hasShowerRecord
+                bowelMovementCount = source.bowelMovementCount
+                hasBowelMovementRecord = source.hasBowelMovementRecord
+                timelineEventCount = source.timelineEventCount
+            }
+        }
+
         struct Sleep: Encodable {
             var source: String
             var bedtimeISO8601: String?
@@ -2062,6 +2284,46 @@ extension DailyInsightPayload {
             var standardDeviation: Double?
         }
 
+        struct TrendSummary: Encodable {
+            var currentAverage: Double?
+            var previousAverage: Double?
+            var changeFromPreviousAverage: Double?
+            var direction: String
+            var volatility: String
+            var observedDays: Int
+            var comparisonDays: Int
+
+            init(from source: DailyInsightPayload.TrendSummary) {
+                currentAverage = source.currentAverage
+                previousAverage = source.previousAverage
+                changeFromPreviousAverage = source.changeFromPreviousAverage
+                direction = source.direction
+                volatility = source.volatility
+                observedDays = source.observedDays
+                comparisonDays = source.comparisonDays
+            }
+        }
+
+        struct HistoryDaySnapshot: Encodable {
+            var date: String
+            var sleepDurationHours: Double?
+            var mealCompletionRate: Double
+            var timedMealLoggingRate: Double
+            var showerCount: Int?
+            var bowelMovementCount: Int?
+            var bedtimeDeviationMinutes: Double?
+
+            init(from source: DailyInsightPayload.HistoryDaySnapshot) {
+                date = source.date
+                sleepDurationHours = source.sleepDurationHours
+                mealCompletionRate = source.mealCompletionRate
+                timedMealLoggingRate = source.timedMealLoggingRate
+                showerCount = source.showerCount
+                bowelMovementCount = source.bowelMovementCount
+                bedtimeDeviationMinutes = source.bedtimeDeviationMinutes
+            }
+        }
+
         struct HistoryWindowSummary: Encodable {
             var windowDays: Int
             var recordedDays: Int
@@ -2071,6 +2333,12 @@ extension DailyInsightPayload {
             var showerCount: StatisticSummary
             var bowelMovementCount: StatisticSummary
             var bedtimeDeviationMinutes: StatisticSummary
+            var sleepDurationTrend: TrendSummary
+            var mealCompletionTrend: TrendSummary
+            var timedMealLoggingTrend: TrendSummary
+            var showerCountTrend: TrendSummary
+            var bowelMovementCountTrend: TrendSummary
+            var bedtimeDeviationTrend: TrendSummary
 
             init(from source: DailyInsightPayload.HistoryWindowSummary) {
                 windowDays = source.windowDays
@@ -2099,12 +2367,19 @@ extension DailyInsightPayload {
                     average: source.bedtimeDeviationMinutes.average,
                     standardDeviation: source.bedtimeDeviationMinutes.standardDeviation
                 )
+                sleepDurationTrend = TrendSummary(from: source.sleepDurationTrend)
+                mealCompletionTrend = TrendSummary(from: source.mealCompletionTrend)
+                timedMealLoggingTrend = TrendSummary(from: source.timedMealLoggingTrend)
+                showerCountTrend = TrendSummary(from: source.showerCountTrend)
+                bowelMovementCountTrend = TrendSummary(from: source.bowelMovementCountTrend)
+                bedtimeDeviationTrend = TrendSummary(from: source.bedtimeDeviationTrend)
             }
         }
 
         struct HistoryContext: Encodable {
             var trailing7Days: HistoryWindowSummary
             var trailing30Days: HistoryWindowSummary
+            var dailySnapshots: [HistoryDaySnapshot]
         }
 
         struct RubricSection: Encodable {
@@ -2119,6 +2394,7 @@ extension DailyInsightPayload {
 
         var analysisDate: String
         var appTimeZoneIdentifier: String
+        var targetDay: TargetDaySummary
         var sleep: Sleep
         var meals: [Meal]
         var showerEnabled: Bool

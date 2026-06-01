@@ -186,6 +186,12 @@ struct SleepNoteEditorSheet: View {
 struct RecordNoteSection: View {
     @Binding var note: String
     @FocusState private var isFocused: Bool
+    let surface: Color
+
+    init(note: Binding<String>, surface: Color = AppTheme.elevatedSurface) {
+        _note = note
+        self.surface = surface
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -200,7 +206,7 @@ struct RecordNoteSection: View {
                 .focused($isFocused)
                 .padding(.horizontal, 18)
                 .padding(.vertical, 14)
-                .background(AppTheme.elevatedSurface)
+                .background(surface)
                 .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         }
         .toolbar {

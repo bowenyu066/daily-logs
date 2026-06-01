@@ -446,6 +446,40 @@ struct DailyLogsTests {
     }
 
     @Test
+    func habitFrequencyCalendarUsesMidnightModeLogicalDate() {
+        let calendar = Calendar.current
+        let logicalDate = calendar.date(from: DateComponents(year: 2026, month: 4, day: 19))!
+        let afterMidnight = calendar.date(from: DateComponents(year: 2026, month: 4, day: 20, hour: 1, minute: 20))!
+        let timeZoneIdentifier = TimeZone.autoupdatingCurrent.identifier
+        let preferences = UserPreferences(
+            midnightMode: MidnightModeSettings(isEnabled: true, cutoffHour: 4, effectiveFrom: nil)
+        )
+        let record = DailyRecord(
+            date: logicalDate,
+            sleepRecord: SleepRecord(),
+            meals: [],
+            showers: [
+                ShowerEntry(time: afterMidnight, timeZoneIdentifier: timeZoneIdentifier)
+            ],
+            bowelMovements: [
+                BowelMovementEntry(time: afterMidnight, timeZoneIdentifier: timeZoneIdentifier)
+            ],
+            sexualActivities: [
+                SexualActivityEntry(date: logicalDate, time: afterMidnight, timeZoneIdentifier: timeZoneIdentifier)
+            ]
+        )
+
+        let counts = HabitFrequencyDayCounts.aggregate(records: [record], preferences: preferences)
+        let logicalCounts = counts[logicalDate.startOfDay]
+        let actualNextDayCounts = counts[calendar.startOfDay(for: afterMidnight)]
+
+        #expect(logicalCounts?.showers == 1)
+        #expect(logicalCounts?.bowelMovements == 1)
+        #expect(logicalCounts?.sexualActivities == 1)
+        #expect(actualNextDayCounts == nil)
+    }
+
+    @Test
     func midnightModeUsesFixedFourAMCutoff() {
         let timestamp = Calendar.current.date(from: DateComponents(year: 2026, month: 4, day: 19, hour: 3, minute: 30))!
         let preferences = UserPreferences(
@@ -488,6 +522,30 @@ struct DailyLogsTests {
         )
 
         #expect(rendered.contains("+1"))
+    }
+
+    @Test
+    func astronomySunTimesKeepsEasternSunriseOnRequestedLocalDate() throws {
+        let shanghai = try #require(TimeZone(identifier: "Asia/Shanghai"))
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = shanghai
+        let day = try #require(calendar.date(from: DateComponents(
+            timeZone: shanghai,
+            year: 2026,
+            month: 5,
+            day: 26,
+            hour: 12
+        )))
+        let service = AstronomySunTimesService()
+
+        let sunTimes = try #require(service.sunTimes(
+            for: day,
+            coordinate: CLLocationCoordinate2D(latitude: 30.5928, longitude: 114.3055),
+            timeZone: shanghai
+        ))
+
+        #expect(sunTimes.sunrise.storageKey(in: shanghai) == "2026-05-26")
+        #expect(sunTimes.sunrise.displayClockTime(in: shanghai).hasPrefix("05"))
     }
 
     @Test @MainActor
@@ -760,6 +818,63 @@ struct DailyLogsTests {
         #expect(payloadJSON.contains("\"overallScore\"") == false)
         #expect(payloadJSON.contains("\"scoreBreakdown\"") == false)
         #expect(payloadJSON.contains("\"localSummary\"") == false)
+    }
+
+    @Test
+    func dailyInsightPayloadSeparatesTargetDayCountsFromHistory() throws {
+        let day = Calendar.current.date(from: DateComponents(year: 2026, month: 3, day: 21))!
+        let priorDay = day.adding(days: -1)
+        let preferences = UserPreferences(
+            visibleHomeSections: [.sleep, .meals, .showers, .bowelMovements]
+        )
+        let record = DailyRecord(
+            date: day,
+            sleepRecord: SleepRecord(
+                bedtimePreviousNight: day.adding(days: -1).settingTime(hour: 23, minute: 40),
+                wakeTimeCurrentDay: day.settingTime(hour: 7, minute: 20),
+                source: .manual
+            ),
+            meals: [
+                MealEntry(mealKind: .breakfast, status: .logged, time: day.settingTime(hour: 8, minute: 0)),
+                MealEntry(mealKind: .lunch, status: .logged, time: day.settingTime(hour: 12, minute: 30)),
+                MealEntry(mealKind: .dinner, status: .logged, time: day.settingTime(hour: 19, minute: 0))
+            ],
+            showers: [],
+            bowelMovements: [],
+            sexualActivities: [],
+            sunTimes: nil
+        )
+        let historicalRecord = DailyRecord(
+            date: priorDay,
+            sleepRecord: SleepRecord(
+                bedtimePreviousNight: priorDay.adding(days: -1).settingTime(hour: 23, minute: 35),
+                wakeTimeCurrentDay: priorDay.settingTime(hour: 7, minute: 15),
+                source: .manual
+            ),
+            meals: [
+                MealEntry(mealKind: .breakfast, status: .logged, time: priorDay.settingTime(hour: 8, minute: 0)),
+                MealEntry(mealKind: .lunch, status: .logged, time: priorDay.settingTime(hour: 12, minute: 15)),
+                MealEntry(mealKind: .dinner, status: .logged, time: priorDay.settingTime(hour: 19, minute: 15))
+            ],
+            showers: [ShowerEntry(time: priorDay.settingTime(hour: 21, minute: 0))],
+            bowelMovements: [BowelMovementEntry(time: priorDay.settingTime(hour: 7, minute: 45))],
+            sexualActivities: [],
+            sunTimes: nil
+        )
+
+        let payload = DailyInsightAnalyzer.makePayload(
+            record: record,
+            preferences: preferences,
+            language: .zhHans,
+            locale: Locale(identifier: "zh-Hans"),
+            history: [historicalRecord, record]
+        )
+
+        #expect(payload.targetDay.showerCount == 0)
+        #expect(payload.targetDay.hasShowerRecord == false)
+        #expect(payload.showers.isEmpty)
+        #expect(payload.comparisonContext.trailing7Days.showerCount.average == 1)
+        #expect(payload.comparisonContext.dailySnapshots.map(\.date) == [priorDay.storageKey()])
     }
 
     @Test
@@ -1919,6 +2034,117 @@ struct DailyLogsTests {
     }
 
     @Test @MainActor
+    func cloudRecordReconciliationDoesNotRestoreLocallyRemovedMealPhoto() {
+        let today = Date().startOfDay
+        let mealID = UUID()
+        let securePhoto = SecureCloudPhotoReference.make(
+            bucket: "dailylogs.appspot.com",
+            path: "users/test-user/secure-meal-photos/\(mealID.uuidString)-0.bin"
+        )
+
+        var localRecord = DailyRecord.empty(for: today, preferences: UserPreferences())
+        localRecord.meals[0].id = mealID
+        localRecord.meals[0].status = .empty
+        localRecord.meals[0].photoURLs = []
+        localRecord.modifiedAt = today.settingTime(hour: 12, minute: 0)
+
+        var remoteRecord = localRecord
+        remoteRecord.meals[0].status = .logged
+        remoteRecord.meals[0].photoURLs = [securePhoto]
+        remoteRecord.modifiedAt = today.settingTime(hour: 11, minute: 0)
+
+        let result = AppViewModel.reconcileCloudRecord(localRecord: localRecord, remoteRecord: remoteRecord)
+
+        #expect(result.record.meals[0].photoURLs.isEmpty)
+        #expect(result.record.meals[0].status == .empty)
+        #expect(result.discardedRemotePhotoReferences == Set([securePhoto]))
+        #expect(result.shouldPushRecord)
+    }
+
+    @Test @MainActor
+    func cloudRecordReconciliationKeepsRemotePhotoWhenLocalFileIsMissing() {
+        let today = Date().startOfDay
+        let mealID = UUID()
+        let securePhoto = SecureCloudPhotoReference.make(
+            bucket: "dailylogs.appspot.com",
+            path: "users/test-user/secure-meal-photos/\(mealID.uuidString)-0.bin"
+        )
+
+        var localRecord = DailyRecord.empty(for: today, preferences: UserPreferences())
+        localRecord.meals[0].id = mealID
+        localRecord.meals[0].status = .logged
+        localRecord.meals[0].photoURLs = ["/tmp/missing-\(UUID().uuidString).jpg"]
+        localRecord.modifiedAt = today.settingTime(hour: 12, minute: 0)
+
+        var remoteRecord = localRecord
+        remoteRecord.meals[0].photoURLs = [securePhoto]
+        remoteRecord.modifiedAt = today.settingTime(hour: 11, minute: 0)
+
+        let result = AppViewModel.reconcileCloudRecord(localRecord: localRecord, remoteRecord: remoteRecord)
+
+        #expect(result.record.meals[0].photoURLs == [securePhoto])
+        #expect(result.discardedRemotePhotoReferences.isEmpty)
+        #expect(result.shouldPushRecord)
+    }
+
+    @Test @MainActor
+    func deleteMealRemovesRemotePhotoReferenceBeforePushingRecord() async throws {
+        let today = Date().startOfDay
+        let mealID = UUID()
+        let securePhoto = SecureCloudPhotoReference.make(
+            bucket: "dailylogs.appspot.com",
+            path: "users/test-user/secure-meal-photos/\(mealID.uuidString)-0.bin"
+        )
+        let meal = MealEntry(
+            id: mealID,
+            mealKind: .custom,
+            customTitle: "夜宵",
+            status: .logged,
+            time: today.settingTime(hour: 22, minute: 15),
+            photoURLs: [securePhoto]
+        )
+        var record = DailyRecord.empty(for: today, preferences: UserPreferences())
+        record.meals.append(meal)
+
+        let user = UserAccount(
+            userID: "remote-photo-delete-user",
+            displayName: "Tester",
+            email: nil,
+            authMode: .apple,
+            createdAt: today.adding(days: -30)
+        )
+        let cloudSyncService = RecordingCloudSyncService()
+        let viewModel = AppViewModel(
+            authService: MockAuthService(user: user),
+            repository: InMemoryDailyRecordRepository(records: [today.storageKey(): record]),
+            preferencesStore: MockPreferencesStore(preferences: UserPreferences()),
+            photoStorageService: MockPhotoStorageService(),
+            videoStorageService: MockVideoStorageService(),
+            sunTimesService: MockSunTimesService(),
+            weatherService: MockWeatherService(),
+            healthSyncAdapter: MockHealthSyncAdapter(sleepRecord: nil),
+            cloudSyncService: cloudSyncService,
+            aiInsightNarrativeService: NoopAIInsightNarrativeService(),
+            openAIKeyStore: MockOpenAIKeyStore(),
+            locationService: LocationService(),
+            selectedDate: today,
+            dailyRecord: DailyRecord.empty(for: today, preferences: UserPreferences()),
+            preferences: UserPreferences()
+        )
+
+        await viewModel.bootstrap()
+        await viewModel.deleteMeal(meal)
+
+        let deletedPhotoReferences = await cloudSyncService.deletedPhotoReferences()
+        let pushedRecords = await cloudSyncService.pushedRecords()
+        let lastPushedRecord = try #require(pushedRecords.last)
+
+        #expect(deletedPhotoReferences == [securePhoto])
+        #expect(viewModel.dailyRecord.meals.contains(where: { $0.id == mealID }) == false)
+        #expect(lastPushedRecord.meals.contains(where: { $0.id == mealID }) == false)
+    }
+
+    @Test @MainActor
     func saveMealReusesExistingLogicalSlotWhenEditorHasStaleMealID() async {
         let today = Date().startOfDay
         let existingBreakfast = MealEntry(
@@ -1979,6 +2205,72 @@ struct DailyLogsTests {
         #expect(breakfasts.first?.id == existingBreakfast.id)
         #expect(breakfasts.first?.status == .logged)
         #expect(breakfasts.first?.time == today.settingTime(hour: 8, minute: 20))
+    }
+
+    @Test @MainActor
+    func travelCustomMealsWithSameDefaultTitleDoNotReplaceEachOther() async {
+        let today = Date().startOfDay
+        let segment = TravelSegment(
+            flightNumber: "DL001",
+            originCode: "BOS",
+            destinationCode: "LHR",
+            plannedDepartureTime: today.settingTime(hour: 10, minute: 0),
+            plannedArrivalTime: today.settingTime(hour: 20, minute: 0),
+            departureTimeZoneIdentifier: TimeZone.autoupdatingCurrent.identifier,
+            arrivalTimeZoneIdentifier: TimeZone.autoupdatingCurrent.identifier
+        )
+        let plan = TravelPlan(
+            title: "BOS-LHR",
+            segments: [segment],
+            status: .inFlight,
+            currentSegmentID: segment.id
+        )
+        let user = UserAccount(
+            userID: "travel-meal-user",
+            displayName: "Tester",
+            email: nil,
+            authMode: .guest,
+            createdAt: today.adding(days: -30)
+        )
+        let viewModel = AppViewModel(
+            authService: MockAuthService(user: user),
+            repository: InMemoryDailyRecordRepository(records: [today.storageKey(): DailyRecord.empty(for: today, preferences: UserPreferences())]),
+            travelPlanRepository: InMemoryTravelPlanRepository(plans: [plan]),
+            preferencesStore: MockPreferencesStore(preferences: UserPreferences()),
+            photoStorageService: MockPhotoStorageService(),
+            videoStorageService: MockVideoStorageService(),
+            sunTimesService: MockSunTimesService(),
+            weatherService: MockWeatherService(),
+            healthSyncAdapter: MockHealthSyncAdapter(sleepRecord: nil),
+            cloudSyncService: NoopCloudSyncService(),
+            aiInsightNarrativeService: NoopAIInsightNarrativeService(),
+            openAIKeyStore: MockOpenAIKeyStore(),
+            locationService: LocationService(),
+            selectedDate: today,
+            dailyRecord: DailyRecord.empty(for: today, preferences: UserPreferences()),
+            preferences: UserPreferences()
+        )
+        await viewModel.bootstrap()
+
+        await viewModel.saveMeal(MealEntry(
+            mealKind: .custom,
+            customTitle: "飞机餐",
+            status: .logged,
+            time: today.settingTime(hour: 11, minute: 20),
+            photoURLs: ["/tmp/plane-meal-1.jpg"]
+        ), images: [])
+        await viewModel.saveMeal(MealEntry(
+            mealKind: .custom,
+            customTitle: "飞机餐",
+            status: .logged,
+            time: today.settingTime(hour: 13, minute: 10),
+            photoURLs: ["/tmp/plane-meal-2.jpg"]
+        ), images: [])
+
+        let planeMeals = viewModel.dailyRecord.meals.filter { $0.customTitle == "飞机餐" }
+        #expect(planeMeals.count == 2)
+        #expect(Set(planeMeals.flatMap(\.photoURLs)) == Set(["/tmp/plane-meal-1.jpg", "/tmp/plane-meal-2.jpg"]))
+        #expect(planeMeals.allSatisfy { $0.travelContext?.planID == plan.id })
     }
 
     @Test @MainActor
@@ -2053,6 +2345,25 @@ struct DailyLogsTests {
 
         try service.deleteVideo(at: reference)
         #expect(LocalVideoStorageService.resolvedURL(for: reference) == nil)
+    }
+
+    @Test
+    func localPhotoStorageResolvesStaleContainerPathByFilename() throws {
+        let service = LocalPhotoStorageService()
+        let image = UIGraphicsImageRenderer(size: CGSize(width: 2, height: 2)).image { context in
+            UIColor.systemTeal.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 2, height: 2))
+        }
+
+        let reference = try service.savePhoto(image)
+        let resolvedURL = try #require(LocalPhotoStorageService.resolvedURL(for: reference))
+        let staleContainerPath = "/private/var/mobile/Containers/Data/Application/OLD-CONTAINER/Library/Application Support/DailyLogs/Photos/\(resolvedURL.lastPathComponent)"
+
+        let recoveredURL = try #require(LocalPhotoStorageService.resolvedURL(for: staleContainerPath))
+        #expect(recoveredURL == resolvedURL)
+
+        try service.deletePhoto(at: reference)
+        #expect(LocalPhotoStorageService.resolvedURL(for: reference) == nil)
     }
 
     @Test @MainActor
@@ -2209,6 +2520,65 @@ struct DailyLogsTests {
         await Task.yield()
 
         #expect(healthSyncAdapter.fetchCount == 0)
+    }
+
+    @Test @MainActor
+    func healthKitSleepOverlappingTravelWindowIsIgnored() async {
+        let today = Date().startOfDay
+        let travelDay = today.adding(days: -1)
+        let segment = TravelSegment(
+            flightNumber: "UA001",
+            originCode: "SFO",
+            destinationCode: "HND",
+            plannedDepartureTime: travelDay.settingTime(hour: 9, minute: 0),
+            plannedArrivalTime: travelDay.settingTime(hour: 21, minute: 0),
+            departureTimeZoneIdentifier: TimeZone.autoupdatingCurrent.identifier,
+            arrivalTimeZoneIdentifier: TimeZone.autoupdatingCurrent.identifier
+        )
+        let plan = TravelPlan(
+            title: "SFO-HND",
+            segments: [segment],
+            status: .inFlight,
+            currentSegmentID: segment.id
+        )
+        let healthKitSleep = SleepRecord(
+            bedtimePreviousNight: travelDay.settingTime(hour: 11, minute: 0),
+            wakeTimeCurrentDay: travelDay.settingTime(hour: 13, minute: 0),
+            source: .healthKit
+        )
+        let healthSyncAdapter = MockHealthSyncAdapter(sleepRecord: healthKitSleep)
+        let preferences = UserPreferences(healthKitSyncEnabled: true)
+        let user = UserAccount(
+            userID: "travel-health-user",
+            displayName: "Tester",
+            email: nil,
+            authMode: .guest,
+            createdAt: today.adding(days: -30)
+        )
+        let viewModel = AppViewModel(
+            authService: MockAuthService(user: user),
+            repository: InMemoryDailyRecordRepository(records: [travelDay.storageKey(): DailyRecord.empty(for: travelDay, preferences: preferences)]),
+            travelPlanRepository: InMemoryTravelPlanRepository(plans: [plan]),
+            preferencesStore: MockPreferencesStore(preferences: preferences),
+            photoStorageService: MockPhotoStorageService(),
+            videoStorageService: MockVideoStorageService(),
+            sunTimesService: MockSunTimesService(),
+            weatherService: MockWeatherService(),
+            healthSyncAdapter: healthSyncAdapter,
+            cloudSyncService: NoopCloudSyncService(),
+            aiInsightNarrativeService: NoopAIInsightNarrativeService(),
+            openAIKeyStore: MockOpenAIKeyStore(),
+            locationService: LocationService(),
+            selectedDate: travelDay,
+            dailyRecord: DailyRecord.empty(for: travelDay, preferences: preferences),
+            preferences: preferences
+        )
+        await viewModel.bootstrap()
+
+        await viewModel.overwriteSleepWithHealthKit()
+
+        #expect(healthSyncAdapter.fetchCount == 1)
+        #expect(viewModel.dailyRecord.sleepRecord.hasSleepData == false)
     }
 
     @Test @MainActor
@@ -2874,8 +3244,11 @@ private final class MockAIInsightNarrativeService: AIInsightNarrativeGenerating,
     var isConfigured: Bool { true }
 
     func generateNarrative(from payload: DailyInsightPayload) async throws -> DailyInsightNarrative {
-        lock.withLock {
+        try lock.withLock {
             storedCallCount += 1
+            guard !responses.isEmpty else {
+                throw MockAIInsightNarrativeError.noResponses
+            }
             let response = responses[min(nextIndex, responses.count - 1)]
             if nextIndex < responses.count - 1 {
                 nextIndex += 1
@@ -2901,6 +3274,10 @@ private final class MockAIInsightNarrativeService: AIInsightNarrativeGenerating,
             return response
         }
     }
+}
+
+private enum MockAIInsightNarrativeError: Error {
+    case noResponses
 }
 
 private struct MockPreferencesStore: PreferencesStore {
@@ -3024,6 +3401,8 @@ private final class BlockingCloudSyncService: CloudSyncService, @unchecked Senda
 
     func pushProfile(_ user: UserAccount) async throws {}
 
+    func deletePhotoReference(_ photoReference: String, user: UserAccount) async throws {}
+
     func protectionSnapshot(for user: UserAccount) async throws -> CloudProtectionSnapshot {
         CloudProtectionSnapshot(mode: .disabled, localKeyAvailable: false)
     }
@@ -3041,5 +3420,72 @@ private final class BlockingCloudSyncService: CloudSyncService, @unchecked Senda
 
     func resumeBootstrap() async {
         await gate.resume()
+    }
+}
+
+private actor RecordingCloudSyncState {
+    private var pushed: [DailyRecord] = []
+    private var deleted: [String] = []
+
+    func appendPushedRecord(_ record: DailyRecord) {
+        pushed.append(record)
+    }
+
+    func appendDeletedPhotoReference(_ photoReference: String) {
+        deleted.append(photoReference)
+    }
+
+    func pushedRecords() -> [DailyRecord] {
+        pushed
+    }
+
+    func deletedPhotoReferences() -> [String] {
+        deleted
+    }
+}
+
+private final class RecordingCloudSyncService: CloudSyncService, @unchecked Sendable {
+    private let payload: CloudBootstrapPayload
+    private let state = RecordingCloudSyncState()
+
+    init(payload: CloudBootstrapPayload = CloudBootstrapPayload(profile: nil, preferences: nil, records: [])) {
+        self.payload = payload
+    }
+
+    var isAvailable: Bool { true }
+
+    func bootstrap(user: UserAccount, localPreferences: UserPreferences, localRecords: [DailyRecord]) async throws -> CloudBootstrapPayload {
+        payload
+    }
+
+    func pushPreferences(_ preferences: UserPreferences, user: UserAccount) async throws {}
+
+    func pushRecord(_ record: DailyRecord, user: UserAccount) async throws {
+        await state.appendPushedRecord(record)
+    }
+
+    func pushProfile(_ user: UserAccount) async throws {}
+
+    func deletePhotoReference(_ photoReference: String, user: UserAccount) async throws {
+        await state.appendDeletedPhotoReference(photoReference)
+    }
+
+    func protectionSnapshot(for user: UserAccount) async throws -> CloudProtectionSnapshot {
+        CloudProtectionSnapshot(mode: .disabled, localKeyAvailable: false)
+    }
+
+    func enableAutomaticEndToEndEncryption(
+        user: UserAccount,
+        localPreferences: UserPreferences,
+        localRecords: [DailyRecord],
+        progress: @escaping @Sendable (CloudMigrationProgress) async -> Void
+    ) async throws {}
+
+    func pushedRecords() async -> [DailyRecord] {
+        await state.pushedRecords()
+    }
+
+    func deletedPhotoReferences() async -> [String] {
+        await state.deletedPhotoReferences()
     }
 }

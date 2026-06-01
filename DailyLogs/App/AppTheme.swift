@@ -42,6 +42,32 @@ enum AppTheme {
             ? UIColor(red: 0.16, green: 0.22, blue: 0.32, alpha: 1)
             : UIColor(red: 0.88, green: 0.92, blue: 0.97, alpha: 1)
     })
+    static let travelBackground = Color(uiColor: UIColor { trait in
+        trait.userInterfaceStyle == .dark
+            ? UIColor(red: 0.06, green: 0.08, blue: 0.10, alpha: 1)
+            : UIColor(red: 0.93, green: 0.96, blue: 0.95, alpha: 1)
+    })
+    static let travelSurface = Color(uiColor: UIColor { trait in
+        trait.userInterfaceStyle == .dark
+            ? UIColor(red: 0.12, green: 0.16, blue: 0.18, alpha: 1)
+            : UIColor(red: 0.98, green: 0.99, blue: 0.98, alpha: 0.92)
+    })
+    static let travelElevatedSurface = Color(uiColor: UIColor { trait in
+        trait.userInterfaceStyle == .dark
+            ? UIColor(red: 0.15, green: 0.19, blue: 0.21, alpha: 1)
+            : UIColor(red: 0.88, green: 0.93, blue: 0.92, alpha: 1)
+    })
+    static let travelAccent = Color(red: 0.18, green: 0.44, blue: 0.41)
+    static let travelAccentSoft = Color(uiColor: UIColor { trait in
+        trait.userInterfaceStyle == .dark
+            ? UIColor(red: 0.10, green: 0.23, blue: 0.22, alpha: 1)
+            : UIColor(red: 0.82, green: 0.90, blue: 0.88, alpha: 1)
+    })
+    static let travelBorder = Color(uiColor: UIColor { trait in
+        trait.userInterfaceStyle == .dark
+            ? UIColor(red: 0.72, green: 0.82, blue: 0.80, alpha: 0.12)
+            : UIColor(red: 0.18, green: 0.44, blue: 0.41, alpha: 0.16)
+    })
     static let mealLoggedBackground = Color(uiColor: UIColor { trait in
         trait.userInterfaceStyle == .dark
             ? UIColor(red: 0.16, green: 0.26, blue: 0.19, alpha: 1)

@@ -4,6 +4,20 @@ import Photos
 import SwiftUI
 import UIKit
 
+enum DailyVideoAudioSession {
+    static func activatePlayback() {
+        let session = AVAudioSession.sharedInstance()
+        do {
+            try session.setCategory(.playback, mode: .moviePlayback)
+            try session.setActive(true)
+        } catch {
+            #if DEBUG
+            print("Failed to activate video playback audio session:", error)
+            #endif
+        }
+    }
+}
+
 struct VideoContentView: View {
     let videoURL: String
 
@@ -169,6 +183,9 @@ struct DailyVideoPlaybackOverlay: View {
         defer { isLoading = false }
 
         guard let url = await resolvedPlayableURL() else { return }
+        DailyVideoAudioSession.activatePlayback()
+        player.isMuted = false
+        player.volume = 1
         player.replaceCurrentItem(with: AVPlayerItem(url: url))
         player.play()
     }
@@ -250,7 +267,8 @@ enum MediaLibrarySaver {
         if isRemotePhotoSource(source) {
             return await RemotePhotoCache.shared.image(for: source)
         }
-        return UIImage(contentsOfFile: source)
+        guard let fileURL = LocalPhotoStorageService.resolvedURL(for: source) else { return nil }
+        return UIImage(contentsOfFile: fileURL.path)
     }
 
     private static func videoFileURL(for source: String) async -> URL? {

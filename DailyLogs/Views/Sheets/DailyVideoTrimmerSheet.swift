@@ -166,6 +166,9 @@ struct DailyVideoTrimmerSheet: View {
                 for: sourceURL,
                 duration: duration
             )
+            DailyVideoAudioSession.activatePlayback()
+            player.isMuted = false
+            player.volume = 1
             player.replaceCurrentItem(with: AVPlayerItem(url: sourceURL))
             seekToStart(shouldPlay: true)
         } catch {

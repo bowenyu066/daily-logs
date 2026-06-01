@@ -31,7 +31,7 @@ struct HomeView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                AppTheme.background.ignoresSafeArea()
+                homeBackground.ignoresSafeArea()
 
                 ScrollView(.vertical, showsIndicators: false) {
                     VStack(alignment: .leading, spacing: 24) {
@@ -49,7 +49,7 @@ struct HomeView: View {
                             Divider()
                             mealSection
                         }
-                        if sectionVisible(.dailyVideo) {
+                        if sectionVisible(.dailyVideo) && !isTravelModeActive {
                             Divider()
                             dailyVideoSection
                         }
@@ -89,18 +89,36 @@ struct HomeView: View {
                 }
             }
             .sheet(item: $travelEditorContext) { context in
-                TravelPlanEditorSheet(
-                    plan: context.plan,
-                    onSave: { plan in
-                        Task { await appViewModel.saveTravelPlan(plan) }
-                    },
-                    onDelete: context.plan.map { plan in
-                        { Task { await appViewModel.deleteTravelPlan(plan) } }
+                switch context {
+                case .new:
+                    TravelPlanWizardSheet { plan in
+                        Task {
+                            await appViewModel.saveTravelPlan(plan)
+                            await MainActor.run {
+                                travelEditorContext = nil
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                                    travelEditorContext = .edit(plan)
+                                }
+                            }
+                        }
                     }
-                )
-                .presentationDetents([.large])
-                .presentationDragIndicator(.visible)
-                .presentationBackground(AppTheme.background)
+                    .presentationDetents([.large])
+                    .presentationDragIndicator(.visible)
+                    .presentationBackground(AppTheme.travelBackground)
+                case .edit(let plan):
+                    TravelPlanEditorSheet(
+                        plan: plan,
+                        onSave: { plan in
+                            Task { await appViewModel.saveTravelPlan(plan) }
+                        },
+                        onDelete: {
+                            Task { await appViewModel.deleteTravelPlan(plan) }
+                        }
+                    )
+                    .presentationDetents([.large])
+                    .presentationDragIndicator(.visible)
+                    .presentationBackground(AppTheme.background)
+                }
             }
             .sheet(item: $travelSleepEditorContext) { context in
                 TravelSleepSessionEditorSheet(
@@ -115,7 +133,7 @@ struct HomeView: View {
                 )
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
-                .presentationBackground(AppTheme.background)
+                .presentationBackground(AppTheme.travelBackground)
             }
 #if DEBUG
             .sheet(isPresented: $showingTravelDebugPanel) {
@@ -181,6 +199,7 @@ struct HomeView: View {
                         Task { await appViewModel.deleteMeal(context.entry) }
                     }
                 )
+                .presentationBackground(isTravelModeActive ? AppTheme.travelBackground : AppTheme.background)
             }
             .sheet(item: $editingShower) { shower in
                 ShowerEditorSheet(
@@ -200,7 +219,7 @@ struct HomeView: View {
                 )
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
-                .presentationBackground(AppTheme.background)
+                .presentationBackground(isTravelModeActive ? AppTheme.travelBackground : AppTheme.background)
             }
             .sheet(isPresented: $showingNewShower) {
                 ShowerEditorSheet(
@@ -223,7 +242,7 @@ struct HomeView: View {
                 )
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
-                .presentationBackground(AppTheme.background)
+                .presentationBackground(isTravelModeActive ? AppTheme.travelBackground : AppTheme.background)
             }
             .sheet(item: $editingBowelMovement) { entry in
                 BowelMovementEditorSheet(
@@ -243,7 +262,7 @@ struct HomeView: View {
                 )
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
-                .presentationBackground(AppTheme.background)
+                .presentationBackground(isTravelModeActive ? AppTheme.travelBackground : AppTheme.background)
             }
             .sheet(isPresented: $showingNewBowelMovement) {
                 BowelMovementEditorSheet(
@@ -266,7 +285,7 @@ struct HomeView: View {
                 )
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
-                .presentationBackground(AppTheme.background)
+                .presentationBackground(isTravelModeActive ? AppTheme.travelBackground : AppTheme.background)
             }
             .sheet(item: $editingSexualActivity) { entry in
                 SexualActivityEditorSheet(
@@ -286,7 +305,7 @@ struct HomeView: View {
                 )
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
-                .presentationBackground(AppTheme.background)
+                .presentationBackground(isTravelModeActive ? AppTheme.travelBackground : AppTheme.background)
             }
             .sheet(isPresented: $showingNewSexualActivity) {
                 SexualActivityEditorSheet(
@@ -310,7 +329,7 @@ struct HomeView: View {
                 )
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
-                .presentationBackground(AppTheme.background)
+                .presentationBackground(isTravelModeActive ? AppTheme.travelBackground : AppTheme.background)
             }
             .alert(NSLocalizedString("提示", comment: ""), isPresented: .constant(appViewModel.errorMessage != nil), actions: {
                 Button(NSLocalizedString("知道了", comment: "")) {
@@ -382,8 +401,20 @@ struct HomeView: View {
 
     // MARK: - Header
 
+    private var activeTravelPlan: TravelPlan? {
+        appViewModel.activeTravelPlan(on: appViewModel.selectedDate)
+    }
+
+    private var isTravelModeActive: Bool {
+        activeTravelPlan != nil
+    }
+
+    private var homeBackground: Color {
+        isTravelModeActive ? AppTheme.travelBackground : AppTheme.background
+    }
+
     private var headerSection: some View {
-        let activeTravelPlan = appViewModel.activeTravelPlan(on: appViewModel.selectedDate)
+        let activeTravelPlan = self.activeTravelPlan
         return VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 4) {
@@ -539,10 +570,10 @@ struct HomeView: View {
     // MARK: - Travel
 
     private func travelSection(_ plans: [TravelPlan]) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 14) {
             HStack {
-                Text(NSLocalizedString("旅行", comment: ""))
-                    .font(.system(size: 22, weight: .bold, design: .rounded))
+                Text(isTravelModeActive ? NSLocalizedString("旅行模式", comment: "") : NSLocalizedString("旅行", comment: ""))
+                    .font(.system(size: 24, weight: .bold, design: .rounded))
                     .foregroundStyle(AppTheme.primaryText)
                 Spacer()
             }
@@ -558,46 +589,45 @@ struct HomeView: View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .top, spacing: 12) {
                 Image(systemName: "airplane.departure")
-                    .font(.system(size: 18, weight: .bold))
-                    .foregroundStyle(AppTheme.accent)
-                    .frame(width: 38, height: 38)
-                    .background(AppTheme.accentSoft)
-                    .clipShape(Circle())
+                    .font(.system(size: 17, weight: .bold))
+                    .foregroundStyle(AppTheme.travelAccent)
+                    .frame(width: 22, height: 24)
 
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: 5) {
                     Text(plan.displayTitle)
-                        .font(.system(size: 19, weight: .bold, design: .rounded))
+                        .font(.system(size: 21, weight: .bold, design: .rounded))
                         .foregroundStyle(AppTheme.primaryText)
                         .fixedSize(horizontal: false, vertical: true)
 
-                    Text(travelStageSummary(for: plan))
-                        .font(.system(size: 14, weight: .semibold, design: .rounded))
+                    Text(travelStageLine(for: plan))
+                        .font(.system(size: 14, weight: .medium, design: .rounded))
                         .foregroundStyle(AppTheme.secondaryText)
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
                 Spacer(minLength: 8)
-
-                Text(plan.status.title)
-                    .font(.system(size: 12, weight: .bold, design: .rounded))
-                    .foregroundStyle(AppTheme.accent)
-                    .padding(.horizontal, 9)
-                    .padding(.vertical, 5)
-                    .background(AppTheme.accentSoft)
-                    .clipShape(Capsule())
             }
 
             TimelineView(.periodic(from: .now, by: 60)) { context in
                 Text(travelClockText(for: plan, now: context.date))
                     .font(.system(size: 16, weight: .bold, design: .rounded))
-                    .foregroundStyle(AppTheme.primaryText)
+                    .foregroundStyle(AppTheme.travelAccent)
                     .monospacedDigit()
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            VStack(spacing: 8) {
+            VStack(spacing: 0) {
                 ForEach(Array(plan.segments.enumerated()), id: \.element.id) { index, segment in
-                    travelSegmentRow(segment, index: index, isCurrent: segment.id == plan.currentSegmentID)
+                    if index > 0 {
+                        Divider().padding(.leading, 32)
+                    }
+                    Button {
+                        travelEditorContext = .edit(plan)
+                    } label: {
+                        travelSegmentRow(segment, index: index, isCurrent: segment.id == plan.currentSegmentID)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(!plan.status.allowsPlanEditing)
                 }
             }
 
@@ -611,8 +641,8 @@ struct HomeView: View {
                             .foregroundStyle(AppTheme.secondaryText)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 11)
-                            .background(AppTheme.elevatedSurface)
-                            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                            .background(AppTheme.travelElevatedSurface)
+                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                     }
                     .buttonStyle(.plain)
                 }
@@ -625,8 +655,8 @@ struct HomeView: View {
                         .foregroundStyle(.white)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 11)
-                        .background(AppTheme.actionFill)
-                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .background(AppTheme.travelAccent)
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                 }
                 .buttonStyle(.plain)
                 .disabled(plan.status == .completed)
@@ -638,21 +668,25 @@ struct HomeView: View {
                     } label: {
                         Image(systemName: "pencil")
                             .font(.system(size: 15, weight: .bold))
-                            .foregroundStyle(AppTheme.accent)
+                            .foregroundStyle(AppTheme.travelAccent)
                             .frame(width: 42, height: 42)
-                            .background(AppTheme.accentSoft)
-                            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                            .background(AppTheme.travelAccentSoft)
+                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                     }
                     .buttonStyle(.plain)
                 }
             }
+
+            if isTravelModeActive, plan.id == activeTravelPlan?.id, hasTravelTimelineItems(for: plan) {
+                travelTimelineSection(plan)
+            }
         }
         .padding(18)
-        .background(AppTheme.surface)
-        .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+        .background(AppTheme.travelSurface)
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         .overlay {
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .strokeBorder(AppTheme.border.opacity(0.8), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .strokeBorder(AppTheme.travelBorder, lineWidth: 1)
         }
     }
 
@@ -660,9 +694,9 @@ struct HomeView: View {
         HStack(alignment: .top, spacing: 10) {
             Text("\(index + 1)")
                 .font(.system(size: 12, weight: .bold, design: .rounded))
-                .foregroundStyle(isCurrent ? Color.white : AppTheme.secondaryText)
+                .foregroundStyle(isCurrent ? Color.white : AppTheme.travelAccent)
                 .frame(width: 22, height: 22)
-                .background(isCurrent ? AppTheme.accent : AppTheme.mutedFill)
+                .background(isCurrent ? AppTheme.travelAccent : AppTheme.travelAccentSoft)
                 .clipShape(Circle())
 
             VStack(alignment: .leading, spacing: 4) {
@@ -677,34 +711,33 @@ struct HomeView: View {
 
             Spacer(minLength: 8)
 
-            Text(travelDurationText(segment.actualDuration ?? segment.plannedDuration))
+            Text(travelDurationText(segment.plannedDuration))
                 .font(.system(size: 13, weight: .bold, design: .rounded))
-                .foregroundStyle(AppTheme.accent)
+                .foregroundStyle(AppTheme.travelAccent)
                 .monospacedDigit()
         }
-        .padding(12)
-        .background(isCurrent ? AppTheme.accentSoft : AppTheme.mutedFill.opacity(0.65))
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .padding(.vertical, 11)
+        .contentShape(Rectangle())
     }
 
     private func travelSleepSection(_ plan: TravelPlan) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 10) {
                 Label(NSLocalizedString("旅行睡眠", comment: ""), systemImage: "bed.double.fill")
-                    .font(.system(size: 15, weight: .bold, design: .rounded))
+                    .font(.system(size: 18, weight: .bold, design: .rounded))
                     .foregroundStyle(AppTheme.primaryText)
 
                 Spacer()
 
-                if appViewModel.canEditSelectedDate, plan.status != .planned {
+                if appViewModel.canEditSelectedDate {
                     Button {
                         travelSleepEditorContext = .new(plan)
                     } label: {
                         Image(systemName: "plus")
-                            .font(.system(size: 13, weight: .bold))
+                            .font(.system(size: 14, weight: .bold))
                             .foregroundStyle(AppTheme.sleepAccent)
-                            .frame(width: 30, height: 30)
-                            .background(AppTheme.sleepAccent.opacity(0.13))
+                            .frame(width: 32, height: 32)
+                            .background(AppTheme.travelElevatedSurface)
                             .clipShape(Circle())
                     }
                     .buttonStyle(.plain)
@@ -737,9 +770,13 @@ struct HomeView: View {
                 }
             }
         }
-        .padding(12)
-        .background(AppTheme.elevatedSurface.opacity(0.75))
+        .padding(16)
+        .background(isTravelModeActive ? AppTheme.travelSurface : AppTheme.elevatedSurface.opacity(0.75))
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .strokeBorder(isTravelModeActive ? AppTheme.travelBorder : AppTheme.border.opacity(0.5), lineWidth: 1)
+        }
     }
 
     private func travelSleepRow(_ session: TravelSleepSession, in plan: TravelPlan) -> some View {
@@ -757,41 +794,66 @@ struct HomeView: View {
                 .background(AppTheme.sleepAccent.opacity(0.12))
                 .clipShape(Circle())
 
-            VStack(alignment: .leading, spacing: 4) {
-                Text(session.title)
-                    .font(.system(size: 14, weight: .bold, design: .rounded))
-                    .foregroundStyle(AppTheme.primaryText)
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(session.title)
+                        .font(.system(size: 15, weight: .bold, design: .rounded))
+                        .foregroundStyle(AppTheme.primaryText)
 
-                travelAwareTime(
-                    session.startTime,
+                    Text(travelDurationText(session.duration))
+                        .font(.system(size: 13, weight: .bold, design: .rounded))
+                        .foregroundStyle(AppTheme.sleepAccent)
+                        .monospacedDigit()
+                }
+
+                travelSleepTimeLine(
+                    label: NSLocalizedString("入睡", comment: ""),
+                    date: session.startTime,
                     context: context,
                     fallback: appViewModel.displayedShortTime(
                         for: session.startTime,
                         recordedTimeZoneIdentifier: session.timeZoneIdentifier
                     ),
-                    accent: AppTheme.sleepAccent,
-                    isCompact: false
+                    accent: AppTheme.sleepAccent
                 )
 
-                Text(NSLocalizedString("醒来：", comment: "") + (appViewModel.travelTimeText(for: session.endTime, context: context) ?? appViewModel.displayedShortTime(for: session.endTime, recordedTimeZoneIdentifier: session.timeZoneIdentifier)))
-                    .font(.system(size: 12, weight: .semibold, design: .rounded))
-                    .foregroundStyle(AppTheme.secondaryText)
-                    .monospacedDigit()
-                    .lineLimit(2)
-                    .multilineTextAlignment(.leading)
+                travelSleepTimeLine(
+                    label: NSLocalizedString("醒来", comment: ""),
+                    date: session.endTime,
+                    context: context,
+                    fallback: appViewModel.displayedShortTime(
+                        for: session.endTime,
+                        recordedTimeZoneIdentifier: session.timeZoneIdentifier
+                    ),
+                    accent: AppTheme.wakeAccent
+                )
             }
 
             Spacer(minLength: 8)
-
-            Text(travelDurationText(session.duration))
-                .font(.system(size: 13, weight: .bold, design: .rounded))
-                .foregroundStyle(AppTheme.sleepAccent)
-                .monospacedDigit()
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(10)
-        .background(AppTheme.surface.opacity(0.9))
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .padding(.vertical, 8)
+    }
+
+    private func travelSleepTimeLine(
+        label: String,
+        date: Date,
+        context: TravelRecordContext,
+        fallback: String,
+        accent: Color
+    ) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            Text(label)
+                .font(.system(size: 12, weight: .bold, design: .rounded))
+                .foregroundStyle(AppTheme.secondaryText)
+                .frame(width: 34, alignment: .leading)
+            Text(appViewModel.travelTimeText(for: date, context: context) ?? fallback)
+                .font(.system(size: 13, weight: .semibold, design: .rounded))
+                .foregroundStyle(accent)
+                .monospacedDigit()
+                .lineLimit(2)
+                .multilineTextAlignment(.leading)
+        }
     }
 
     private func travelTimelineSection(_ plan: TravelPlan) -> some View {
@@ -830,9 +892,12 @@ struct HomeView: View {
                 }
             }
         }
-        .padding(12)
-        .background(AppTheme.elevatedSurface.opacity(0.75))
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .padding(.top, 4)
+    }
+
+    private func hasTravelTimelineItems(for plan: TravelPlan) -> Bool {
+        plan.segments.contains { !travelTimelineItems(for: plan, segmentID: $0.id).isEmpty }
+            || !travelTimelineItems(for: plan, segmentID: nil).isEmpty
     }
 
     private func travelTimelineGroup(title: String, items: [TravelTimelineItem]) -> some View {
@@ -853,9 +918,7 @@ struct HomeView: View {
             Image(systemName: item.systemImage)
                 .font(.system(size: 13, weight: .bold))
                 .foregroundStyle(item.accent)
-                .frame(width: 26, height: 26)
-                .background(item.accent.opacity(0.12))
-                .clipShape(Circle())
+                .frame(width: 18, height: 22)
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(item.title)
@@ -1088,15 +1151,11 @@ struct HomeView: View {
     // MARK: - Meals
 
     private var mealSection: some View {
-        let visibleMeals = appViewModel.travelPlans(on: appViewModel.selectedDate).isEmpty
-            ? appViewModel.dailyRecord.meals
-            : appViewModel.dailyRecord.meals.filter {
-                $0.mealKind == .custom || $0.status == .logged || $0.status == .skipped || $0.hasPhoto
-            }
+        let meals = self.visibleMeals
 
         return VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Text(NSLocalizedString("餐食", comment: ""))
+                Text(isTravelModeActive ? NSLocalizedString("旅行餐食", comment: "") : NSLocalizedString("餐食", comment: ""))
                     .font(.system(size: 22, weight: .bold, design: .rounded))
                     .foregroundStyle(AppTheme.primaryText)
                 Spacer()
@@ -1104,7 +1163,7 @@ struct HomeView: View {
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(alignment: .top, spacing: 14) {
-                    ForEach(visibleMeals) { meal in
+                    ForEach(meals) { meal in
                         mealCard(meal)
                     }
                     addMealCard
@@ -1120,13 +1179,14 @@ struct HomeView: View {
         let accentColor = mealAccentColor(meal)
         let canDeleteMeal = appViewModel.canDeleteMealEntry(meal)
         let photoCount = meal.photoURLs.count
+        let textAlignment: TextAlignment = .center
 
         return VStack(alignment: .center, spacing: 14) {
-            VStack(spacing: 4) {
+            VStack(alignment: .center, spacing: 4) {
                 Text(meal.displayTitle)
                     .font(.system(size: 22, weight: .bold, design: .rounded))
                     .foregroundStyle(AppTheme.primaryText)
-                    .multilineTextAlignment(.center)
+                    .multilineTextAlignment(textAlignment)
                     .lineLimit(2)
 
                 switch effectiveStatus {
@@ -1140,7 +1200,8 @@ struct HomeView: View {
                                 recordedTimeZoneIdentifier: meal.timeZoneIdentifier
                             )
                         } ?? NSLocalizedString("已记录", comment: ""),
-                        accent: accentColor
+                        accent: accentColor,
+                        isCompact: true
                     )
                 case .skipped:
                     Text(NSLocalizedString("跳过", comment: ""))
@@ -1210,13 +1271,13 @@ struct HomeView: View {
         }
         .frame(width: mealCardWidth(photoCount: photoCount), height: mealCardHeight, alignment: .top)
         .padding(18)
-        .background(AppTheme.surface)
-        .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+        .background(isTravelModeActive ? AppTheme.travelSurface : AppTheme.surface)
+        .clipShape(RoundedRectangle(cornerRadius: isTravelModeActive ? 18 : 28, style: .continuous))
         .overlay {
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .strokeBorder(AppTheme.border.opacity(0.8), lineWidth: 1)
+            RoundedRectangle(cornerRadius: isTravelModeActive ? 18 : 28, style: .continuous)
+                .strokeBorder(isTravelModeActive ? AppTheme.travelBorder : AppTheme.border.opacity(0.8), lineWidth: 1)
         }
-        .contentShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+        .contentShape(RoundedRectangle(cornerRadius: isTravelModeActive ? 18 : 28, style: .continuous))
         .onTapGesture {
             guard appViewModel.canEditSelectedDate else { return }
             openMealEditor(meal, with: .editRecord)
@@ -1267,7 +1328,7 @@ struct HomeView: View {
                 Spacer()
                 Image(systemName: "plus")
                     .font(.system(size: 28, weight: .semibold))
-                    .foregroundStyle(AppTheme.accent)
+                    .foregroundStyle(isTravelModeActive ? AppTheme.travelAccent : AppTheme.accent)
                 Text(NSLocalizedString("添加餐次", comment: ""))
                     .font(.system(size: 18, weight: .semibold, design: .rounded))
                     .foregroundStyle(AppTheme.primaryText)
@@ -1275,12 +1336,12 @@ struct HomeView: View {
                 Spacer()
             }
             .frame(width: 178, height: mealCardHeight + 36)
-            .background(AppTheme.surface)
-            .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+            .background(isTravelModeActive ? AppTheme.travelSurface : AppTheme.surface)
+            .clipShape(RoundedRectangle(cornerRadius: isTravelModeActive ? 18 : 28, style: .continuous))
             .overlay {
-                RoundedRectangle(cornerRadius: 28, style: .continuous)
+                RoundedRectangle(cornerRadius: isTravelModeActive ? 18 : 28, style: .continuous)
                     .stroke(style: StrokeStyle(lineWidth: 1.6, dash: [8, 8]))
-                    .foregroundStyle(AppTheme.accent.opacity(0.6))
+                    .foregroundStyle((isTravelModeActive ? AppTheme.travelAccent : AppTheme.accent).opacity(0.6))
             }
         }
         .buttonStyle(.plain)
@@ -1296,12 +1357,9 @@ struct HomeView: View {
             case .inFlight:
                 return NSLocalizedString("飞机餐", comment: "")
             case .layover:
-                if let airportCode = activePlan.currentSegment?.originCode, !airportCode.isEmpty {
-                    return String(format: NSLocalizedString("%@ 转机餐食", comment: ""), airportCode)
-                }
                 return NSLocalizedString("转机餐食", comment: "")
             case .arrived:
-                return NSLocalizedString("到达后餐食", comment: "")
+                break
             case .planned, .completed:
                 break
             }
@@ -1329,9 +1387,10 @@ struct HomeView: View {
     // MARK: - Showers
 
     private var showerSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        let showers = self.visibleShowers
+        return VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .center) {
-                Text(NSLocalizedString("洗澡", comment: ""))
+                Text(isTravelModeActive ? NSLocalizedString("旅行洗澡", comment: "") : NSLocalizedString("洗澡", comment: ""))
                     .font(.system(size: 22, weight: .bold, design: .rounded))
                     .foregroundStyle(AppTheme.primaryText)
 
@@ -1349,7 +1408,7 @@ struct HomeView: View {
                 Spacer()
             }
 
-            if appViewModel.dailyRecord.showers.isEmpty {
+            if showers.isEmpty {
                 HStack(spacing: 8) {
                     Image(systemName: "drop.degreesign")
                         .font(.system(size: 16, weight: .semibold))
@@ -1361,7 +1420,7 @@ struct HomeView: View {
                 .padding(.vertical, 8)
             } else {
                 VStack(spacing: 0) {
-                    ForEach(Array(appViewModel.dailyRecord.showers.enumerated()), id: \.element.id) { index, shower in
+                    ForEach(Array(showers.enumerated()), id: \.element.id) { index, shower in
                         if index > 0 {
                             Divider().padding(.leading, 4)
                         }
@@ -1413,9 +1472,10 @@ struct HomeView: View {
     // MARK: - Bowel Movements
 
     private var bowelMovementSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        let bowelMovements = self.visibleBowelMovements
+        return VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .center) {
-                Text(NSLocalizedString("排便", comment: ""))
+                Text(isTravelModeActive ? NSLocalizedString("旅行排便", comment: "") : NSLocalizedString("排便", comment: ""))
                     .font(.system(size: 22, weight: .bold, design: .rounded))
                     .foregroundStyle(AppTheme.primaryText)
 
@@ -1433,7 +1493,7 @@ struct HomeView: View {
                 Spacer()
             }
 
-            if appViewModel.dailyRecord.bowelMovements.isEmpty {
+            if bowelMovements.isEmpty {
                 HStack(spacing: 8) {
                     Image(systemName: "leaf")
                         .font(.system(size: 16, weight: .semibold))
@@ -1445,7 +1505,7 @@ struct HomeView: View {
                 .padding(.vertical, 8)
             } else {
                 VStack(spacing: 0) {
-                    ForEach(Array(appViewModel.dailyRecord.bowelMovements.enumerated()), id: \.element.id) { index, entry in
+                    ForEach(Array(bowelMovements.enumerated()), id: \.element.id) { index, entry in
                         if index > 0 {
                             Divider().padding(.leading, 4)
                         }
@@ -1497,9 +1557,10 @@ struct HomeView: View {
     // MARK: - Sexual Activity
 
     private var sexualActivitySection: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        let sexualActivities = self.visibleSexualActivities
+        return VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .center) {
-                Text(NSLocalizedString("性生活", comment: ""))
+                Text(isTravelModeActive ? NSLocalizedString("旅行性生活", comment: "") : NSLocalizedString("性生活", comment: ""))
                     .font(.system(size: 22, weight: .bold, design: .rounded))
                     .foregroundStyle(AppTheme.primaryText)
 
@@ -1517,7 +1578,7 @@ struct HomeView: View {
                 Spacer()
             }
 
-            if appViewModel.dailyRecord.sexualActivities.isEmpty {
+            if sexualActivities.isEmpty {
                 HStack(spacing: 8) {
                     Image(systemName: "heart")
                         .font(.system(size: 16, weight: .semibold))
@@ -1529,7 +1590,7 @@ struct HomeView: View {
                 .padding(.vertical, 8)
             } else {
                 VStack(spacing: 0) {
-                    ForEach(Array(appViewModel.dailyRecord.sexualActivities.enumerated()), id: \.element.id) { index, entry in
+                    ForEach(Array(sexualActivities.enumerated()), id: \.element.id) { index, entry in
                         if index > 0 {
                             Divider().padding(.leading, 4)
                         }
@@ -1718,6 +1779,29 @@ struct HomeView: View {
         appViewModel.preferences.visibleHomeSections.contains(section)
     }
 
+    private func isRecordVisibleInCurrentMode(_ context: TravelRecordContext?) -> Bool {
+        if let activeTravelPlan {
+            return context?.planID == activeTravelPlan.id
+        }
+        return context == nil
+    }
+
+    private var visibleMeals: [MealEntry] {
+        appViewModel.dailyRecord.meals.filter { isRecordVisibleInCurrentMode($0.travelContext) }
+    }
+
+    private var visibleShowers: [ShowerEntry] {
+        appViewModel.dailyRecord.showers.filter { isRecordVisibleInCurrentMode($0.travelContext) }
+    }
+
+    private var visibleBowelMovements: [BowelMovementEntry] {
+        appViewModel.dailyRecord.bowelMovements.filter { isRecordVisibleInCurrentMode($0.travelContext) }
+    }
+
+    private var visibleSexualActivities: [SexualActivityEntry] {
+        appViewModel.dailyRecord.sexualActivities.filter { isRecordVisibleInCurrentMode($0.travelContext) }
+    }
+
     private var durationText: String {
         guard let duration = appViewModel.dailyRecord.sleepRecord.duration else {
             return "-- h -- m"
@@ -1728,7 +1812,8 @@ struct HomeView: View {
     }
 
     private func formattedSun(_ date: Date?, timeZoneIdentifier: String?) -> String {
-        appViewModel.displayedClockTime(for: date, recordedTimeZoneIdentifier: timeZoneIdentifier)
+        guard let date else { return "--:--" }
+        return date.displayClockTime(in: appViewModel.displayedTimeZone(for: timeZoneIdentifier))
     }
 
     private func activeTravelHeaderTitle(_ plan: TravelPlan) -> String {
@@ -1769,27 +1854,26 @@ struct HomeView: View {
         }
     }
 
-    private func travelStageSummary(for plan: TravelPlan) -> String {
+    private func travelStageLine(for plan: TravelPlan) -> String {
+        let total = max(plan.segments.count, 1)
+        let index = min((plan.currentSegmentIndex ?? 0) + 1, total)
         guard let segment = plan.currentSegment ?? plan.segments.first else {
             return NSLocalizedString("还没有航段", comment: "")
         }
 
         switch plan.status {
         case .planned:
-            return NSLocalizedString("计划第一程：", comment: "") + segment.flightDisplayTitle
+            return String(format: NSLocalizedString("计划 · 第 %d / 共 %d 段 · %@", comment: ""), index, total, segment.flightDisplayTitle)
         case .preDeparture:
-            return NSLocalizedString("当前：出发前 · ", comment: "") + segment.flightDisplayTitle
+            return String(format: NSLocalizedString("出发前 · 第 %d / 共 %d 段 · %@", comment: ""), index, total, segment.flightDisplayTitle)
         case .inFlight:
-            return NSLocalizedString("当前：本程飞行中 · ", comment: "") + segment.flightDisplayTitle
+            return String(format: NSLocalizedString("本程 · 第 %d / 共 %d 段 · %@", comment: ""), index, total, segment.flightDisplayTitle)
         case .layover:
-            return NSLocalizedString("当前：", comment: "")
-                + segment.originCode
-                + NSLocalizedString(" 转机中 · 下一程 ", comment: "")
-                + segment.flightDisplayTitle
+            return String(format: NSLocalizedString("转机 · 下一程第 %d / 共 %d 段 · %@", comment: ""), index, total, segment.flightDisplayTitle)
         case .arrived:
-            return NSLocalizedString("旅程已抵达：", comment: "") + plan.routeSummary
+            return String(format: NSLocalizedString("已抵达 · 共 %d 段 · %@", comment: ""), total, plan.routeSummary)
         case .completed:
-            return NSLocalizedString("旅程模式已结束：", comment: "") + plan.routeSummary
+            return String(format: NSLocalizedString("已结束 · 共 %d 段 · %@", comment: ""), total, plan.routeSummary)
         }
     }
 
@@ -1803,7 +1887,7 @@ struct HomeView: View {
             return NSLocalizedString("计划起飞：", comment: "")
                 + travelDateTimeText(segment.plannedDepartureTime, timeZoneIdentifier: segment.departureTimeZoneIdentifier)
         case .inFlight:
-            let elapsed = max(0, now.timeIntervalSince(segment.departureTime))
+            let elapsed = max(0, now.timeIntervalSince(segment.plannedDepartureTime))
             return "\(segment.routeTitle) "
                 + NSLocalizedString("起飞后 ", comment: "")
                 + travelDurationText(elapsed)
@@ -1817,7 +1901,7 @@ struct HomeView: View {
                 + travelDateTimeText(segment.plannedDepartureTime, timeZoneIdentifier: segment.departureTimeZoneIdentifier)
         case .arrived, .completed:
             return NSLocalizedString("到达时间：", comment: "")
-                + travelDateTimeText(segment.arrivalTime, timeZoneIdentifier: segment.arrivalTimeZoneIdentifier)
+                + travelDateTimeText(segment.plannedArrivalTime, timeZoneIdentifier: segment.arrivalTimeZoneIdentifier)
         }
     }
 
@@ -2043,31 +2127,18 @@ enum TravelSleepEditorContext: Identifiable {
     }
 }
 
-private enum TravelSleepTimeInputMode: String, CaseIterable, Identifiable {
-    case origin
-    case destination
-    case device
-
-    var id: String { rawValue }
-
-    var title: String {
-        switch self {
-        case .origin: NSLocalizedString("出发地", comment: "")
-        case .destination: NSLocalizedString("目的地", comment: "")
-        case .device: NSLocalizedString("手机", comment: "")
-        }
-    }
+private enum TravelSleepTimeTarget {
+    case start
+    case end
 }
 
 private struct TravelSleepSessionEditorSheet: View {
     @Environment(\.dismiss) private var dismiss
-    @EnvironmentObject private var appViewModel: AppViewModel
 
     @State private var title: String
     @State private var startTime: Date
     @State private var endTime: Date
     @State private var note: String
-    @State private var inputMode: TravelSleepTimeInputMode
     @State private var showingDeleteConfirmation = false
 
     let plan: TravelPlan
@@ -2090,7 +2161,6 @@ private struct TravelSleepSessionEditorSheet: View {
         _startTime = State(initialValue: seed.startTime)
         _endTime = State(initialValue: seed.endTime)
         _note = State(initialValue: seed.note ?? "")
-        _inputMode = State(initialValue: .origin)
     }
 
     var body: some View {
@@ -2098,34 +2168,31 @@ private struct TravelSleepSessionEditorSheet: View {
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 20) {
                     TextField(NSLocalizedString("名称，例如 飞机小睡", comment: ""), text: $title)
-                        .textFieldStyle(.roundedBorder)
-
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text(NSLocalizedString("时间记录方式", comment: ""))
-                            .font(.system(size: 14, weight: .bold, design: .rounded))
-                            .foregroundStyle(AppTheme.secondaryText)
-
-                        Picker("", selection: $inputMode) {
-                            ForEach(TravelSleepTimeInputMode.allCases) { mode in
-                                Text(mode.title).tag(mode)
-                            }
+                        .font(.system(size: 18, weight: .semibold, design: .rounded))
+                        .padding(.horizontal, 18)
+                        .padding(.vertical, 14)
+                        .background(AppTheme.travelSurface)
+                        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                .strokeBorder(AppTheme.travelBorder, lineWidth: 1)
                         }
-                        .pickerStyle(.segmented)
-                    }
+
+                    durationHeader
 
                     timeBlock(
-                        title: NSLocalizedString("开始", comment: ""),
-                        date: $startTime,
+                        title: NSLocalizedString("入睡", comment: ""),
+                        target: .start,
                         accent: AppTheme.sleepAccent
                     )
 
                     timeBlock(
                         title: NSLocalizedString("醒来", comment: ""),
-                        date: $endTime,
+                        target: .end,
                         accent: AppTheme.wakeAccent
                     )
 
-                    RecordNoteSection(note: $note)
+                    RecordNoteSection(note: $note, surface: AppTheme.travelSurface)
 
                     if onDelete != nil {
                         Button(NSLocalizedString("删除睡眠记录", comment: ""), role: .destructive) {
@@ -2138,7 +2205,7 @@ private struct TravelSleepSessionEditorSheet: View {
                 }
                 .padding(24)
             }
-            .background(AppTheme.background.ignoresSafeArea())
+            .background(AppTheme.travelBackground.ignoresSafeArea())
             .navigationTitle(NSLocalizedString("旅行睡眠", comment: ""))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -2164,32 +2231,88 @@ private struct TravelSleepSessionEditorSheet: View {
         }
     }
 
-    private func timeBlock(title: String, date: Binding<Date>, accent: Color) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
+    private var durationHeader: some View {
+        HStack(alignment: .center, spacing: 10) {
+            Text(NSLocalizedString("时长", comment: "") + " " + travelDurationText(max(0, endTime.timeIntervalSince(startTime))))
+                .font(.system(size: 16, weight: .bold, design: .rounded))
+                .foregroundStyle(AppTheme.sleepAccent)
+                .monospacedDigit()
+
+            Spacer(minLength: 8)
+
+            phoneTimeBadge
+        }
+    }
+
+    private func timeBlock(title: String, target: TravelSleepTimeTarget, accent: Color) -> some View {
+        let date = time(for: target)
+        return VStack(alignment: .leading, spacing: 10) {
             HStack {
                 Text(title)
                     .font(.system(size: 14, weight: .bold, design: .rounded))
                     .foregroundStyle(AppTheme.secondaryText)
                 Spacer()
-                Text(timePreview(for: date.wrappedValue))
-                    .font(.system(size: 14, weight: .bold, design: .rounded))
-                    .foregroundStyle(accent)
-                    .monospacedDigit()
-                    .multilineTextAlignment(.trailing)
+                if travelDayAnchors.count > 1 {
+                    travelDateMenu(for: target)
+                }
             }
 
-            DatePicker(
-                "",
-                selection: date,
-                displayedComponents: [.date, .hourAndMinute]
-            )
-            .datePickerStyle(.compact)
-            .labelsHidden()
-            .environment(\.timeZone, selectedTimeZone)
+            Text(date.displayClockTime(in: phoneTimeZone))
+                .font(.system(size: 36, weight: .bold, design: .rounded))
+                .foregroundStyle(accent)
+                .monospacedDigit()
+                .frame(maxWidth: .infinity)
+
+            GeometryReader { proxy in
+                HStack(spacing: 0) {
+                    Spacer(minLength: 0)
+                    DatePicker(
+                        "",
+                        selection: Binding(
+                            get: { time(for: target) },
+                            set: { setClockTime($0, for: target) }
+                        ),
+                        displayedComponents: .hourAndMinute
+                    )
+                    .datePickerStyle(.wheel)
+                    .labelsHidden()
+                    .frame(width: min(proxy.size.width, 280), height: 150)
+                    .clipped()
+                    .environment(\.timeZone, phoneTimeZone)
+                    Spacer(minLength: 0)
+                }
+            }
+            .frame(height: 150)
         }
-        .padding(16)
-        .background(AppTheme.elevatedSurface)
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .padding(.vertical, 8)
+    }
+
+    private var phoneTimeBadge: some View {
+        Text(NSLocalizedString("手机", comment: ""))
+            .font(.system(size: 12, weight: .bold, design: .rounded))
+            .foregroundStyle(AppTheme.travelAccent)
+            .padding(.horizontal, 9)
+            .padding(.vertical, 5)
+            .background(AppTheme.travelAccent.opacity(0.12))
+            .clipShape(Capsule())
+    }
+
+    private func travelDateMenu(for target: TravelSleepTimeTarget) -> some View {
+        Menu {
+            ForEach(travelDayAnchors, id: \.self) { day in
+                Button(formattedTravelDay(day)) {
+                    setTravelDay(day, for: target)
+                }
+            }
+        } label: {
+            Text(formattedTravelDay(time(for: target)))
+                .font(.system(size: 12, weight: .bold, design: .rounded))
+                .foregroundStyle(AppTheme.travelAccent)
+                .padding(.horizontal, 9)
+                .padding(.vertical, 5)
+                .background(AppTheme.travelAccentSoft)
+                .clipShape(Capsule())
+        }
     }
 
     private var selectedSegment: TravelSegment? {
@@ -2212,21 +2335,148 @@ private struct TravelSleepSessionEditorSheet: View {
         )
     }
 
-    private var selectedTimeZone: TimeZone {
-        guard let segment = selectedSegment else { return .autoupdatingCurrent }
-        switch inputMode {
-        case .origin:
-            return segment.departureTimeZone
-        case .destination:
-            return segment.arrivalTimeZone
-        case .device:
-            return .autoupdatingCurrent
+    private var phoneTimeZone: TimeZone {
+        .autoupdatingCurrent
+    }
+
+    private var phoneCalendar: Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.locale = .autoupdatingCurrent
+        calendar.timeZone = phoneTimeZone
+        return calendar
+    }
+
+    private var travelDayAnchors: [Date] {
+        var dates: [Date] = []
+        if let interval = plan.plannedTravelInterval {
+            dates.append(interval.start)
+            dates.append(interval.end)
+        }
+        if session != nil {
+            dates.append(startTime)
+            dates.append(endTime)
+        }
+        guard let first = dates.min(), let last = dates.max() else {
+            return [phoneCalendar.startOfDay(for: .now)]
+        }
+
+        var days: [Date] = []
+        var day = phoneCalendar.startOfDay(for: first)
+        let finalDay = phoneCalendar.startOfDay(for: last)
+        while day <= finalDay {
+            days.append(day)
+            guard let nextDay = phoneCalendar.date(byAdding: .day, value: 1, to: day) else { break }
+            day = nextDay
+        }
+        return days.isEmpty ? [phoneCalendar.startOfDay(for: .now)] : days
+    }
+
+    private func time(for target: TravelSleepTimeTarget) -> Date {
+        switch target {
+        case .start:
+            return startTime
+        case .end:
+            return endTime
         }
     }
 
-    private func timePreview(for date: Date) -> String {
-        appViewModel.travelTimeText(for: date, context: travelContext)
-            ?? date.displayClockTime(in: selectedTimeZone)
+    private func setClockTime(_ displayedTime: Date, for target: TravelSleepTimeTarget) {
+        switch target {
+        case .start:
+            startTime = inferredStartTime(from: displayedTime)
+            if endTime <= startTime {
+                endTime = inferredEndTime(from: endTime, after: startTime)
+            }
+        case .end:
+            endTime = inferredEndTime(from: displayedTime, after: startTime)
+        }
+    }
+
+    private func setTravelDay(_ day: Date, for target: TravelSleepTimeTarget) {
+        let updated = date(on: day, matchingClockOf: time(for: target))
+        switch target {
+        case .start:
+            startTime = updated
+            if endTime <= startTime {
+                endTime = inferredEndTime(from: endTime, after: startTime)
+            }
+        case .end:
+            endTime = updated <= startTime ? inferredEndTime(from: updated, after: startTime) : updated
+        }
+    }
+
+    private func inferredStartTime(from displayedTime: Date) -> Date {
+        let candidates = dateCandidates(matchingClockOf: displayedTime)
+        let reasonableBeforeEnd = candidates
+            .filter { candidate in
+                candidate < endTime && endTime.timeIntervalSince(candidate) <= 18 * 3600
+            }
+        if let best = reasonableBeforeEnd.max() {
+            return best
+        }
+        return candidates.min { lhs, rhs in
+            abs(lhs.timeIntervalSince(startTime)) < abs(rhs.timeIntervalSince(startTime))
+        } ?? displayedTime
+    }
+
+    private func inferredEndTime(from displayedTime: Date, after lowerBound: Date) -> Date {
+        var candidates = dateCandidates(matchingClockOf: displayedTime)
+        if let lastDay = travelDayAnchors.last,
+           let nextDay = phoneCalendar.date(byAdding: .day, value: 1, to: lastDay) {
+            candidates.append(date(on: nextDay, matchingClockOf: displayedTime))
+        }
+
+        let reasonableAfterStart = candidates
+            .filter { candidate in
+                candidate > lowerBound && candidate.timeIntervalSince(lowerBound) <= 18 * 3600
+            }
+        if let best = reasonableAfterStart.min() {
+            return best
+        }
+
+        if let next = candidates.filter({ $0 > lowerBound }).min() {
+            return next
+        }
+
+        return lowerBound.addingTimeInterval(45 * 60)
+    }
+
+    private func dateCandidates(matchingClockOf date: Date) -> [Date] {
+        travelDayAnchors.map { day in
+            self.date(on: day, matchingClockOf: date)
+        }
+    }
+
+    private func date(on day: Date, matchingClockOf source: Date) -> Date {
+        let dayComponents = phoneCalendar.dateComponents([.year, .month, .day], from: day)
+        let clockComponents = phoneCalendar.dateComponents([.hour, .minute], from: source)
+        return phoneCalendar.date(from: DateComponents(
+            timeZone: phoneTimeZone,
+            year: dayComponents.year,
+            month: dayComponents.month,
+            day: dayComponents.day,
+            hour: clockComponents.hour,
+            minute: clockComponents.minute,
+            second: 0
+        )) ?? source
+    }
+
+    private func formattedTravelDay(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = .autoupdatingCurrent
+        formatter.timeZone = phoneTimeZone
+        formatter.setLocalizedDateFormatFromTemplate("Md")
+        return formatter.string(from: date)
+    }
+
+    private func travelDurationText(_ duration: TimeInterval) -> String {
+        let totalMinutes = max(0, Int(duration.rounded() / 60))
+        let hours = totalMinutes / 60
+        let minutes = totalMinutes % 60
+        if hours == 0 {
+            return "\(minutes)m"
+        }
+        return "\(hours)h \(minutes)m"
     }
 
     private func makeSession() -> TravelSleepSession {
@@ -2236,27 +2486,31 @@ private struct TravelSleepSessionEditorSheet: View {
             phase: effectivePhase,
             title: title,
             startTime: startTime,
-            endTime: max(startTime, endTime),
-            timeZoneIdentifier: selectedTimeZone.identifier,
+            endTime: max(startTime.addingTimeInterval(60), endTime),
+            timeZoneIdentifier: phoneTimeZone.identifier,
             source: .manual,
             note: note
         )
     }
 
     private static func defaultSession(for plan: TravelPlan) -> TravelSleepSession {
-        let end = Date()
-        let start = end.addingTimeInterval(-45 * 60)
+        let now = Date()
+        let end: Date
+        let start: Date
+        if let interval = plan.plannedTravelInterval {
+            if interval.contains(now) {
+                end = now
+                start = max(interval.start, end.addingTimeInterval(-45 * 60))
+            } else {
+                start = interval.start
+                end = min(interval.end, interval.start.addingTimeInterval(45 * 60))
+            }
+        } else {
+            end = now
+            start = end.addingTimeInterval(-45 * 60)
+        }
         let segment = plan.currentSegment ?? plan.segments.first
         let phase: TravelPlanStatus = plan.status == .planned ? .preDeparture : plan.status
-        let timeZoneIdentifier: String? = {
-            guard let segment else { return TimeZone.autoupdatingCurrent.identifier }
-            switch phase {
-            case .arrived, .completed:
-                return segment.arrivalTimeZoneIdentifier
-            case .planned, .preDeparture, .inFlight, .layover:
-                return segment.departureTimeZoneIdentifier
-            }
-        }()
 
         return TravelSleepSession(
             segmentID: segment?.id,
@@ -2264,7 +2518,523 @@ private struct TravelSleepSessionEditorSheet: View {
             title: NSLocalizedString("小睡", comment: ""),
             startTime: start,
             endTime: end,
-            timeZoneIdentifier: timeZoneIdentifier
+            timeZoneIdentifier: TimeZone.autoupdatingCurrent.identifier
+        )
+    }
+}
+
+private enum TravelPlanWizardStep: Int, CaseIterable {
+    case origin
+    case departureTime
+    case destination
+    case arrivalTime
+    case flightNumber
+    case nextSegment
+    case tripName
+
+    var question: String {
+        switch self {
+        case .origin:
+            return NSLocalizedString("今天你想从哪里出发？", comment: "")
+        case .departureTime:
+            return NSLocalizedString("这程计划什么时候起飞？", comment: "")
+        case .destination:
+            return NSLocalizedString("这程要飞到哪里？", comment: "")
+        case .arrivalTime:
+            return NSLocalizedString("计划什么时候到达？", comment: "")
+        case .flightNumber:
+            return NSLocalizedString("有航班号吗？", comment: "")
+        case .nextSegment:
+            return NSLocalizedString("这一程之后还有下一程吗？", comment: "")
+        case .tripName:
+            return NSLocalizedString("最后，给这次旅行起个名字", comment: "")
+        }
+    }
+}
+
+private struct TravelPlanWizardSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var completedSegments: [TravelSegmentDraft] = []
+    @State private var currentSegment: TravelSegmentDraft
+    @State private var step: TravelPlanWizardStep = .origin
+    @State private var wantsNextSegment: Bool?
+    @State private var title = ""
+
+    let onSave: (TravelPlan) -> Void
+
+    init(onSave: @escaping (TravelPlan) -> Void) {
+        self.onSave = onSave
+        let departure = Date().addingTimeInterval(2 * 3600)
+        _currentSegment = State(initialValue: TravelSegmentDraft(
+            originCode: "",
+            destinationCode: "",
+            departureDate: departure,
+            arrivalDate: departure.addingTimeInterval(3 * 3600),
+            departureTimeZoneIdentifier: TimeZone.autoupdatingCurrent.identifier,
+            arrivalTimeZoneIdentifier: TimeZone.autoupdatingCurrent.identifier
+        ))
+    }
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 0) {
+                ScrollView(.vertical, showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 26) {
+                        progressHeader
+                        questionHeader
+                        answerContent
+
+                        if let validationMessage {
+                            Text(validationMessage)
+                                .font(.system(size: 13, weight: .semibold, design: .rounded))
+                                .foregroundStyle(AppTheme.warning)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                    .padding(24)
+                }
+
+                footer
+            }
+            .background(AppTheme.travelBackground.ignoresSafeArea())
+            .navigationTitle(NSLocalizedString("添加旅行", comment: ""))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button(NSLocalizedString("取消", comment: "")) { dismiss() }
+                }
+            }
+        }
+    }
+
+    private var progressHeader: some View {
+        VStack(alignment: .leading, spacing: 9) {
+            HStack {
+                Text(String(format: NSLocalizedString("第 %d 段", comment: ""), segmentNumber))
+                    .font(.system(size: 14, weight: .bold, design: .rounded))
+                    .foregroundStyle(AppTheme.travelAccent)
+                Spacer()
+                Text("\(step.rawValue + 1)/\(TravelPlanWizardStep.allCases.count)")
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .foregroundStyle(AppTheme.secondaryText)
+                    .monospacedDigit()
+            }
+
+            ProgressView(value: Double(step.rawValue + 1), total: Double(TravelPlanWizardStep.allCases.count))
+                .tint(AppTheme.travelAccent)
+        }
+    }
+
+    private var questionHeader: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(step.question)
+                .font(.system(size: 30, weight: .bold, design: .rounded))
+                .foregroundStyle(AppTheme.primaryText)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Text(questionSubtitle)
+                .font(.system(size: 15, weight: .medium, design: .rounded))
+                .foregroundStyle(AppTheme.secondaryText)
+                .lineSpacing(4)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    @ViewBuilder
+    private var answerContent: some View {
+        switch step {
+        case .origin:
+            AirportSearchField(
+                title: NSLocalizedString("起飞机场", comment: ""),
+                placeholder: NSLocalizedString("输入 WUH / Wuhan / Tianhe", comment: ""),
+                airportCode: $currentSegment.originCode,
+                timeZoneIdentifier: $currentSegment.departureTimeZoneIdentifier,
+                isLocked: false,
+                surface: AppTheme.travelSurface,
+                resultSurface: AppTheme.travelSurface,
+                accent: AppTheme.travelAccent,
+                accentSoft: AppTheme.travelAccentSoft,
+                border: AppTheme.travelBorder
+            )
+        case .departureTime:
+            timeQuestion(
+                title: NSLocalizedString("起飞当地时间", comment: ""),
+                systemImage: "airplane.departure",
+                date: $currentSegment.departureDate,
+                airport: currentSegment.originAirport,
+                timeZoneIdentifier: currentSegment.resolvedDepartureTimeZoneIdentifier
+            )
+        case .destination:
+            AirportSearchField(
+                title: NSLocalizedString("降落机场", comment: ""),
+                placeholder: NSLocalizedString("输入 NRT / Tokyo / Narita", comment: ""),
+                airportCode: $currentSegment.destinationCode,
+                timeZoneIdentifier: $currentSegment.arrivalTimeZoneIdentifier,
+                isLocked: false,
+                surface: AppTheme.travelSurface,
+                resultSurface: AppTheme.travelSurface,
+                accent: AppTheme.travelAccent,
+                accentSoft: AppTheme.travelAccentSoft,
+                border: AppTheme.travelBorder
+            )
+        case .arrivalTime:
+            timeQuestion(
+                title: NSLocalizedString("到达当地时间", comment: ""),
+                systemImage: "airplane.arrival",
+                date: $currentSegment.arrivalDate,
+                airport: currentSegment.destinationAirport,
+                timeZoneIdentifier: currentSegment.resolvedArrivalTimeZoneIdentifier
+            )
+        case .flightNumber:
+            VStack(alignment: .leading, spacing: 10) {
+                Text(NSLocalizedString("航班号", comment: ""))
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .foregroundStyle(AppTheme.secondaryText)
+                TextField(NSLocalizedString("例如 NH938，可留空", comment: ""), text: $currentSegment.flightNumber)
+                    .textInputAutocapitalization(.characters)
+                    .autocorrectionDisabled()
+                    .font(.system(size: 20, weight: .semibold, design: .rounded))
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 16)
+                    .background(AppTheme.travelSurface)
+                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .strokeBorder(AppTheme.travelBorder, lineWidth: 1)
+                    }
+            }
+        case .nextSegment:
+            VStack(spacing: 12) {
+                segmentChoiceButton(
+                    title: NSLocalizedString("还有下一程", comment: ""),
+                    subtitle: nextSegmentChoiceSubtitle,
+                    isSelected: wantsNextSegment == true
+                ) {
+                    wantsNextSegment = true
+                }
+
+                segmentChoiceButton(
+                    title: NSLocalizedString("没有了，完成行程", comment: ""),
+                    subtitle: NSLocalizedString("下一步只需要给整段旅行命名。", comment: ""),
+                    isSelected: wantsNextSegment == false
+                ) {
+                    wantsNextSegment = false
+                }
+            }
+        case .tripName:
+            VStack(alignment: .leading, spacing: 14) {
+                TextField(defaultTripTitle, text: $title)
+                    .font(.system(size: 20, weight: .semibold, design: .rounded))
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 16)
+                    .background(AppTheme.travelSurface)
+                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .strokeBorder(AppTheme.travelBorder, lineWidth: 1)
+                    }
+
+                Text(routePreview)
+                    .font(.system(size: 15, weight: .bold, design: .rounded))
+                    .foregroundStyle(AppTheme.travelAccent)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    private var footer: some View {
+        HStack(spacing: 12) {
+            Button {
+                goBack()
+            } label: {
+                Label(NSLocalizedString("上一步", comment: ""), systemImage: "chevron.left")
+                    .font(.system(size: 15, weight: .bold, design: .rounded))
+                    .foregroundStyle(AppTheme.secondaryText)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    .background(AppTheme.travelElevatedSurface)
+                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .disabled(!canGoBack)
+            .opacity(canGoBack ? 1 : 0)
+
+            Button {
+                advance()
+            } label: {
+                Text(nextButtonTitle)
+                    .font(.system(size: 16, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    .background(canAdvance ? AppTheme.travelAccent : AppTheme.secondaryText.opacity(0.4))
+                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .disabled(!canAdvance)
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 14)
+        .padding(.bottom, 18)
+        .background(AppTheme.travelBackground)
+    }
+
+    private func timeQuestion(
+        title: String,
+        systemImage: String,
+        date: Binding<Date>,
+        airport: AirportInfo?,
+        timeZoneIdentifier: String
+    ) -> some View {
+        let timeZone = TimeZone(identifier: timeZoneIdentifier) ?? .autoupdatingCurrent
+        return VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 8) {
+                Image(systemName: systemImage)
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundStyle(AppTheme.travelAccent)
+                Text(title)
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .foregroundStyle(AppTheme.secondaryText)
+            }
+
+            Text((airport?.code ?? "--") + " " + date.wrappedValue.displayClockTime(in: timeZone))
+                .font(.system(size: 40, weight: .bold, design: .rounded))
+                .foregroundStyle(AppTheme.travelAccent)
+                .monospacedDigit()
+
+            DatePicker("", selection: date, displayedComponents: [.date, .hourAndMinute])
+                .datePickerStyle(.compact)
+                .labelsHidden()
+                .environment(\.timeZone, timeZone)
+
+            Text(timeZoneSummary(for: airport, timeZoneIdentifier: timeZoneIdentifier, at: date.wrappedValue))
+                .font(.system(size: 13, weight: .semibold, design: .rounded))
+                .foregroundStyle(AppTheme.secondaryText)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(AppTheme.travelSurface)
+        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .strokeBorder(AppTheme.travelBorder, lineWidth: 1)
+        }
+    }
+
+    private func segmentChoiceButton(
+        title: String,
+        subtitle: String,
+        isSelected: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                    .font(.system(size: 20, weight: .bold))
+                    .foregroundStyle(isSelected ? AppTheme.travelAccent : AppTheme.secondaryText)
+                    .frame(width: 24)
+
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(title)
+                        .font(.system(size: 18, weight: .bold, design: .rounded))
+                        .foregroundStyle(AppTheme.primaryText)
+                    Text(subtitle)
+                        .font(.system(size: 14, weight: .medium, design: .rounded))
+                        .foregroundStyle(AppTheme.secondaryText)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer(minLength: 0)
+            }
+            .padding(18)
+            .background(isSelected ? AppTheme.travelAccentSoft : AppTheme.travelSurface)
+            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .strokeBorder(isSelected ? AppTheme.travelAccent.opacity(0.45) : AppTheme.travelBorder, lineWidth: 1)
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var segmentNumber: Int {
+        completedSegments.count + 1
+    }
+
+    private var questionSubtitle: String {
+        switch step {
+        case .origin:
+            return NSLocalizedString("输入机场代码或城市名，从列表里选中一个机场。", comment: "")
+        case .departureTime:
+            return NSLocalizedString("这里按起飞机场的当地时间填写。", comment: "")
+        case .destination:
+            return NSLocalizedString("到达地会决定后续旅行记录里的目的地时间。", comment: "")
+        case .arrivalTime:
+            return NSLocalizedString("这里按降落机场的当地时间填写。", comment: "")
+        case .flightNumber:
+            return NSLocalizedString("这一项可以跳过，不会影响旅行模式。", comment: "")
+        case .nextSegment:
+            return NSLocalizedString("有转机或下一段飞行，就继续添加下一程。", comment: "")
+        case .tripName:
+            return NSLocalizedString("可留空，系统会用起点和终点生成名称。", comment: "")
+        }
+    }
+
+    private var nextSegmentChoiceSubtitle: String {
+        let destination = currentSegment.destinationAirport?.city ?? currentSegment.destinationCode
+        guard !destination.isEmpty else {
+            return NSLocalizedString("继续填写下一段航班。", comment: "")
+        }
+        return String(format: NSLocalizedString("下一程会默认从 %@ 出发。", comment: ""), destination)
+    }
+
+    private var validationMessage: String? {
+        switch step {
+        case .origin:
+            return currentSegment.originAirport == nil ? NSLocalizedString("先选择一个起飞机场。", comment: "") : nil
+        case .destination:
+            return currentSegment.destinationAirport == nil ? NSLocalizedString("先选择一个降落机场。", comment: "") : nil
+        case .arrivalTime:
+            return arrivalIsAfterDeparture ? nil : NSLocalizedString("到达时间需要晚于起飞时间。", comment: "")
+        case .nextSegment:
+            return wantsNextSegment == nil ? NSLocalizedString("请选择是否还有下一程。", comment: "") : nil
+        default:
+            return nil
+        }
+    }
+
+    private var nextButtonTitle: String {
+        switch step {
+        case .tripName:
+            return NSLocalizedString("完成", comment: "")
+        case .nextSegment where wantsNextSegment == true:
+            return NSLocalizedString("添加下一程", comment: "")
+        case .nextSegment:
+            return NSLocalizedString("去命名", comment: "")
+        default:
+            return NSLocalizedString("下一步", comment: "")
+        }
+    }
+
+    private var canGoBack: Bool {
+        step != .origin || !completedSegments.isEmpty
+    }
+
+    private var canAdvance: Bool {
+        switch step {
+        case .origin:
+            return currentSegment.originAirport != nil
+        case .destination:
+            return currentSegment.destinationAirport != nil
+        case .arrivalTime:
+            return arrivalIsAfterDeparture
+        case .nextSegment:
+            return wantsNextSegment != nil
+        case .tripName:
+            return !completedSegments.isEmpty
+        case .departureTime, .flightNumber:
+            return true
+        }
+    }
+
+    private var arrivalIsAfterDeparture: Bool {
+        let segment = currentSegment.makeSegment()
+        return segment.plannedArrivalTime > segment.plannedDepartureTime
+    }
+
+    private var routePreview: String {
+        let segments = completedSegments.map { $0.makeSegment() }
+        guard let first = segments.first, let last = segments.last else {
+            return defaultTripTitle
+        }
+        return "\(first.originCode)-\(last.destinationCode) · \(segments.count) " + NSLocalizedString("段", comment: "")
+    }
+
+    private var defaultTripTitle: String {
+        let segments = completedSegments.map { $0.makeSegment() }
+        guard let first = segments.first, let last = segments.last else {
+            return NSLocalizedString("未命名旅程", comment: "")
+        }
+        return "\(first.originCode)-\(last.destinationCode) 旅程"
+    }
+
+    private func timeZoneSummary(for airport: AirportInfo?, timeZoneIdentifier: String, at date: Date) -> String {
+        let city = airport?.city ?? NSLocalizedString("当地", comment: "")
+        return city + " · " + TimeZoneDisplay.userFacingTimeZoneText(for: timeZoneIdentifier, at: date)
+    }
+
+    private func advance() {
+        switch step {
+        case .origin:
+            step = .departureTime
+        case .departureTime:
+            if currentSegment.arrivalDate <= currentSegment.departureDate {
+                currentSegment.arrivalDate = currentSegment.departureDate.addingTimeInterval(3 * 3600)
+            }
+            step = .destination
+        case .destination:
+            step = .arrivalTime
+        case .arrivalTime:
+            step = .flightNumber
+        case .flightNumber:
+            wantsNextSegment = nil
+            step = .nextSegment
+        case .nextSegment:
+            guard let wantsNextSegment else { return }
+            if wantsNextSegment {
+                let previous = currentSegment
+                completedSegments.append(previous)
+                currentSegment = TravelSegmentDraft(after: previous)
+                self.wantsNextSegment = nil
+                step = .origin
+            } else {
+                completedSegments.append(currentSegment)
+                step = .tripName
+            }
+        case .tripName:
+            onSave(makePlan())
+            dismiss()
+        }
+    }
+
+    private func goBack() {
+        switch step {
+        case .origin:
+            if let previous = completedSegments.popLast() {
+                currentSegment = previous
+                wantsNextSegment = true
+                step = .nextSegment
+            }
+        case .departureTime:
+            step = .origin
+        case .destination:
+            step = .departureTime
+        case .arrivalTime:
+            step = .destination
+        case .flightNumber:
+            step = .arrivalTime
+        case .nextSegment:
+            step = .flightNumber
+        case .tripName:
+            if let previous = completedSegments.popLast() {
+                currentSegment = previous
+            }
+            wantsNextSegment = false
+            step = .nextSegment
+        }
+    }
+
+    private func makePlan() -> TravelPlan {
+        let savedSegments = completedSegments.map { $0.makeSegment() }
+        let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        return TravelPlan(
+            title: trimmedTitle.isEmpty ? defaultTripTitle : trimmedTitle,
+            segments: savedSegments,
+            status: .planned,
+            createdAt: .now,
+            modifiedAt: .now
         )
     }
 }
@@ -2938,6 +3708,11 @@ private struct AirportSearchField: View {
     @Binding var airportCode: String
     @Binding var timeZoneIdentifier: String
     let isLocked: Bool
+    var surface: Color = AppTheme.elevatedSurface.opacity(0.72)
+    var resultSurface: Color = AppTheme.surface
+    var accent: Color = AppTheme.accent
+    var accentSoft: Color = AppTheme.accentSoft
+    var border: Color = AppTheme.border.opacity(0.7)
 
     @State private var searchText = ""
     @State private var isSearching = false
@@ -2981,17 +3756,17 @@ private struct AirportSearchField: View {
                                 .buttonStyle(.plain)
                             }
                         }
-                        .background(AppTheme.surface)
+                        .background(resultSurface)
                         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                         .overlay {
                             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .strokeBorder(AppTheme.border.opacity(0.7), lineWidth: 1)
+                                .strokeBorder(border, lineWidth: 1)
                         }
                     }
                 }
             }
             .padding(13)
-            .background(AppTheme.elevatedSurface.opacity(0.72))
+            .background(surface)
             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
         .onAppear {
@@ -3036,10 +3811,10 @@ private struct AirportSearchField: View {
                 if !isLocked {
                     Text(NSLocalizedString("更改", comment: ""))
                         .font(.system(size: 12, weight: .bold, design: .rounded))
-                        .foregroundStyle(AppTheme.accent)
+                        .foregroundStyle(accent)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 7)
-                        .background(AppTheme.accentSoft)
+                        .background(accentSoft)
                         .clipShape(Capsule())
                 }
             }
@@ -3053,7 +3828,7 @@ private struct AirportSearchField: View {
         HStack(alignment: .top, spacing: 10) {
             Text(airport.code)
                 .font(.system(size: 18, weight: .black, design: .rounded))
-                .foregroundStyle(AppTheme.accent)
+                .foregroundStyle(accent)
                 .monospaced()
                 .frame(width: 46, alignment: .leading)
 
@@ -3074,7 +3849,7 @@ private struct AirportSearchField: View {
         HStack(alignment: .top, spacing: 10) {
             Text(airport.code)
                 .font(.system(size: 15, weight: .black, design: .rounded))
-                .foregroundStyle(AppTheme.accent)
+                .foregroundStyle(accent)
                 .monospaced()
                 .frame(width: 42, alignment: .leading)
 
@@ -3417,7 +4192,7 @@ struct PhotoPreviewOverlay: View {
         ZStack {
             Color.black.ignoresSafeArea()
 
-                PhotoContentView(photoURL: photoURL, contentMode: .fit)
+                ZoomablePhotoContentView(photoURL: photoURL, contentMode: .fit)
                     .ignoresSafeArea()
         }
         .overlay(alignment: .topTrailing) {

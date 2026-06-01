@@ -692,9 +692,9 @@ enum TravelPlanStatus: String, Codable, CaseIterable {
 
     var allowsPlanEditing: Bool {
         switch self {
-        case .planned, .preDeparture, .layover:
+        case .planned, .preDeparture, .inFlight, .layover, .arrived:
             true
-        case .inFlight, .arrived, .completed:
+        case .completed:
             false
         }
     }
@@ -1000,12 +1000,6 @@ struct TravelPlan: Codable, Equatable, Identifiable {
         for segment in segments {
             keys.insert(segment.plannedDepartureTime.storageKey(in: segment.departureTimeZone))
             keys.insert(segment.plannedArrivalTime.storageKey(in: segment.arrivalTimeZone))
-            if let actualDepartureTime = segment.actualDepartureTime {
-                keys.insert(actualDepartureTime.storageKey(in: segment.departureTimeZone))
-            }
-            if let actualArrivalTime = segment.actualArrivalTime {
-                keys.insert(actualArrivalTime.storageKey(in: segment.arrivalTimeZone))
-            }
         }
 
         guard let earliest = segments.map(\.plannedDepartureTime).min(),
@@ -1034,20 +1028,6 @@ struct TravelPlan: Codable, Equatable, Identifiable {
                 timeZoneIdentifier: segment.arrivalTimeZoneIdentifier,
                 fallbackTimeZone: segment.arrivalTimeZone
             ))
-            if let actualDepartureTime = segment.actualDepartureTime {
-                keys.insert(preferences.storageKey(
-                    for: actualDepartureTime,
-                    timeZoneIdentifier: segment.departureTimeZoneIdentifier,
-                    fallbackTimeZone: segment.departureTimeZone
-                ))
-            }
-            if let actualArrivalTime = segment.actualArrivalTime {
-                keys.insert(preferences.storageKey(
-                    for: actualArrivalTime,
-                    timeZoneIdentifier: segment.arrivalTimeZoneIdentifier,
-                    fallbackTimeZone: segment.arrivalTimeZone
-                ))
-            }
         }
 
         let keyDates = keys.compactMap(Self.date(fromStorageKey:))
@@ -1081,6 +1061,15 @@ struct TravelPlan: Codable, Equatable, Identifiable {
         affectedStorageKeys(using: preferences)
             .compactMap(Self.date(fromStorageKey:))
             .max()
+    }
+
+    var plannedTravelInterval: DateInterval? {
+        guard let start = segments.map(\.plannedDepartureTime).min(),
+              let end = segments.map(\.plannedArrivalTime).max(),
+              end > start else {
+            return nil
+        }
+        return DateInterval(start: start, end: end)
     }
 
     mutating func advance(now: Date = .now) {
@@ -1557,6 +1546,17 @@ extension UserPreferences {
 extension SleepRecord {
     var hasSleepData: Bool {
         bedtimePreviousNight != nil || wakeTimeCurrentDay != nil || !stageIntervals.isEmpty
+    }
+
+    var recordedInterval: DateInterval? {
+        if let bedtimePreviousNight, let wakeTimeCurrentDay, wakeTimeCurrentDay > bedtimePreviousNight {
+            return DateInterval(start: bedtimePreviousNight, end: wakeTimeCurrentDay)
+        }
+
+        let stageStart = stageIntervals.map(\.start).min()
+        let stageEnd = stageIntervals.map(\.end).max()
+        guard let stageStart, let stageEnd, stageEnd > stageStart else { return nil }
+        return DateInterval(start: stageStart, end: stageEnd)
     }
 
     var hasUserEnteredSleepData: Bool {

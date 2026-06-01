@@ -134,6 +134,7 @@ struct AnalyticsView: View {
                 case .frequencyCalendar:
                     HabitFrequencyCalendarDetailView(
                         records: appViewModel.allRecords,
+                        preferences: appViewModel.preferences,
                         allowedRange: appViewModel.availableDateRange,
                         initialMonth: appViewModel.selectedDate,
                         visibleHomeSections: appViewModel.preferences.visibleHomeSections
@@ -1944,13 +1945,15 @@ private enum HabitFrequencyMetric: String, CaseIterable, Identifiable, Hashable 
 
 private struct HabitFrequencyCalendarDetailView: View {
     let records: [DailyRecord]
+    let preferences: UserPreferences
     let allowedRange: ClosedRange<Date>
     let visibleHomeSections: [HomeSectionKind]
     @State private var visibleMonth: Date
     @State private var selectedMetrics: Set<HabitFrequencyMetric>
 
-    init(records: [DailyRecord], allowedRange: ClosedRange<Date>, initialMonth: Date, visibleHomeSections: [HomeSectionKind]) {
+    init(records: [DailyRecord], preferences: UserPreferences, allowedRange: ClosedRange<Date>, initialMonth: Date, visibleHomeSections: [HomeSectionKind]) {
         self.records = records
+        self.preferences = preferences
         self.allowedRange = allowedRange
         self.visibleHomeSections = visibleHomeSections
         let initialMetrics = HabitFrequencyMetric.allCases.filter { visibleHomeSections.contains($0.requiredSection) }
@@ -1960,7 +1963,7 @@ private struct HabitFrequencyCalendarDetailView: View {
     }
 
     private var countsByDate: [Date: HabitFrequencyDayCounts] {
-        HabitFrequencyDayCounts.aggregate(records: records)
+        HabitFrequencyDayCounts.aggregate(records: records, preferences: preferences)
     }
 
     private var monthCounts: [HabitFrequencyDayCounts] {
@@ -2246,14 +2249,14 @@ private struct HabitFrequencyCountDayCell: View {
     }
 }
 
-private struct HabitFrequencyDayCounts {
+struct HabitFrequencyDayCounts {
     var showers: Int
     var bowelMovements: Int
     var sexualActivities: Int
 
     static let empty = HabitFrequencyDayCounts(showers: 0, bowelMovements: 0, sexualActivities: 0)
 
-    static func aggregate(records: [DailyRecord]) -> [Date: HabitFrequencyDayCounts] {
+    static func aggregate(records: [DailyRecord], preferences: UserPreferences = UserPreferences()) -> [Date: HabitFrequencyDayCounts] {
         var result: [Date: HabitFrequencyDayCounts] = [:]
 
         for record in records {
@@ -2261,21 +2264,21 @@ private struct HabitFrequencyDayCounts {
 
             for shower in record.showers {
                 let date = shower.time.map {
-                    actualDisplayDate(for: $0, timeZoneIdentifier: shower.timeZoneIdentifier)
+                    logicalDisplayDate(for: $0, timeZoneIdentifier: shower.timeZoneIdentifier, preferences: preferences)
                 } ?? logicalDate
                 result[date, default: .empty].showers += 1
             }
 
             for bowelMovement in record.bowelMovements {
                 let date = bowelMovement.time.map {
-                    actualDisplayDate(for: $0, timeZoneIdentifier: bowelMovement.timeZoneIdentifier)
+                    logicalDisplayDate(for: $0, timeZoneIdentifier: bowelMovement.timeZoneIdentifier, preferences: preferences)
                 } ?? logicalDate
                 result[date, default: .empty].bowelMovements += 1
             }
 
             for activity in record.sexualActivities {
                 let date = activity.time.map {
-                    actualDisplayDate(for: $0, timeZoneIdentifier: activity.timeZoneIdentifier)
+                    logicalDisplayDate(for: $0, timeZoneIdentifier: activity.timeZoneIdentifier, preferences: preferences)
                 } ?? activity.date.startOfDay
                 result[date, default: .empty].sexualActivities += 1
             }
@@ -2284,12 +2287,17 @@ private struct HabitFrequencyDayCounts {
         return result
     }
 
-    private static func actualDisplayDate(for timestamp: Date, timeZoneIdentifier: String?) -> Date {
+    private static func logicalDisplayDate(for timestamp: Date, timeZoneIdentifier: String?, preferences: UserPreferences) -> Date {
         var recordedCalendar = Calendar.current
         if let timeZoneIdentifier, let timeZone = TimeZone(identifier: timeZoneIdentifier) {
             recordedCalendar.timeZone = timeZone
         }
-        let components = recordedCalendar.dateComponents([.year, .month, .day], from: timestamp)
+        let logicalDate = preferences.midnightMode.logicalDate(
+            for: timestamp,
+            timeZone: recordedCalendar.timeZone,
+            calendar: recordedCalendar
+        )
+        let components = recordedCalendar.dateComponents([.year, .month, .day], from: logicalDate)
         var displayComponents = DateComponents()
         displayComponents.calendar = Calendar.current
         displayComponents.timeZone = Calendar.current.timeZone
@@ -2978,6 +2986,78 @@ private struct MealPhotoTile: Identifiable, Equatable {
     let mealTitle: String
 }
 
+private enum MealPhotoWallCache {
+    private static let keyPrefix = "dailylogs.mealPhotoWall.selection"
+    private static let maxTileCount = 12
+
+    static func selectionIDs(for tiles: [MealPhotoTile], date: Date = .now) -> [String] {
+        guard !tiles.isEmpty else { return [] }
+
+        let key = cacheKey(for: tiles, date: date)
+        let availableIDs = Set(tiles.map(\.id))
+        let targetCount = min(maxTileCount, tiles.count)
+
+        if let storedIDs = UserDefaults.standard.array(forKey: key) as? [String] {
+            var selectedIDs = storedIDs.filter { availableIDs.contains($0) }
+            if selectedIDs.count >= targetCount {
+                return Array(selectedIDs.prefix(targetCount))
+            }
+
+            let selectedIDSet = Set(selectedIDs)
+            let remainingTiles = tiles.filter { !selectedIDSet.contains($0.id) }
+            selectedIDs += randomIDs(from: remainingTiles, limit: targetCount - selectedIDs.count)
+            UserDefaults.standard.set(selectedIDs, forKey: key)
+            return selectedIDs
+        }
+
+        let selectedIDs = randomIDs(from: tiles, limit: targetCount)
+        UserDefaults.standard.set(selectedIDs, forKey: key)
+        return selectedIDs
+    }
+
+    private static func randomIDs(from tiles: [MealPhotoTile], limit: Int) -> [String] {
+        guard limit > 0 else { return [] }
+        var generator = SeededRandomNumberGenerator(seed: UInt64.random(in: 1...UInt64.max))
+        return tiles
+            .shuffled(using: &generator)
+            .prefix(limit)
+            .map(\.id)
+    }
+
+    private static func cacheKey(for tiles: [MealPhotoTile], date: Date) -> String {
+        "\(keyPrefix).\(date.storageKey()).\(collectionSignature(for: tiles.map(\.id)))"
+    }
+
+    private static func collectionSignature(for ids: [String]) -> String {
+        var hash: UInt64 = 0xcbf2_9ce4_8422_2325
+        for id in ids.sorted() {
+            for byte in id.utf8 {
+                hash ^= UInt64(byte)
+                hash &*= 0x0000_0100_0000_01B3
+            }
+            hash ^= 0xff
+            hash &*= 0x0000_0100_0000_01B3
+        }
+        return String(hash, radix: 16)
+    }
+}
+
+private struct SeededRandomNumberGenerator: RandomNumberGenerator {
+    private var state: UInt64
+
+    init(seed: UInt64) {
+        state = seed == 0 ? 0x9E37_79B9_7F4A_7C15 : seed
+    }
+
+    mutating func next() -> UInt64 {
+        state &+= 0x9E37_79B9_7F4A_7C15
+        var value = state
+        value = (value ^ (value >> 30)) &* 0xBF58_476D_1CE4_E5B9
+        value = (value ^ (value >> 27)) &* 0x94D0_49BB_1331_11EB
+        return value ^ (value >> 31)
+    }
+}
+
 private struct MealLocationSummary: Identifiable, Equatable {
     let id: String
     let title: String
@@ -3126,8 +3206,9 @@ private struct MealPhotoWallCard: View {
     let items: [MealMemoryItem]
 
     @State private var previewingPhoto: MealPhotoTile?
+    @State private var cachedPhotoTileIDs: [String] = []
 
-    private var photoTiles: [MealPhotoTile] {
+    private var allPhotoTiles: [MealPhotoTile] {
         items
             .flatMap { item in
                 item.photoURLs.enumerated().map { index, photoURL in
@@ -3138,8 +3219,15 @@ private struct MealPhotoWallCard: View {
                     )
                 }
             }
-            .prefix(12)
-            .map { $0 }
+    }
+
+    private var photoTiles: [MealPhotoTile] {
+        let tilesByID = Dictionary(uniqueKeysWithValues: allPhotoTiles.map { ($0.id, $0) })
+        return cachedPhotoTileIDs.compactMap { tilesByID[$0] }
+    }
+
+    private var photoTileIDs: [String] {
+        allPhotoTiles.map(\.id)
     }
 
     private let columns = [
@@ -3151,11 +3239,14 @@ private struct MealPhotoWallCard: View {
         VStack(alignment: .leading, spacing: 14) {
             cardTitle(NSLocalizedString("照片墙", comment: ""))
 
-            if photoTiles.isEmpty {
+            if allPhotoTiles.isEmpty {
                 emptyCardState(
                     systemImage: "photo.on.rectangle.angled",
                     title: NSLocalizedString("还没有餐食照片", comment: "")
                 )
+            } else if photoTiles.isEmpty {
+                ProgressView()
+                    .frame(maxWidth: .infinity, minHeight: 140)
             } else {
                 LazyVGrid(columns: columns, spacing: 10) {
                     ForEach(photoTiles) { tile in
@@ -3189,6 +3280,14 @@ private struct MealPhotoWallCard: View {
         .sheet(item: $previewingPhoto) { tile in
             MealPhotoPreview(photoURL: tile.photoURL)
         }
+        .onAppear(perform: refreshCachedPhotoTiles)
+        .onChange(of: photoTileIDs) { _, _ in
+            refreshCachedPhotoTiles()
+        }
+    }
+
+    private func refreshCachedPhotoTiles() {
+        cachedPhotoTileIDs = MealPhotoWallCache.selectionIDs(for: allPhotoTiles)
     }
 }
 
@@ -3288,7 +3387,7 @@ private struct MealPhotoPreview: View {
             ZStack {
                 Color.black.ignoresSafeArea()
 
-                PhotoContentView(photoURL: photoURL, contentMode: .fit)
+                ZoomablePhotoContentView(photoURL: photoURL, contentMode: .fit)
                     .padding(24)
             }
             .overlay(alignment: .topLeading) {
