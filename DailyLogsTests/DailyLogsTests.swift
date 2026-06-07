@@ -2375,6 +2375,266 @@ struct DailyLogsTests {
     }
 
     @Test @MainActor
+    func savingTravelMealFromEarlierSegmentUpdatesOriginalRecordInsteadOfCurrentSegment() async throws {
+        let hkgDeparture = try zonedDate(
+            year: 2026,
+            month: 6,
+            day: 7,
+            hour: 19,
+            minute: 50,
+            timeZoneIdentifier: "Asia/Hong_Kong"
+        )
+        let jfkArrival = try zonedDate(
+            year: 2026,
+            month: 6,
+            day: 7,
+            hour: 23,
+            minute: 50,
+            timeZoneIdentifier: "America/New_York"
+        )
+        let jfkDeparture = try zonedDate(
+            year: 2026,
+            month: 6,
+            day: 7,
+            hour: 23,
+            minute: 45,
+            timeZoneIdentifier: "America/New_York"
+        )
+        let miaArrival = try zonedDate(
+            year: 2026,
+            month: 6,
+            day: 8,
+            hour: 2,
+            minute: 56,
+            timeZoneIdentifier: "America/New_York"
+        )
+        let hkgJfkSegment = TravelSegment(
+            flightNumber: "CX844",
+            originCode: "HKG",
+            destinationCode: "JFK",
+            plannedDepartureTime: hkgDeparture,
+            plannedArrivalTime: jfkArrival,
+            departureTimeZoneIdentifier: "Asia/Hong_Kong",
+            arrivalTimeZoneIdentifier: "America/New_York"
+        )
+        let jfkMiaSegment = TravelSegment(
+            flightNumber: "AA525",
+            originCode: "JFK",
+            destinationCode: "MIA",
+            plannedDepartureTime: jfkDeparture,
+            plannedArrivalTime: miaArrival,
+            departureTimeZoneIdentifier: "America/New_York",
+            arrivalTimeZoneIdentifier: "America/New_York"
+        )
+        let plan = TravelPlan(
+            title: "WUH-MIA",
+            segments: [hkgJfkSegment, jfkMiaSegment],
+            status: .layover,
+            currentSegmentID: jfkMiaSegment.id
+        )
+        let hkgContext = TravelRecordContext(planID: plan.id, segmentID: hkgJfkSegment.id, phase: .inFlight)
+        let mealID = UUID()
+        let originalMeal = MealEntry(
+            id: mealID,
+            mealKind: .custom,
+            customTitle: "HKG-JFK meal",
+            status: .logged,
+            time: try zonedDate(year: 2026, month: 6, day: 7, hour: 21, minute: 15, timeZoneIdentifier: "Asia/Hong_Kong"),
+            timeZoneIdentifier: "Asia/Hong_Kong",
+            travelContext: hkgContext
+        )
+        let earlierRecordDate = try #require(Calendar.current.date(from: DateComponents(year: 2026, month: 6, day: 6)))
+        let selectedDate = try #require(Calendar.current.date(from: DateComponents(year: 2026, month: 6, day: 7)))
+        let earlierRecord = DailyRecord(
+            date: earlierRecordDate,
+            sleepRecord: SleepRecord(),
+            meals: [originalMeal],
+            showers: [],
+            bowelMovements: [],
+            sexualActivities: [],
+            sunTimes: nil
+        )
+        let currentRecord = DailyRecord.empty(for: selectedDate, preferences: UserPreferences())
+        let user = UserAccount(
+            userID: "travel-edit-meal-user",
+            displayName: "Traveler",
+            email: nil,
+            authMode: .guest,
+            createdAt: earlierRecordDate.adding(days: -30)
+        )
+        let viewModel = AppViewModel(
+            authService: MockAuthService(user: user),
+            repository: InMemoryDailyRecordRepository(records: [
+                earlierRecordDate.storageKey(): earlierRecord,
+                selectedDate.storageKey(): currentRecord
+            ]),
+            travelPlanRepository: InMemoryTravelPlanRepository(plans: [plan]),
+            preferencesStore: MockPreferencesStore(preferences: UserPreferences()),
+            photoStorageService: MockPhotoStorageService(),
+            videoStorageService: MockVideoStorageService(),
+            sunTimesService: MockSunTimesService(),
+            weatherService: MockWeatherService(),
+            healthSyncAdapter: MockHealthSyncAdapter(sleepRecord: nil),
+            cloudSyncService: NoopCloudSyncService(),
+            aiInsightNarrativeService: NoopAIInsightNarrativeService(),
+            openAIKeyStore: MockOpenAIKeyStore(),
+            locationService: LocationService(),
+            selectedDate: selectedDate,
+            dailyRecord: currentRecord,
+            preferences: UserPreferences()
+        )
+        await viewModel.bootstrap()
+
+        let editedMeal = MealEntry(
+            id: mealID,
+            mealKind: .custom,
+            customTitle: "HKG-JFK meal",
+            status: .logged,
+            time: try zonedDate(year: 2026, month: 6, day: 7, hour: 22, minute: 5, timeZoneIdentifier: "Asia/Hong_Kong"),
+            timeZoneIdentifier: "Asia/Hong_Kong",
+            note: "edited from layover",
+            travelContext: hkgContext
+        )
+
+        await viewModel.saveMeal(editedMeal, images: [])
+
+        let savedMeal = try #require(viewModel.allRecords.flatMap(\.meals).first { $0.id == mealID })
+        #expect(savedMeal.travelContext == hkgContext)
+        #expect(savedMeal.timeZoneIdentifier == "Asia/Hong_Kong")
+        #expect(savedMeal.note == "edited from layover")
+        #expect(clockText(try #require(savedMeal.time), timeZoneIdentifier: "Asia/Hong_Kong") == "22:05")
+        #expect(viewModel.dailyRecord.meals.contains { $0.id == mealID } == false)
+    }
+
+    @Test @MainActor
+    func deletingTravelMealRemovesDuplicateCopiesAcrossStoredRecords() async throws {
+        let hkgDeparture = try zonedDate(
+            year: 2026,
+            month: 6,
+            day: 7,
+            hour: 19,
+            minute: 50,
+            timeZoneIdentifier: "Asia/Hong_Kong"
+        )
+        let jfkArrival = try zonedDate(
+            year: 2026,
+            month: 6,
+            day: 7,
+            hour: 23,
+            minute: 50,
+            timeZoneIdentifier: "America/New_York"
+        )
+        let jfkDeparture = try zonedDate(
+            year: 2026,
+            month: 6,
+            day: 7,
+            hour: 23,
+            minute: 45,
+            timeZoneIdentifier: "America/New_York"
+        )
+        let miaArrival = try zonedDate(
+            year: 2026,
+            month: 6,
+            day: 8,
+            hour: 2,
+            minute: 56,
+            timeZoneIdentifier: "America/New_York"
+        )
+        let hkgJfkSegment = TravelSegment(
+            flightNumber: "CX844",
+            originCode: "HKG",
+            destinationCode: "JFK",
+            plannedDepartureTime: hkgDeparture,
+            plannedArrivalTime: jfkArrival,
+            departureTimeZoneIdentifier: "Asia/Hong_Kong",
+            arrivalTimeZoneIdentifier: "America/New_York"
+        )
+        let jfkMiaSegment = TravelSegment(
+            flightNumber: "AA525",
+            originCode: "JFK",
+            destinationCode: "MIA",
+            plannedDepartureTime: jfkDeparture,
+            plannedArrivalTime: miaArrival,
+            departureTimeZoneIdentifier: "America/New_York",
+            arrivalTimeZoneIdentifier: "America/New_York"
+        )
+        let plan = TravelPlan(
+            title: "WUH-MIA",
+            segments: [hkgJfkSegment, jfkMiaSegment],
+            status: .layover,
+            currentSegmentID: jfkMiaSegment.id
+        )
+        let hkgContext = TravelRecordContext(planID: plan.id, segmentID: hkgJfkSegment.id, phase: .inFlight)
+        let jfkContext = TravelRecordContext(planID: plan.id, segmentID: jfkMiaSegment.id, phase: .layover)
+        let mealID = UUID()
+        let hkgMeal = MealEntry(
+            id: mealID,
+            mealKind: .custom,
+            customTitle: "HKG-JFK meal",
+            status: .logged,
+            time: try zonedDate(year: 2026, month: 6, day: 7, hour: 21, minute: 15, timeZoneIdentifier: "Asia/Hong_Kong"),
+            timeZoneIdentifier: "Asia/Hong_Kong",
+            travelContext: hkgContext
+        )
+        let duplicateMeal = MealEntry(
+            id: mealID,
+            mealKind: .custom,
+            customTitle: "HKG-JFK meal",
+            status: .logged,
+            time: try zonedDate(year: 2026, month: 6, day: 7, hour: 9, minute: 15, timeZoneIdentifier: "America/New_York"),
+            timeZoneIdentifier: "America/New_York",
+            travelContext: jfkContext
+        )
+        let earlierRecordDate = try #require(Calendar.current.date(from: DateComponents(year: 2026, month: 6, day: 6)))
+        let selectedDate = try #require(Calendar.current.date(from: DateComponents(year: 2026, month: 6, day: 7)))
+        let earlierRecord = DailyRecord(
+            date: earlierRecordDate,
+            sleepRecord: SleepRecord(),
+            meals: [hkgMeal],
+            showers: [],
+            bowelMovements: [],
+            sexualActivities: [],
+            sunTimes: nil
+        )
+        var currentRecord = DailyRecord.empty(for: selectedDate, preferences: UserPreferences())
+        currentRecord.meals.append(duplicateMeal)
+        let user = UserAccount(
+            userID: "travel-delete-meal-user",
+            displayName: "Traveler",
+            email: nil,
+            authMode: .guest,
+            createdAt: earlierRecordDate.adding(days: -30)
+        )
+        let viewModel = AppViewModel(
+            authService: MockAuthService(user: user),
+            repository: InMemoryDailyRecordRepository(records: [
+                earlierRecordDate.storageKey(): earlierRecord,
+                selectedDate.storageKey(): currentRecord
+            ]),
+            travelPlanRepository: InMemoryTravelPlanRepository(plans: [plan]),
+            preferencesStore: MockPreferencesStore(preferences: UserPreferences()),
+            photoStorageService: MockPhotoStorageService(),
+            videoStorageService: MockVideoStorageService(),
+            sunTimesService: MockSunTimesService(),
+            weatherService: MockWeatherService(),
+            healthSyncAdapter: MockHealthSyncAdapter(sleepRecord: nil),
+            cloudSyncService: NoopCloudSyncService(),
+            aiInsightNarrativeService: NoopAIInsightNarrativeService(),
+            openAIKeyStore: MockOpenAIKeyStore(),
+            locationService: LocationService(),
+            selectedDate: selectedDate,
+            dailyRecord: currentRecord,
+            preferences: UserPreferences()
+        )
+        await viewModel.bootstrap()
+
+        await viewModel.deleteMeal(duplicateMeal)
+
+        #expect(viewModel.allRecords.flatMap(\.meals).contains { $0.id == mealID } == false)
+        #expect(viewModel.dailyRecord.meals.contains { $0.id == mealID } == false)
+    }
+
+    @Test @MainActor
     func saveDailyVideoReplacesExistingVideoAndDeleteRemovesIt() async {
         let today = Date().startOfDay
         var existingRecord = DailyRecord.empty(for: today, preferences: UserPreferences())

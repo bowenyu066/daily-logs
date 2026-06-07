@@ -876,15 +876,16 @@ final class AppViewModel: ObservableObject {
     func saveMeal(_ entry: MealEntry, images: [UIImage]) async {
         guard canEditSelectedDate else { return }
         var updatedEntry = entry
-        if updatedEntry.travelContext == nil, let context = travelContextForCurrentRecording() {
-            updatedEntry.travelContext = context
-        }
         do {
+            let existingLocation = preferredMealEntryLocation(for: updatedEntry)
             let existingMatch = existingMealMatch(for: updatedEntry)
-            let existingEntry = existingMatch?.entry
+            let existingEntry = existingLocation?.entry ?? existingMatch?.entry
             if let existingEntry, existingEntry.id != updatedEntry.id {
                 updatedEntry.id = existingEntry.id
             }
+            updatedEntry.travelContext = updatedEntry.travelContext
+                ?? existingEntry?.travelContext
+                ?? travelContextForCurrentRecording()
 
             let existingPhotoURLs = existingEntry?.photoURLs ?? []
             let retainedPhotoURLs = updatedEntry.photoURLs
@@ -895,7 +896,7 @@ final class AppViewModel: ObservableObject {
 
             if updatedEntry.status == .logged || updatedEntry.time != nil || updatedEntry.hasPhoto {
                 updatedEntry.status = .logged
-                updatedEntry.travelContext = travelContextForCurrentRecording() ?? updatedEntry.travelContext
+                updatedEntry.travelContext = updatedEntry.travelContext ?? existingEntry?.travelContext ?? travelContextForCurrentRecording()
                 updatedEntry.timeZoneIdentifier = updatedEntry.time != nil
                     ? editedTimeZoneIdentifier(
                         for: existingEntry?.timeZoneIdentifier ?? updatedEntry.timeZoneIdentifier,
@@ -903,13 +904,20 @@ final class AppViewModel: ObservableObject {
                     )
                     : nil
             }
-            if let index = existingMatch?.index {
+            if let existingLocation {
+                var record = existingLocation.record
+                record.meals[existingLocation.index] = updatedEntry
+                let savedRecord = try persistRecord(record)
+                await syncRecordToCloudIfNeeded(savedRecord)
+            } else if let index = existingMatch?.index {
                 dailyRecord.meals[index] = updatedEntry
+                persistCurrentRecord()
+                await syncCurrentRecordToCloudIfNeeded()
             } else {
                 dailyRecord.meals.append(updatedEntry)
+                persistCurrentRecord()
+                await syncCurrentRecordToCloudIfNeeded()
             }
-            persistCurrentRecord()
-            await syncCurrentRecordToCloudIfNeeded()
         } catch {
             errorMessage = NSLocalizedString("保存餐食失败：", comment: "") + error.localizedDescription
         }
@@ -922,11 +930,22 @@ final class AppViewModel: ObservableObject {
     func deleteMeal(_ entry: MealEntry) async {
         guard canEditSelectedDate, canDeleteMealEntry(entry) else { return }
         do {
-            let existingEntry = existingMealMatch(for: entry)?.entry ?? entry
-            try await deleteMealPhotos(existingEntry.photoURLs)
-            removeMealEntry(entry)
-            persistCurrentRecord()
-            await syncCurrentRecordToCloudIfNeeded()
+            let locations = mealEntryLocations(id: entry.id)
+            if locations.isEmpty {
+                let existingEntry = existingMealMatch(for: entry)?.entry ?? entry
+                try await deleteMealPhotos(existingEntry.photoURLs)
+                removeMealEntry(entry)
+                persistCurrentRecord()
+                await syncCurrentRecordToCloudIfNeeded()
+                return
+            }
+            try await deleteMealPhotos(Array(Set(locations.flatMap { $0.entry.photoURLs })))
+            for location in locations {
+                var record = location.record
+                record.meals.removeAll { $0.id == entry.id }
+                let savedRecord = try persistRecord(record)
+                await syncRecordToCloudIfNeeded(savedRecord)
+            }
         } catch {
             errorMessage = NSLocalizedString("删除餐食失败：", comment: "") + error.localizedDescription
         }
@@ -1055,78 +1074,169 @@ final class AppViewModel: ObservableObject {
     func saveShower(_ shower: ShowerEntry) async {
         guard canEditSelectedDate else { return }
         var updatedShower = shower
+        let existingLocation = preferredShowerEntryLocation(for: shower)
+        let existingEntry = existingLocation?.entry
         updatedShower.note = trimmedNote(shower.note)
-        updatedShower.travelContext = travelContextForCurrentRecording() ?? shower.travelContext
+        updatedShower.travelContext = shower.travelContext
+            ?? existingEntry?.travelContext
+            ?? travelContextForCurrentRecording()
         updatedShower.timeZoneIdentifier = shower.time != nil
             ? editedTimeZoneIdentifier(for: shower.timeZoneIdentifier, travelContext: updatedShower.travelContext)
             : nil
-        if let index = dailyRecord.showers.firstIndex(where: { $0.id == shower.id }) {
-            dailyRecord.showers[index] = updatedShower
-        } else {
-            dailyRecord.showers.append(updatedShower)
+        do {
+            if let existingLocation {
+                var record = existingLocation.record
+                record.showers[existingLocation.index] = updatedShower
+                record.showers.sort { sortOptionalTimes($0.time, $1.time) }
+                let savedRecord = try persistRecord(record)
+                await syncRecordToCloudIfNeeded(savedRecord)
+            } else if let index = dailyRecord.showers.firstIndex(where: { $0.id == shower.id }) {
+                dailyRecord.showers[index] = updatedShower
+                dailyRecord.showers.sort { sortOptionalTimes($0.time, $1.time) }
+                persistCurrentRecord()
+                await syncCurrentRecordToCloudIfNeeded()
+            } else {
+                dailyRecord.showers.append(updatedShower)
+                dailyRecord.showers.sort { sortOptionalTimes($0.time, $1.time) }
+                persistCurrentRecord()
+                await syncCurrentRecordToCloudIfNeeded()
+            }
+        } catch {
+            errorMessage = NSLocalizedString("保存洗澡失败：", comment: "") + error.localizedDescription
         }
-        dailyRecord.showers.sort { sortOptionalTimes($0.time, $1.time) }
-        persistCurrentRecord()
-        await syncCurrentRecordToCloudIfNeeded()
     }
 
     func deleteShower(_ shower: ShowerEntry) async {
         guard canEditSelectedDate else { return }
-        dailyRecord.showers.removeAll { $0.id == shower.id }
-        persistCurrentRecord()
-        await syncCurrentRecordToCloudIfNeeded()
+        do {
+            let locations = showerEntryLocations(id: shower.id)
+            if locations.isEmpty {
+                dailyRecord.showers.removeAll { $0.id == shower.id }
+                persistCurrentRecord()
+                await syncCurrentRecordToCloudIfNeeded()
+                return
+            }
+            for location in locations {
+                var record = location.record
+                record.showers.removeAll { $0.id == shower.id }
+                let savedRecord = try persistRecord(record)
+                await syncRecordToCloudIfNeeded(savedRecord)
+            }
+        } catch {
+            errorMessage = NSLocalizedString("删除洗澡失败：", comment: "") + error.localizedDescription
+        }
     }
 
     func saveBowelMovement(_ entry: BowelMovementEntry) async {
         guard canEditSelectedDate else { return }
         var updated = entry
+        let existingLocation = preferredBowelMovementEntryLocation(for: entry)
+        let existingEntry = existingLocation?.entry
         updated.note = trimmedNote(entry.note)
-        updated.travelContext = travelContextForCurrentRecording() ?? entry.travelContext
+        updated.travelContext = entry.travelContext
+            ?? existingEntry?.travelContext
+            ?? travelContextForCurrentRecording()
         updated.timeZoneIdentifier = entry.time != nil
             ? editedTimeZoneIdentifier(for: entry.timeZoneIdentifier, travelContext: updated.travelContext)
             : nil
-        if let index = dailyRecord.bowelMovements.firstIndex(where: { $0.id == entry.id }) {
-            dailyRecord.bowelMovements[index] = updated
-        } else {
-            dailyRecord.bowelMovements.append(updated)
+        do {
+            if let existingLocation {
+                var record = existingLocation.record
+                record.bowelMovements[existingLocation.index] = updated
+                record.bowelMovements.sort { sortOptionalTimes($0.time, $1.time) }
+                let savedRecord = try persistRecord(record)
+                await syncRecordToCloudIfNeeded(savedRecord)
+            } else if let index = dailyRecord.bowelMovements.firstIndex(where: { $0.id == entry.id }) {
+                dailyRecord.bowelMovements[index] = updated
+                dailyRecord.bowelMovements.sort { sortOptionalTimes($0.time, $1.time) }
+                persistCurrentRecord()
+                await syncCurrentRecordToCloudIfNeeded()
+            } else {
+                dailyRecord.bowelMovements.append(updated)
+                dailyRecord.bowelMovements.sort { sortOptionalTimes($0.time, $1.time) }
+                persistCurrentRecord()
+                await syncCurrentRecordToCloudIfNeeded()
+            }
+        } catch {
+            errorMessage = NSLocalizedString("保存排便失败：", comment: "") + error.localizedDescription
         }
-        dailyRecord.bowelMovements.sort { sortOptionalTimes($0.time, $1.time) }
-        persistCurrentRecord()
-        await syncCurrentRecordToCloudIfNeeded()
     }
 
     func deleteBowelMovement(_ entry: BowelMovementEntry) async {
         guard canEditSelectedDate else { return }
-        dailyRecord.bowelMovements.removeAll { $0.id == entry.id }
-        persistCurrentRecord()
-        await syncCurrentRecordToCloudIfNeeded()
+        do {
+            let locations = bowelMovementEntryLocations(id: entry.id)
+            if locations.isEmpty {
+                dailyRecord.bowelMovements.removeAll { $0.id == entry.id }
+                persistCurrentRecord()
+                await syncCurrentRecordToCloudIfNeeded()
+                return
+            }
+            for location in locations {
+                var record = location.record
+                record.bowelMovements.removeAll { $0.id == entry.id }
+                let savedRecord = try persistRecord(record)
+                await syncRecordToCloudIfNeeded(savedRecord)
+            }
+        } catch {
+            errorMessage = NSLocalizedString("删除排便失败：", comment: "") + error.localizedDescription
+        }
     }
 
     func saveSexualActivity(_ entry: SexualActivityEntry) async {
         guard canEditSelectedDate else { return }
         var updated = entry
+        let existingLocation = preferredSexualActivityEntryLocation(for: entry)
+        let existingEntry = existingLocation?.entry
         updated.note = trimmedNote(entry.note)
-        updated.travelContext = travelContextForCurrentRecording() ?? entry.travelContext
+        updated.travelContext = entry.travelContext
+            ?? existingEntry?.travelContext
+            ?? travelContextForCurrentRecording()
         if updated.time != nil {
             updated.timeZoneIdentifier = editedTimeZoneIdentifier(
                 for: entry.timeZoneIdentifier,
                 travelContext: updated.travelContext
             )
         }
-        if let index = dailyRecord.sexualActivities.firstIndex(where: { $0.id == entry.id }) {
-            dailyRecord.sexualActivities[index] = updated
-        } else {
-            dailyRecord.sexualActivities.append(updated)
+        do {
+            if let existingLocation {
+                var record = existingLocation.record
+                record.sexualActivities[existingLocation.index] = updated
+                let savedRecord = try persistRecord(record)
+                await syncRecordToCloudIfNeeded(savedRecord)
+            } else if let index = dailyRecord.sexualActivities.firstIndex(where: { $0.id == entry.id }) {
+                dailyRecord.sexualActivities[index] = updated
+                persistCurrentRecord()
+                await syncCurrentRecordToCloudIfNeeded()
+            } else {
+                dailyRecord.sexualActivities.append(updated)
+                persistCurrentRecord()
+                await syncCurrentRecordToCloudIfNeeded()
+            }
+        } catch {
+            errorMessage = NSLocalizedString("保存性生活失败：", comment: "") + error.localizedDescription
         }
-        persistCurrentRecord()
-        await syncCurrentRecordToCloudIfNeeded()
     }
 
     func deleteSexualActivity(_ entry: SexualActivityEntry) async {
         guard canEditSelectedDate else { return }
-        dailyRecord.sexualActivities.removeAll { $0.id == entry.id }
-        persistCurrentRecord()
-        await syncCurrentRecordToCloudIfNeeded()
+        do {
+            let locations = sexualActivityEntryLocations(id: entry.id)
+            if locations.isEmpty {
+                dailyRecord.sexualActivities.removeAll { $0.id == entry.id }
+                persistCurrentRecord()
+                await syncCurrentRecordToCloudIfNeeded()
+                return
+            }
+            for location in locations {
+                var record = location.record
+                record.sexualActivities.removeAll { $0.id == entry.id }
+                let savedRecord = try persistRecord(record)
+                await syncRecordToCloudIfNeeded(savedRecord)
+            }
+        } catch {
+            errorMessage = NSLocalizedString("删除性生活失败：", comment: "") + error.localizedDescription
+        }
     }
 
     func updateVisibleHomeSections(_ sections: [HomeSectionKind]) async {
@@ -1323,6 +1433,147 @@ final class AppViewModel: ObservableObject {
         } catch {
             errorMessage = NSLocalizedString("保存记录失败：", comment: "") + error.localizedDescription
         }
+    }
+
+    @discardableResult
+    private func persistRecord(_ record: DailyRecord) throws -> DailyRecord {
+        guard let user else { return record }
+        var updated = record
+        updated.sleepRecord.targetBedtime = preferences.bedtimeSchedule.target(for: updated.date)
+        updated = mergedRecord(updated, with: preferences)
+        updated.aiInsightNarrative = nil
+        updated.modifiedAt = .now
+        try repository.saveRecord(updated, preferences: preferences, userID: user.userID)
+        try loadAllRecords(for: user.userID)
+        if updated.date.startOfDay == selectedDate.startOfDay {
+            dailyRecord = mergedRecord(updated, with: preferences)
+            restoreEnvironmentSnapshot()
+            refreshEnvironmentIfNeeded()
+        }
+        invalidateDailyInsightNarrative()
+        return updated
+    }
+
+    private func candidateRecordsForEntryLookup() -> [DailyRecord] {
+        var recordsByKey: [String: DailyRecord] = [:]
+        for record in allRecords + [dailyRecord] {
+            let key = record.date.storageKey()
+            if let existing = recordsByKey[key] {
+                recordsByKey[key] = existing.mergedPreservingSupplementalContent(
+                    with: record,
+                    preferences: preferences
+                )
+            } else {
+                recordsByKey[key] = record
+            }
+        }
+        return recordsByKey.values.sorted { $0.date < $1.date }
+    }
+
+    private struct MealEntryLocation {
+        var record: DailyRecord
+        var index: Int
+        var entry: MealEntry
+    }
+
+    private struct ShowerEntryLocation {
+        var record: DailyRecord
+        var index: Int
+        var entry: ShowerEntry
+    }
+
+    private struct BowelMovementEntryLocation {
+        var record: DailyRecord
+        var index: Int
+        var entry: BowelMovementEntry
+    }
+
+    private struct SexualActivityEntryLocation {
+        var record: DailyRecord
+        var index: Int
+        var entry: SexualActivityEntry
+    }
+
+    private func mealEntryLocations(id: UUID) -> [MealEntryLocation] {
+        candidateRecordsForEntryLookup().flatMap { record in
+            record.meals.indices.compactMap { index in
+                record.meals[index].id == id
+                    ? MealEntryLocation(record: record, index: index, entry: record.meals[index])
+                    : nil
+            }
+        }
+    }
+
+    private func showerEntryLocations(id: UUID) -> [ShowerEntryLocation] {
+        candidateRecordsForEntryLookup().flatMap { record in
+            record.showers.indices.compactMap { index in
+                record.showers[index].id == id
+                    ? ShowerEntryLocation(record: record, index: index, entry: record.showers[index])
+                    : nil
+            }
+        }
+    }
+
+    private func bowelMovementEntryLocations(id: UUID) -> [BowelMovementEntryLocation] {
+        candidateRecordsForEntryLookup().flatMap { record in
+            record.bowelMovements.indices.compactMap { index in
+                record.bowelMovements[index].id == id
+                    ? BowelMovementEntryLocation(record: record, index: index, entry: record.bowelMovements[index])
+                    : nil
+            }
+        }
+    }
+
+    private func sexualActivityEntryLocations(id: UUID) -> [SexualActivityEntryLocation] {
+        candidateRecordsForEntryLookup().flatMap { record in
+            record.sexualActivities.indices.compactMap { index in
+                record.sexualActivities[index].id == id
+                    ? SexualActivityEntryLocation(record: record, index: index, entry: record.sexualActivities[index])
+                    : nil
+            }
+        }
+    }
+
+    private func preferredMealEntryLocation(for entry: MealEntry) -> MealEntryLocation? {
+        preferredLocation(in: mealEntryLocations(id: entry.id), travelContext: entry.travelContext, entryContext: \.entry.travelContext)
+    }
+
+    private func preferredShowerEntryLocation(for entry: ShowerEntry) -> ShowerEntryLocation? {
+        preferredLocation(in: showerEntryLocations(id: entry.id), travelContext: entry.travelContext, entryContext: \.entry.travelContext)
+    }
+
+    private func preferredBowelMovementEntryLocation(for entry: BowelMovementEntry) -> BowelMovementEntryLocation? {
+        preferredLocation(in: bowelMovementEntryLocations(id: entry.id), travelContext: entry.travelContext, entryContext: \.entry.travelContext)
+    }
+
+    private func preferredSexualActivityEntryLocation(for entry: SexualActivityEntry) -> SexualActivityEntryLocation? {
+        preferredLocation(in: sexualActivityEntryLocations(id: entry.id), travelContext: entry.travelContext, entryContext: \.entry.travelContext)
+    }
+
+    private func preferredLocation<Location>(
+        in locations: [Location],
+        travelContext: TravelRecordContext?,
+        entryContext: KeyPath<Location, TravelRecordContext?>
+    ) -> Location? {
+        if let travelContext,
+           let matchingContext = locations.first(where: { $0[keyPath: entryContext] == travelContext }) {
+            return matchingContext
+        }
+        if let matchingSelectedDate = locations.first(where: { location in
+            guard let recordDate = recordDate(for: location) else { return false }
+            return recordDate.startOfDay == selectedDate.startOfDay
+        }) {
+            return matchingSelectedDate
+        }
+        return locations.first
+    }
+
+    private func recordDate<Location>(for location: Location) -> Date? {
+        if let location = location as? MealEntryLocation { return location.record.date }
+        if let location = location as? ShowerEntryLocation { return location.record.date }
+        if let location = location as? BowelMovementEntryLocation { return location.record.date }
+        if let location = location as? SexualActivityEntryLocation { return location.record.date }
+        return nil
     }
 
     private func persistPreferences(invalidateInsights: Bool = true) {
@@ -1717,6 +1968,24 @@ final class AppViewModel: ObservableObject {
         guard let user, !user.isGuest, cloudSyncService.isAvailable else { return }
         do {
             try await cloudSyncService.pushRecord(dailyRecord, user: user)
+        } catch {
+            if isConnectivityError(error) {
+                return
+            }
+            if let securityError = error as? CloudSyncSecurityError,
+               securityError == .encryptedSyncLocked {
+                cloudEncryptionState = .locked
+                errorMessage = securityError.localizedDescription
+            } else {
+                errorMessage = NSLocalizedString("云端记录同步失败：", comment: "") + error.localizedDescription
+            }
+        }
+    }
+
+    private func syncRecordToCloudIfNeeded(_ record: DailyRecord) async {
+        guard let user, !user.isGuest, cloudSyncService.isAvailable else { return }
+        do {
+            try await cloudSyncService.pushRecord(record, user: user)
         } catch {
             if isConnectivityError(error) {
                 return

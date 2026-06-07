@@ -229,7 +229,8 @@ struct HomeView: View {
                             for: appViewModel.selectedDate,
                             recordedTimeZoneIdentifier: nil,
                             travelContext: appViewModel.travelContextForCurrentRecording()
-                        )
+                        ),
+                        travelContext: appViewModel.travelContextForCurrentRecording()
                     ),
                     baseDate: appViewModel.selectedDate,
                     fallbackTime: appViewModel.suggestedEventTimestamp(
@@ -275,7 +276,8 @@ struct HomeView: View {
                             for: appViewModel.selectedDate,
                             recordedTimeZoneIdentifier: nil,
                             travelContext: appViewModel.travelContextForCurrentRecording()
-                        )
+                        ),
+                        travelContext: appViewModel.travelContextForCurrentRecording()
                     ),
                     baseDate: appViewModel.selectedDate,
                     fallbackTime: appViewModel.suggestedEventTimestamp(
@@ -322,7 +324,8 @@ struct HomeView: View {
                             for: appViewModel.selectedDate,
                             recordedTimeZoneIdentifier: nil,
                             travelContext: appViewModel.travelContextForCurrentRecording()
-                        )
+                        ),
+                        travelContext: appViewModel.travelContextForCurrentRecording()
                     ),
                     baseDate: appViewModel.selectedDate,
                     fallbackTime: appViewModel.suggestedEventTimestamp(
