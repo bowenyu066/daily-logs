@@ -585,6 +585,44 @@ struct DailyLogsTests {
     }
 
     @Test @MainActor
+    func travelEventTimestampIgnoresMidnightModeShift() {
+        let logicalDate = Calendar.current.date(from: DateComponents(year: 2026, month: 4, day: 19))!
+        let timeZoneIdentifier = TimeZone.autoupdatingCurrent.identifier
+        let preferences = UserPreferences(
+            midnightMode: MidnightModeSettings(isEnabled: true, cutoffHour: 4, effectiveFrom: nil)
+        )
+        let viewModel = AppViewModel(
+            authService: MockAuthService(user: nil),
+            repository: InMemoryDailyRecordRepository(records: [:]),
+            preferencesStore: MockPreferencesStore(preferences: preferences),
+            photoStorageService: MockPhotoStorageService(),
+            videoStorageService: MockVideoStorageService(),
+            sunTimesService: MockSunTimesService(),
+            weatherService: MockWeatherService(),
+            healthSyncAdapter: MockHealthSyncAdapter(sleepRecord: nil),
+            cloudSyncService: NoopCloudSyncService(),
+            aiInsightNarrativeService: MockAIInsightNarrativeService(responses: []),
+            openAIKeyStore: MockOpenAIKeyStore(key: nil),
+            locationService: LocationService(),
+            selectedDate: logicalDate,
+            dailyRecord: DailyRecord.empty(for: logicalDate, preferences: preferences),
+            preferences: preferences
+        )
+        let travelContext = TravelRecordContext(planID: UUID(), segmentID: UUID(), phase: .inFlight)
+
+        let resolved = viewModel.resolvedEventTimestamp(
+            for: logicalDate,
+            hour: 1,
+            minute: 27,
+            recordedTimeZoneIdentifier: timeZoneIdentifier,
+            travelContext: travelContext
+        )
+
+        #expect(resolved.storageKey(in: .autoupdatingCurrent) == "2026-04-19")
+        #expect(viewModel.displayedClockTime(for: resolved, recordedTimeZoneIdentifier: timeZoneIdentifier).contains("+1") == false)
+    }
+
+    @Test @MainActor
     func normalizedEventTimestampDropsNextDayMarkerAfterWheelMovesPastCutoff() {
         let logicalDate = Calendar.current.date(from: DateComponents(year: 2026, month: 4, day: 19))!
         let nextDayShell = Calendar.current.date(from: DateComponents(year: 2026, month: 4, day: 20, hour: 21, minute: 6))!
@@ -1731,6 +1769,69 @@ struct DailyLogsTests {
     }
 
     @Test
+    func recordsByStorageKeyMergesOlderTravelEntriesIntoNewerArrivalRecord() {
+        let day = Calendar.current.date(from: DateComponents(year: 2026, month: 6, day: 7))!
+        let planID = UUID()
+        let segmentID = UUID()
+        let travelContext = TravelRecordContext(planID: planID, segmentID: segmentID, phase: .inFlight)
+        let travelMeal = MealEntry(
+            mealKind: .custom,
+            customTitle: "飞机餐",
+            status: .logged,
+            time: day.settingTime(hour: 13, minute: 20),
+            timeZoneIdentifier: TimeZone.autoupdatingCurrent.identifier,
+            travelContext: travelContext
+        )
+        let travelShower = ShowerEntry(
+            time: day.settingTime(hour: 15, minute: 5),
+            timeZoneIdentifier: TimeZone.autoupdatingCurrent.identifier,
+            travelContext: travelContext
+        )
+        let travelBowelMovement = BowelMovementEntry(
+            time: day.settingTime(hour: 16, minute: 40),
+            timeZoneIdentifier: TimeZone.autoupdatingCurrent.identifier,
+            travelContext: travelContext
+        )
+
+        let olderTravelRecord = DailyRecord(
+            date: day,
+            sleepRecord: SleepRecord(),
+            meals: [travelMeal],
+            showers: [travelShower],
+            bowelMovements: [travelBowelMovement],
+            sexualActivities: [],
+            modifiedAt: day.settingTime(hour: 17, minute: 0)
+        )
+        let arrivalMeal = MealEntry(
+            mealKind: .custom,
+            customTitle: "JFK transfer",
+            status: .logged,
+            time: day.settingTime(hour: 20, minute: 10),
+            timeZoneIdentifier: TimeZone.autoupdatingCurrent.identifier
+        )
+        let newerArrivalRecord = DailyRecord(
+            date: day,
+            sleepRecord: SleepRecord(),
+            meals: [arrivalMeal],
+            showers: [],
+            bowelMovements: [],
+            sexualActivities: [],
+            modifiedAt: day.settingTime(hour: 21, minute: 0)
+        )
+
+        let deduplicated = AppViewModel.recordsByStorageKey(
+            [olderTravelRecord, newerArrivalRecord],
+            preferences: UserPreferences()
+        )
+        let merged = deduplicated[day.storageKey()]
+
+        #expect(merged?.meals.contains { $0.id == travelMeal.id } == true)
+        #expect(merged?.meals.contains { $0.id == arrivalMeal.id } == true)
+        #expect(merged?.showers.contains { $0.id == travelShower.id } == true)
+        #expect(merged?.bowelMovements.contains { $0.id == travelBowelMovement.id } == true)
+    }
+
+    @Test
     func recordsByStorageKeyCollapsesShiftedTravelDuplicatesUsingRecordedTimeZones() {
         let formatter = ISO8601DateFormatter()
         let london = TimeZone(identifier: "Europe/London")!
@@ -2848,6 +2949,55 @@ struct DailyLogsTests {
         #expect(plan.currentSegmentID == secondSegment.id)
     }
 
+    @Test @MainActor
+    func arrivedTravelPlanRemainsActiveUntilCompleted() async throws {
+        let today = Date().startOfDay
+        let segment = TravelSegment(
+            flightNumber: "AA001",
+            originCode: "JFK",
+            destinationCode: "MIA",
+            plannedDepartureTime: today.settingTime(hour: 14, minute: 0),
+            plannedArrivalTime: today.settingTime(hour: 17, minute: 0),
+            departureTimeZoneIdentifier: TimeZone.autoupdatingCurrent.identifier,
+            arrivalTimeZoneIdentifier: TimeZone.autoupdatingCurrent.identifier
+        )
+        let plan = TravelPlan(
+            title: "JFK-MIA",
+            segments: [segment],
+            status: .arrived,
+            currentSegmentID: segment.id
+        )
+        let user = UserAccount(
+            userID: "arrived-traveler",
+            displayName: "Traveler",
+            email: nil,
+            authMode: .guest,
+            createdAt: today.adding(days: -30)
+        )
+        let viewModel = AppViewModel(
+            authService: MockAuthService(user: user),
+            repository: InMemoryDailyRecordRepository(records: [:]),
+            travelPlanRepository: InMemoryTravelPlanRepository(plans: [plan]),
+            preferencesStore: MockPreferencesStore(preferences: UserPreferences()),
+            photoStorageService: MockPhotoStorageService(),
+            videoStorageService: MockVideoStorageService(),
+            sunTimesService: MockSunTimesService(),
+            weatherService: MockWeatherService(),
+            healthSyncAdapter: MockHealthSyncAdapter(sleepRecord: nil),
+            cloudSyncService: NoopCloudSyncService(),
+            aiInsightNarrativeService: MockAIInsightNarrativeService(responses: []),
+            openAIKeyStore: MockOpenAIKeyStore(key: nil),
+            locationService: LocationService(),
+            selectedDate: today,
+            dailyRecord: DailyRecord.empty(for: today, preferences: UserPreferences()),
+            preferences: UserPreferences()
+        )
+
+        await viewModel.bootstrap()
+
+        #expect(viewModel.activeTravelPlan(on: today)?.id == plan.id)
+    }
+
     @Test
     func travelPlanAffectedDatesCoverFutureOverlayDays() {
         let plan = TravelPlan.sampleBOSPKX()
@@ -2993,6 +3143,48 @@ struct DailyLogsTests {
         #expect(display.primary.contains("BOS-LHR"))
         #expect(display.primary.contains("1h 5m"))
         #expect(display.secondary == "BOS 08:30 / LHR 13:30")
+    }
+
+    @Test @MainActor
+    func travelTimeDisplayUsesActualDepartureForElapsedClock() async throws {
+        let user = UserAccount(
+            userID: "actual-flight-traveler",
+            displayName: "Traveler",
+            email: nil,
+            authMode: .guest,
+            createdAt: Date()
+        )
+        var plan = TravelPlan.sampleBOSPKX()
+        let originalSegment = try #require(plan.segments.first)
+        let actualDeparture = originalSegment.plannedDepartureTime.addingTimeInterval(35 * 60)
+        plan.segments[0].actualDepartureTime = actualDeparture
+        let viewModel = AppViewModel(
+            authService: MockAuthService(user: user),
+            repository: InMemoryDailyRecordRepository(records: [:]),
+            travelPlanRepository: InMemoryTravelPlanRepository(plans: [plan]),
+            preferencesStore: MockPreferencesStore(preferences: UserPreferences()),
+            photoStorageService: MockPhotoStorageService(),
+            videoStorageService: MockVideoStorageService(),
+            sunTimesService: MockSunTimesService(),
+            weatherService: MockWeatherService(),
+            healthSyncAdapter: MockHealthSyncAdapter(sleepRecord: nil),
+            cloudSyncService: NoopCloudSyncService(),
+            aiInsightNarrativeService: MockAIInsightNarrativeService(responses: []),
+            openAIKeyStore: MockOpenAIKeyStore(key: nil),
+            locationService: LocationService(),
+            selectedDate: Date(),
+            dailyRecord: DailyRecord.empty(for: Date(), preferences: UserPreferences()),
+            preferences: UserPreferences()
+        )
+        await viewModel.bootstrap()
+
+        let display = try #require(viewModel.travelTimeDisplay(
+            for: actualDeparture.addingTimeInterval(65 * 60),
+            context: TravelRecordContext(planID: plan.id, segmentID: originalSegment.id, phase: .inFlight)
+        ))
+
+        #expect(display.primary.contains("1h 5m"))
+        #expect(display.primary.contains("1h 40m") == false)
     }
 }
 

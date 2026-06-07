@@ -998,12 +998,12 @@ struct TravelPlan: Codable, Equatable, Identifiable {
     var affectedStorageKeys: Set<String> {
         var keys: Set<String> = []
         for segment in segments {
-            keys.insert(segment.plannedDepartureTime.storageKey(in: segment.departureTimeZone))
-            keys.insert(segment.plannedArrivalTime.storageKey(in: segment.arrivalTimeZone))
+            keys.insert(segment.departureTime.storageKey(in: segment.departureTimeZone))
+            keys.insert(segment.arrivalTime.storageKey(in: segment.arrivalTimeZone))
         }
 
-        guard let earliest = segments.map(\.plannedDepartureTime).min(),
-              let latest = segments.map(\.plannedArrivalTime).max() else {
+        guard let earliest = segments.map(\.departureTime).min(),
+              let latest = segments.map(\.arrivalTime).max() else {
             return keys
         }
         var day = earliest.startOfDay
@@ -1019,12 +1019,12 @@ struct TravelPlan: Codable, Equatable, Identifiable {
         var keys = affectedStorageKeys
         for segment in segments {
             keys.insert(preferences.storageKey(
-                for: segment.plannedDepartureTime,
+                for: segment.departureTime,
                 timeZoneIdentifier: segment.departureTimeZoneIdentifier,
                 fallbackTimeZone: segment.departureTimeZone
             ))
             keys.insert(preferences.storageKey(
-                for: segment.plannedArrivalTime,
+                for: segment.arrivalTime,
                 timeZoneIdentifier: segment.arrivalTimeZoneIdentifier,
                 fallbackTimeZone: segment.arrivalTimeZone
             ))
@@ -1044,11 +1044,11 @@ struct TravelPlan: Codable, Equatable, Identifiable {
     }
 
     var earliestCalendarDate: Date? {
-        segments.map(\.plannedDepartureTime).min()?.startOfDay
+        segments.map(\.departureTime).min()?.startOfDay
     }
 
     var latestCalendarDate: Date? {
-        segments.map(\.plannedArrivalTime).max()?.startOfDay
+        segments.map(\.arrivalTime).max()?.startOfDay
     }
 
     func earliestCalendarDate(using preferences: UserPreferences) -> Date? {
@@ -1064,8 +1064,8 @@ struct TravelPlan: Codable, Equatable, Identifiable {
     }
 
     var plannedTravelInterval: DateInterval? {
-        guard let start = segments.map(\.plannedDepartureTime).min(),
-              let end = segments.map(\.plannedArrivalTime).max(),
+        guard let start = segments.map(\.departureTime).min(),
+              let end = segments.map(\.arrivalTime).max(),
               end > start else {
             return nil
         }
@@ -1732,6 +1732,238 @@ extension DailyRecord {
         }
 
         return candidates
+    }
+
+    func mergedPreservingSupplementalContent(
+        with other: DailyRecord,
+        preferences _: UserPreferences
+    ) -> DailyRecord {
+        let preferred = DailyRecord.preferredRecord(between: self, and: other)
+        let supplemental = preferred == self ? other : self
+        let supplementalIsOlder = preferred.effectiveModifiedAt > supplemental.effectiveModifiedAt
+        var merged = preferred
+
+        merged.sleepRecord = DailyRecord.mergedSleepRecord(
+            preferred: preferred.sleepRecord,
+            supplemental: supplemental.sleepRecord
+        )
+        merged.meals = DailyRecord.mergedMeals(
+            preferred: preferred.meals,
+            supplemental: supplemental.meals,
+            requiresTravelContext: supplementalIsOlder
+        )
+        merged.showers = DailyRecord.mergedShowers(
+            preferred: preferred.showers,
+            supplemental: supplemental.showers,
+            requiresTravelContext: supplementalIsOlder
+        )
+        merged.bowelMovements = DailyRecord.mergedBowelMovements(
+            preferred: preferred.bowelMovements,
+            supplemental: supplemental.bowelMovements,
+            requiresTravelContext: supplementalIsOlder
+        )
+        merged.sexualActivities = DailyRecord.mergedSexualActivities(
+            preferred: preferred.sexualActivities,
+            supplemental: supplemental.sexualActivities,
+            requiresTravelContext: supplementalIsOlder
+        )
+
+        if merged.dailyVideo == nil {
+            merged.dailyVideo = supplemental.dailyVideo
+        }
+        if merged.locationName?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false {
+            merged.locationName = supplemental.locationName
+        }
+        if merged.sunTimes == nil {
+            merged.sunTimes = supplemental.sunTimes
+        }
+        if merged.weatherSnapshot == nil {
+            merged.weatherSnapshot = supplemental.weatherSnapshot
+        }
+        if merged.aiInsightNarrative == nil {
+            merged.aiInsightNarrative = supplemental.aiInsightNarrative
+        }
+        merged.modifiedAt = DailyRecord.latestModifiedAt(preferred.modifiedAt, supplemental.modifiedAt)
+        return merged.anchoredToStorageKey(preferred.date.storageKey())
+    }
+
+    static func preferredRecord(between lhs: DailyRecord, and rhs: DailyRecord) -> DailyRecord {
+        if lhs.effectiveModifiedAt != rhs.effectiveModifiedAt {
+            return lhs.effectiveModifiedAt > rhs.effectiveModifiedAt ? lhs : rhs
+        }
+
+        let lhsScore = completenessScore(for: lhs)
+        let rhsScore = completenessScore(for: rhs)
+        if lhsScore != rhsScore {
+            return lhsScore > rhsScore ? lhs : rhs
+        }
+
+        return lhs.date >= rhs.date ? lhs : rhs
+    }
+
+    static func completenessScore(for record: DailyRecord) -> Int {
+        var score = 0
+        if record.sleepRecord.bedtimePreviousNight != nil { score += 2 }
+        if record.sleepRecord.wakeTimeCurrentDay != nil { score += 2 }
+        if record.sleepRecord.note?.isEmpty == false { score += 1 }
+        score += record.sleepRecord.stageIntervals.count * 2
+        score += record.showers.count
+        score += record.bowelMovements.count
+        score += record.sexualActivities.count
+        if record.dailyVideo != nil { score += 1 }
+
+        for meal in record.meals {
+            switch meal.status {
+            case .logged: score += 2
+            case .skipped: score += 1
+            case .empty: break
+            }
+            if meal.time != nil { score += 1 }
+            if meal.hasPhoto { score += 1 }
+            if meal.note?.isEmpty == false { score += 1 }
+            if meal.locationName?.isEmpty == false { score += 1 }
+        }
+
+        if record.aiInsightNarrative?.hasAIScoring == true { score += 2 }
+        if record.locationName?.isEmpty == false { score += 1 }
+        if record.sunTimes != nil { score += 1 }
+        if record.weatherSnapshot != nil { score += 1 }
+        return score
+    }
+
+    private static func mergedSleepRecord(
+        preferred: SleepRecord,
+        supplemental: SleepRecord
+    ) -> SleepRecord {
+        guard preferred.hasSleepData || preferred.note?.isEmpty == false else {
+            return supplemental.hasSleepData || supplemental.note?.isEmpty == false ? supplemental : preferred
+        }
+
+        var merged = preferred
+        if merged.bedtimePreviousNight == nil {
+            merged.bedtimePreviousNight = supplemental.bedtimePreviousNight
+        }
+        if merged.wakeTimeCurrentDay == nil {
+            merged.wakeTimeCurrentDay = supplemental.wakeTimeCurrentDay
+        }
+        if merged.stageIntervals.isEmpty {
+            merged.stageIntervals = supplemental.stageIntervals
+        }
+        if merged.timeZoneIdentifier == nil {
+            merged.timeZoneIdentifier = supplemental.timeZoneIdentifier
+        }
+        if merged.note?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false {
+            merged.note = supplemental.note
+        }
+        if merged.targetBedtime == nil {
+            merged.targetBedtime = supplemental.targetBedtime
+        }
+        return merged
+    }
+
+    private static func mergedMeals(
+        preferred: [MealEntry],
+        supplemental: [MealEntry],
+        requiresTravelContext: Bool
+    ) -> [MealEntry] {
+        var merged = preferred
+
+        for meal in supplemental where meal.hasMeaningfulRecordContent {
+            guard !requiresTravelContext || meal.travelContext != nil else {
+                continue
+            }
+            if merged.contains(where: { $0.id == meal.id }) {
+                continue
+            }
+            if let conflictKey = nonTravelMealConflictKey(for: meal),
+               merged.contains(where: { nonTravelMealConflictKey(for: $0) == conflictKey }) {
+                continue
+            }
+            merged.append(meal)
+        }
+
+        return merged
+    }
+
+    private static func mergedShowers(
+        preferred: [ShowerEntry],
+        supplemental: [ShowerEntry],
+        requiresTravelContext: Bool
+    ) -> [ShowerEntry] {
+        var merged = preferred
+        for entry in supplemental where (!requiresTravelContext || entry.travelContext != nil)
+            && !merged.contains(where: { $0.id == entry.id }) {
+            merged.append(entry)
+        }
+        return merged
+    }
+
+    private static func mergedBowelMovements(
+        preferred: [BowelMovementEntry],
+        supplemental: [BowelMovementEntry],
+        requiresTravelContext: Bool
+    ) -> [BowelMovementEntry] {
+        var merged = preferred
+        for entry in supplemental where (!requiresTravelContext || entry.travelContext != nil)
+            && !merged.contains(where: { $0.id == entry.id }) {
+            merged.append(entry)
+        }
+        return merged
+    }
+
+    private static func mergedSexualActivities(
+        preferred: [SexualActivityEntry],
+        supplemental: [SexualActivityEntry],
+        requiresTravelContext: Bool
+    ) -> [SexualActivityEntry] {
+        var merged = preferred
+        for entry in supplemental where (!requiresTravelContext || entry.travelContext != nil)
+            && !merged.contains(where: { $0.id == entry.id }) {
+            merged.append(entry)
+        }
+        return merged
+    }
+
+    private static func nonTravelMealConflictKey(for meal: MealEntry) -> String? {
+        guard meal.travelContext == nil else { return nil }
+        switch meal.mealKind {
+        case .breakfast, .lunch, .dinner:
+            return meal.mealKind.rawValue
+        case .custom:
+            guard let title = meal.customTitle?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current),
+                  !title.isEmpty else {
+                return nil
+            }
+            return "custom:\(title)"
+        }
+    }
+
+    private static func latestModifiedAt(_ lhs: Date?, _ rhs: Date?) -> Date? {
+        switch (lhs, rhs) {
+        case let (lhs?, rhs?):
+            return max(lhs, rhs)
+        case let (lhs?, nil):
+            return lhs
+        case let (nil, rhs?):
+            return rhs
+        case (nil, nil):
+            return nil
+        }
+    }
+}
+
+private extension MealEntry {
+    var hasMeaningfulRecordContent: Bool {
+        status != .empty
+            || time != nil
+            || hasPhoto
+            || note?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+            || locationName?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+            || latitude != nil
+            || longitude != nil
+            || travelContext != nil
     }
 }
 

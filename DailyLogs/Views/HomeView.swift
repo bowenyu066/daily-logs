@@ -78,7 +78,7 @@ struct HomeView: View {
             .fullScreenCover(isPresented: $showingDatePicker) {
                 DatePickerSheet(
                     selectedDate: appViewModel.selectedDate,
-                    allowedRange: appViewModel.availableDateRange,
+                    allowedRange: appViewModel.selectableDateRange,
                     overlayRange: appViewModel.travelOverlayDateRange,
                     travelPlansForDate: { appViewModel.travelPlans(on: $0) },
                     onTravelPlanSelected: { plan in
@@ -207,7 +207,8 @@ struct HomeView: View {
                     baseDate: appViewModel.selectedDate,
                     fallbackTime: appViewModel.suggestedEventTimestamp(
                         for: appViewModel.selectedDate,
-                        recordedTimeZoneIdentifier: shower.timeZoneIdentifier
+                        recordedTimeZoneIdentifier: shower.timeZoneIdentifier,
+                        travelContext: shower.travelContext
                     ),
                     isEditable: appViewModel.canEditSelectedDate,
                     onSave: { updated in
@@ -226,13 +227,15 @@ struct HomeView: View {
                     initialValue: ShowerEntry(
                         time: appViewModel.suggestedEventTimestamp(
                             for: appViewModel.selectedDate,
-                            recordedTimeZoneIdentifier: nil
+                            recordedTimeZoneIdentifier: nil,
+                            travelContext: appViewModel.travelContextForCurrentRecording()
                         )
                     ),
                     baseDate: appViewModel.selectedDate,
                     fallbackTime: appViewModel.suggestedEventTimestamp(
                         for: appViewModel.selectedDate,
-                        recordedTimeZoneIdentifier: nil
+                        recordedTimeZoneIdentifier: nil,
+                        travelContext: appViewModel.travelContextForCurrentRecording()
                     ),
                     isEditable: appViewModel.canEditSelectedDate,
                     onSave: { updated in
@@ -250,7 +253,8 @@ struct HomeView: View {
                     baseDate: appViewModel.selectedDate,
                     fallbackTime: appViewModel.suggestedEventTimestamp(
                         for: appViewModel.selectedDate,
-                        recordedTimeZoneIdentifier: entry.timeZoneIdentifier
+                        recordedTimeZoneIdentifier: entry.timeZoneIdentifier,
+                        travelContext: entry.travelContext
                     ),
                     isEditable: appViewModel.canEditSelectedDate,
                     onSave: { updated in
@@ -269,13 +273,15 @@ struct HomeView: View {
                     initialValue: BowelMovementEntry(
                         time: appViewModel.suggestedEventTimestamp(
                             for: appViewModel.selectedDate,
-                            recordedTimeZoneIdentifier: nil
+                            recordedTimeZoneIdentifier: nil,
+                            travelContext: appViewModel.travelContextForCurrentRecording()
                         )
                     ),
                     baseDate: appViewModel.selectedDate,
                     fallbackTime: appViewModel.suggestedEventTimestamp(
                         for: appViewModel.selectedDate,
-                        recordedTimeZoneIdentifier: nil
+                        recordedTimeZoneIdentifier: nil,
+                        travelContext: appViewModel.travelContextForCurrentRecording()
                     ),
                     isEditable: appViewModel.canEditSelectedDate,
                     onSave: { updated in
@@ -293,7 +299,8 @@ struct HomeView: View {
                     baseDate: appViewModel.selectedDate,
                     fallbackTime: appViewModel.suggestedEventTimestamp(
                         for: appViewModel.selectedDate,
-                        recordedTimeZoneIdentifier: entry.timeZoneIdentifier
+                        recordedTimeZoneIdentifier: entry.timeZoneIdentifier,
+                        travelContext: entry.travelContext
                     ),
                     isEditable: appViewModel.canEditSelectedDate,
                     onSave: { updated in
@@ -313,13 +320,15 @@ struct HomeView: View {
                         date: appViewModel.selectedDate,
                         time: appViewModel.suggestedEventTimestamp(
                             for: appViewModel.selectedDate,
-                            recordedTimeZoneIdentifier: nil
+                            recordedTimeZoneIdentifier: nil,
+                            travelContext: appViewModel.travelContextForCurrentRecording()
                         )
                     ),
                     baseDate: appViewModel.selectedDate,
                     fallbackTime: appViewModel.suggestedEventTimestamp(
                         for: appViewModel.selectedDate,
-                        recordedTimeZoneIdentifier: nil
+                        recordedTimeZoneIdentifier: nil,
+                        travelContext: appViewModel.travelContextForCurrentRecording()
                     ),
                     isEditable: appViewModel.canEditSelectedDate,
                     onSave: { updated in
@@ -1783,7 +1792,8 @@ struct HomeView: View {
         if let activeTravelPlan {
             return context?.planID == activeTravelPlan.id
         }
-        return context == nil
+        guard let context else { return true }
+        return appViewModel.travelPlans(on: appViewModel.selectedDate).contains { $0.id == context.planID }
     }
 
     private var visibleMeals: [MealEntry] {
@@ -1885,9 +1895,9 @@ struct HomeView: View {
         switch plan.status {
         case .planned, .preDeparture:
             return NSLocalizedString("计划起飞：", comment: "")
-                + travelDateTimeText(segment.plannedDepartureTime, timeZoneIdentifier: segment.departureTimeZoneIdentifier)
+                + travelDateTimeText(segment.departureTime, timeZoneIdentifier: segment.departureTimeZoneIdentifier)
         case .inFlight:
-            let elapsed = max(0, now.timeIntervalSince(segment.plannedDepartureTime))
+            let elapsed = max(0, now.timeIntervalSince(segment.departureTime))
             return "\(segment.routeTitle) "
                 + NSLocalizedString("起飞后 ", comment: "")
                 + travelDurationText(elapsed)
@@ -1898,10 +1908,10 @@ struct HomeView: View {
                 + now.displayClockTime(in: segment.departureTimeZone)
                 + " · "
                 + NSLocalizedString("下一程 ", comment: "")
-                + travelDateTimeText(segment.plannedDepartureTime, timeZoneIdentifier: segment.departureTimeZoneIdentifier)
+                + travelDateTimeText(segment.departureTime, timeZoneIdentifier: segment.departureTimeZoneIdentifier)
         case .arrived, .completed:
             return NSLocalizedString("到达时间：", comment: "")
-                + travelDateTimeText(segment.plannedArrivalTime, timeZoneIdentifier: segment.arrivalTimeZoneIdentifier)
+                + travelDateTimeText(segment.arrivalTime, timeZoneIdentifier: segment.arrivalTimeZoneIdentifier)
         }
     }
 
@@ -1921,9 +1931,9 @@ struct HomeView: View {
     }
 
     private func travelSegmentTimeSummary(_ segment: TravelSegment) -> String {
-        travelDateTimeText(segment.plannedDepartureTime, timeZoneIdentifier: segment.departureTimeZoneIdentifier)
+        travelDateTimeText(segment.departureTime, timeZoneIdentifier: segment.departureTimeZoneIdentifier)
             + " -> "
-            + travelDateTimeText(segment.plannedArrivalTime, timeZoneIdentifier: segment.arrivalTimeZoneIdentifier)
+            + travelDateTimeText(segment.arrivalTime, timeZoneIdentifier: segment.arrivalTimeZoneIdentifier)
     }
 
     private func travelDateTimeText(_ date: Date, timeZoneIdentifier: String) -> String {
@@ -3648,19 +3658,19 @@ private struct TravelPlanDebugPlanCard: View {
     }
 
     private func segmentPreviewTimeText(_ segment: TravelSegment) -> String {
-        "\(segment.originCode) \(localDateTime(segment.plannedDepartureTime, in: segment.departureTimeZoneIdentifier))"
+        "\(segment.originCode) \(localDateTime(segment.departureTime, in: segment.departureTimeZoneIdentifier))"
             + " -> "
-            + "\(segment.destinationCode) \(localDateTime(segment.plannedArrivalTime, in: segment.arrivalTimeZoneIdentifier))"
+            + "\(segment.destinationCode) \(localDateTime(segment.arrivalTime, in: segment.arrivalTimeZoneIdentifier))"
     }
 
     private func segmentDebugKeyText(_ segment: TravelSegment) -> String {
         let departureKey = preferences.storageKey(
-            for: segment.plannedDepartureTime,
+            for: segment.departureTime,
             timeZoneIdentifier: segment.departureTimeZoneIdentifier,
             fallbackTimeZone: segment.departureTimeZone
         )
         let arrivalKey = preferences.storageKey(
-            for: segment.plannedArrivalTime,
+            for: segment.arrivalTime,
             timeZoneIdentifier: segment.arrivalTimeZoneIdentifier,
             fallbackTimeZone: segment.arrivalTimeZone
         )

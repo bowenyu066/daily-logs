@@ -143,7 +143,11 @@ struct MealEditorSheet: View {
     }
 
     private var isTravelModeEditor: Bool {
-        draft.travelContext != nil || appViewModel.travelContextForCurrentRecording() != nil
+        effectiveTravelContext != nil
+    }
+
+    private var effectiveTravelContext: TravelRecordContext? {
+        draft.travelContext ?? appViewModel.travelContextForCurrentRecording()
     }
 
     private var editorBackground: Color {
@@ -466,7 +470,8 @@ struct MealEditorSheet: View {
     private var defaultLoggedTime: Date {
         appViewModel.suggestedEventTimestamp(
             for: baseDate,
-            recordedTimeZoneIdentifier: draft.timeZoneIdentifier
+            recordedTimeZoneIdentifier: draft.timeZoneIdentifier,
+            travelContext: effectiveTravelContext
         )
     }
 
@@ -474,7 +479,8 @@ struct MealEditorSheet: View {
         appViewModel.normalizedEventTimestamp(
             from: draft.time ?? defaultLoggedTime,
             baseDate: baseDate,
-            recordedTimeZoneIdentifier: draft.timeZoneIdentifier
+            recordedTimeZoneIdentifier: draft.timeZoneIdentifier,
+            travelContext: effectiveTravelContext
         )
     }
 
@@ -592,7 +598,8 @@ struct MealEditorSheet: View {
             for: baseDate,
             hour: components.hour ?? 12,
             minute: components.minute ?? 0,
-            recordedTimeZoneIdentifier: draft.timeZoneIdentifier
+            recordedTimeZoneIdentifier: draft.timeZoneIdentifier,
+            travelContext: effectiveTravelContext
         )
     }
 

@@ -139,7 +139,7 @@ final class AppViewModel: ObservableObject {
     }
 
     var canEditSelectedDate: Bool {
-        selectedDate.startOfDay <= logicalToday
+        selectableDateRange.contains(selectedDate.startOfDay)
     }
 
     var availableStartDate: Date {
@@ -153,6 +153,13 @@ final class AppViewModel: ObservableObject {
 
     var availableDateRange: ClosedRange<Date> {
         availableStartDate...logicalToday
+    }
+
+    var selectableDateRange: ClosedRange<Date> {
+        let startedPlans = travelPlans.filter { $0.status != .planned }
+        let travelStart = startedPlans.compactMap { $0.earliestCalendarDate(using: preferences) }.min()
+        let travelEnd = startedPlans.compactMap { $0.latestCalendarDate(using: preferences) }.max()
+        return min(availableStartDate, travelStart ?? availableStartDate)...max(logicalToday, travelEnd ?? logicalToday)
     }
 
     var travelOverlayDateRange: ClosedRange<Date> {
@@ -522,7 +529,8 @@ final class AppViewModel: ObservableObject {
     }
 
     func selectDate(_ date: Date) async {
-        let clamped = min(max(date.startOfDay, availableStartDate), logicalToday)
+        let range = selectableDateRange
+        let clamped = min(max(date.startOfDay, range.lowerBound), range.upperBound)
         selectedDate = clamped
         do {
             try loadSelectedRecord()
@@ -539,9 +547,9 @@ final class AppViewModel: ObservableObject {
     func activeTravelPlan(on date: Date) -> TravelPlan? {
         travelPlans(on: date).first {
             switch $0.status {
-            case .planned, .arrived, .completed:
+            case .planned, .completed:
                 false
-            case .preDeparture, .inFlight, .layover:
+            case .preDeparture, .inFlight, .layover, .arrived:
                 true
             }
         }
@@ -1620,13 +1628,18 @@ final class AppViewModel: ObservableObject {
     }
 
     static func reconcileCloudRecord(localRecord: DailyRecord, remoteRecord: DailyRecord) -> CloudRecordReconciliationResult {
-        var mergedRecord = preferredRecord(between: localRecord, and: remoteRecord)
-        var shouldPushRecord = false
+        let localRecordIsPreferred = DailyRecord.preferredRecord(between: localRecord, and: remoteRecord) == localRecord
+        var mergedRecord = localRecord.mergedPreservingSupplementalContent(
+            with: remoteRecord,
+            preferences: UserPreferences()
+        )
         var discardedRemotePhotoReferences = Set<String>()
 
-        if mergedRecord == localRecord {
-            shouldPushRecord = localRecord != remoteRecord
+        if localRecordIsPreferred {
             restoreRemoteMediaForMissingLocalReferences(in: &mergedRecord, from: remoteRecord)
+        }
+        let shouldPushRecord = mergedRecord != remoteRecord
+        if shouldPushRecord {
             discardedRemotePhotoReferences = remotePhotoReferences(in: remoteRecord, excluding: mergedRecord)
         }
 
@@ -1836,7 +1849,10 @@ final class AppViewModel: ObservableObject {
             let key = normalized.canonicalStorageKey(using: preferences, fallback: normalized.date.storageKey())
 
             if let existing = partialResult[key] {
-                partialResult[key] = preferredRecord(between: existing, and: normalized)
+                partialResult[key] = existing.mergedPreservingSupplementalContent(
+                    with: normalized,
+                    preferences: preferences
+                )
             } else {
                 partialResult[key] = normalized
             }
@@ -1846,75 +1862,6 @@ final class AppViewModel: ObservableObject {
     private nonisolated static func normalizedRecord(_ record: DailyRecord, preferences: UserPreferences) -> DailyRecord {
         let key = record.canonicalStorageKey(using: preferences, fallback: record.date.storageKey())
         return record.anchoredToStorageKey(key)
-    }
-
-    private nonisolated static func preferredRecord(between lhs: DailyRecord, and rhs: DailyRecord) -> DailyRecord {
-        if lhs.effectiveModifiedAt != rhs.effectiveModifiedAt {
-            return lhs.effectiveModifiedAt > rhs.effectiveModifiedAt ? lhs : rhs
-        }
-
-        let lhsScore = completenessScore(for: lhs)
-        let rhsScore = completenessScore(for: rhs)
-
-        if lhsScore != rhsScore {
-            return lhsScore > rhsScore ? lhs : rhs
-        }
-
-        return lhs.date >= rhs.date ? lhs : rhs
-    }
-
-    private nonisolated static func completenessScore(for record: DailyRecord) -> Int {
-        var score = 0
-
-        if record.sleepRecord.bedtimePreviousNight != nil {
-            score += 2
-        }
-        if record.sleepRecord.wakeTimeCurrentDay != nil {
-            score += 2
-        }
-        score += record.sleepRecord.stageIntervals.count * 2
-        score += record.showers.count
-        score += record.bowelMovements.count
-        score += record.sexualActivities.count
-        if record.dailyVideo != nil {
-            score += 1
-        }
-
-        for meal in record.meals {
-            switch meal.status {
-            case .logged:
-                score += 2
-            case .skipped:
-                score += 1
-            case .empty:
-                break
-            }
-
-            if meal.time != nil {
-                score += 1
-            }
-            if meal.hasPhoto {
-                score += 1
-            }
-        }
-
-        if record.aiInsightNarrative?.hasAIScoring == true {
-            score += 2
-        }
-
-        if record.locationName?.isEmpty == false {
-            score += 1
-        }
-
-        if record.sunTimes != nil {
-            score += 1
-        }
-
-        if record.weatherSnapshot != nil {
-            score += 1
-        }
-
-        return score
     }
 
     private func bindLocationService() {
@@ -2153,7 +2100,8 @@ final class AppViewModel: ObservableObject {
     func suggestedEventTimestamp(
         for logicalDate: Date,
         recordedTimeZoneIdentifier: String?,
-        referenceDate: Date = .now
+        referenceDate: Date = .now,
+        travelContext: TravelRecordContext? = nil
     ) -> Date {
         let timeZone = displayedTimeZone(for: recordedTimeZoneIdentifier)
         var calendar = Calendar.current
@@ -2163,7 +2111,8 @@ final class AppViewModel: ObservableObject {
             for: logicalDate,
             hour: components.hour ?? 12,
             minute: components.minute ?? 0,
-            recordedTimeZoneIdentifier: recordedTimeZoneIdentifier
+            recordedTimeZoneIdentifier: recordedTimeZoneIdentifier,
+            travelContext: travelContext
         )
     }
 
@@ -2171,16 +2120,24 @@ final class AppViewModel: ObservableObject {
         for logicalDate: Date,
         hour: Int,
         minute: Int,
-        recordedTimeZoneIdentifier: String?
+        recordedTimeZoneIdentifier: String?,
+        travelContext: TravelRecordContext? = nil
     ) -> Date {
         let timeZone = displayedTimeZone(for: recordedTimeZoneIdentifier)
-        return resolvedTimestamp(for: logicalDate, hour: hour, minute: minute, timeZone: timeZone)
+        return resolvedTimestamp(
+            for: logicalDate,
+            hour: hour,
+            minute: minute,
+            timeZone: timeZone,
+            appliesMidnightMode: shouldApplyMidnightMode(for: travelContext)
+        )
     }
 
     func normalizedEventTimestamp(
         from displayedTime: Date,
         baseDate: Date,
-        recordedTimeZoneIdentifier: String?
+        recordedTimeZoneIdentifier: String?,
+        travelContext: TravelRecordContext? = nil
     ) -> Date {
         let timeZone = displayedTimeZone(for: recordedTimeZoneIdentifier)
         var calendar = Calendar.current
@@ -2190,7 +2147,8 @@ final class AppViewModel: ObservableObject {
             for: baseDate,
             hour: components.hour ?? 12,
             minute: components.minute ?? 0,
-            timeZone: timeZone
+            timeZone: timeZone,
+            appliesMidnightMode: shouldApplyMidnightMode(for: travelContext)
         )
     }
 
@@ -2261,7 +2219,7 @@ final class AppViewModel: ObservableObject {
         guard let segment else { return nil }
         switch phase {
         case .inFlight:
-            let elapsed = max(0, date.timeIntervalSince(segment.plannedDepartureTime))
+            let elapsed = max(0, date.timeIntervalSince(segment.departureTime))
             return TravelTimeDisplay(
                 primary: "\(segment.routeTitle) " + NSLocalizedString("起飞后 ", comment: "") + compactDurationText(elapsed),
                 secondary: "\(segment.originCode) \(date.displayClockTime(in: segment.departureTimeZone)) / \(segment.destinationCode) \(date.displayClockTime(in: segment.arrivalTimeZone))"
@@ -2286,7 +2244,7 @@ final class AppViewModel: ObservableObject {
 
     private func travelSegment(containing date: Date, in plan: TravelPlan) -> TravelSegment? {
         plan.segments.first { segment in
-            date >= segment.plannedDepartureTime && date <= segment.plannedArrivalTime
+            date >= segment.departureTime && date <= segment.arrivalTime
         }
     }
 
@@ -2300,9 +2258,20 @@ final class AppViewModel: ObservableObject {
         return "\(hours)h \(minutes)m"
     }
 
-    private func resolvedTimestamp(for logicalDate: Date, hour: Int, minute: Int, timeZone: TimeZone) -> Date {
+    private func shouldApplyMidnightMode(for travelContext: TravelRecordContext?) -> Bool {
+        travelContext == nil && travelContextForCurrentRecording() == nil
+    }
+
+    private func resolvedTimestamp(
+        for logicalDate: Date,
+        hour: Int,
+        minute: Int,
+        timeZone: TimeZone,
+        appliesMidnightMode: Bool = true
+    ) -> Date {
         let sameDay = logicalDate.settingTime(hour: hour, minute: minute, in: timeZone)
-        guard preferences.midnightMode.isEnabled,
+        guard appliesMidnightMode,
+              preferences.midnightMode.isEnabled,
               hour < MidnightModeSettings.fixedCutoffHour else {
             return sameDay
         }
@@ -2316,7 +2285,8 @@ final class AppViewModel: ObservableObject {
     }
 
     private func normalizeSelectedDateForCurrentDayBoundaryIfNeeded() async {
-        let normalized = min(max(selectedDate.startOfDay, availableStartDate), logicalToday)
+        let range = selectableDateRange
+        let normalized = min(max(selectedDate.startOfDay, range.lowerBound), range.upperBound)
         guard normalized != selectedDate.startOfDay else { return }
         selectedDate = normalized
         do {

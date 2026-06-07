@@ -561,52 +561,14 @@ final class LocalDailyRecordRepository: DailyRecordRepository {
             let canonicalKey = entry.value.canonicalStorageKey(using: preferences, fallback: entry.key)
             let anchored = entry.value.anchoredToStorageKey(canonicalKey)
             if let existing = partialResult[canonicalKey] {
-                partialResult[canonicalKey] = preferredRecord(between: existing, and: anchored)
+                partialResult[canonicalKey] = existing.mergedPreservingSupplementalContent(
+                    with: anchored,
+                    preferences: preferences
+                )
             } else {
                 partialResult[canonicalKey] = anchored
             }
         }
-    }
-
-    private func preferredRecord(between lhs: DailyRecord, and rhs: DailyRecord) -> DailyRecord {
-        if lhs.effectiveModifiedAt != rhs.effectiveModifiedAt {
-            return lhs.effectiveModifiedAt > rhs.effectiveModifiedAt ? lhs : rhs
-        }
-
-        let lhsScore = completenessScore(for: lhs)
-        let rhsScore = completenessScore(for: rhs)
-        if lhsScore != rhsScore {
-            return lhsScore > rhsScore ? lhs : rhs
-        }
-
-        return lhs.date >= rhs.date ? lhs : rhs
-    }
-
-    private func completenessScore(for record: DailyRecord) -> Int {
-        var score = 0
-        if record.sleepRecord.bedtimePreviousNight != nil { score += 2 }
-        if record.sleepRecord.wakeTimeCurrentDay != nil { score += 2 }
-        score += record.sleepRecord.stageIntervals.count * 2
-        score += record.showers.count
-        score += record.bowelMovements.count
-        score += record.sexualActivities.count
-        if record.dailyVideo != nil { score += 1 }
-
-        for meal in record.meals {
-            switch meal.status {
-            case .logged: score += 2
-            case .skipped: score += 1
-            case .empty: break
-            }
-            if meal.time != nil { score += 1 }
-            if meal.hasPhoto { score += 1 }
-        }
-
-        if record.aiInsightNarrative?.hasAIScoring == true { score += 2 }
-        if record.locationName?.isEmpty == false { score += 1 }
-        if record.sunTimes != nil { score += 1 }
-        if record.weatherSnapshot != nil { score += 1 }
-        return score
     }
 }
 

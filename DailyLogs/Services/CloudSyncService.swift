@@ -639,7 +639,10 @@ final class FirebaseCloudSyncService: CloudSyncService, Sendable {
             let key = normalized.canonicalStorageKey(fallback: normalized.date.storageKey())
             let anchored = normalized.anchoredToStorageKey(key)
             if let existing = merged[key] {
-                merged[key] = preferredRecord(between: existing, and: anchored)
+                merged[key] = existing.mergedPreservingSupplementalContent(
+                    with: anchored,
+                    preferences: UserPreferences()
+                )
             } else {
                 merged[key] = anchored
             }
@@ -648,38 +651,15 @@ final class FirebaseCloudSyncService: CloudSyncService, Sendable {
         return merged.values.sorted { $0.date < $1.date }
     }
 
-    private func preferredRecord(between lhs: DailyRecord, and rhs: DailyRecord) -> DailyRecord {
-        if lhs.effectiveModifiedAt != rhs.effectiveModifiedAt {
-            return lhs.effectiveModifiedAt > rhs.effectiveModifiedAt ? lhs : rhs
-        }
-
-        return score(for: rhs) >= score(for: lhs) ? rhs : lhs
-    }
-
-    private func score(for record: DailyRecord) -> Int {
-        var total = 0
-        if record.sleepRecord.bedtimePreviousNight != nil { total += 2 }
-        if record.sleepRecord.wakeTimeCurrentDay != nil { total += 2 }
-        if record.sleepRecord.note?.isEmpty == false { total += 1 }
-        total += record.sleepRecord.stageIntervals.count
-        total += record.meals.filter { $0.status == .logged || $0.time != nil || $0.hasPhoto || $0.note?.isEmpty == false }.count * 2
-        total += record.showers.count * 2
-        total += record.bowelMovements.count * 2
-        total += record.sexualActivities.count * 2
-        if record.dailyVideo != nil { total += 2 }
-        if record.aiInsightNarrative?.hasAIScoring == true { total += 2 }
-        if record.locationName?.isEmpty == false { total += 1 }
-        if record.sunTimes != nil { total += 2 }
-        if record.weatherSnapshot != nil { total += 1 }
-        return total
-    }
-
     private func canonicalizedRecordMap(from keyedRecords: [(String, DailyRecord)]) -> [String: DailyRecord] {
         keyedRecords.reduce(into: [:]) { partialResult, entry in
             let canonicalKey = entry.1.canonicalStorageKey(fallback: entry.0)
             let anchored = entry.1.anchoredToStorageKey(canonicalKey)
             if let existing = partialResult[canonicalKey] {
-                partialResult[canonicalKey] = preferredRecord(between: existing, and: anchored)
+                partialResult[canonicalKey] = existing.mergedPreservingSupplementalContent(
+                    with: anchored,
+                    preferences: UserPreferences()
+                )
             } else {
                 partialResult[canonicalKey] = anchored
             }

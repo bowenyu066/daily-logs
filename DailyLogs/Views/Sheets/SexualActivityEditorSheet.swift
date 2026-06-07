@@ -161,7 +161,8 @@ struct SexualActivityEditorSheet: View {
         appViewModel.normalizedEventTimestamp(
             from: draftTime,
             baseDate: baseDate,
-            recordedTimeZoneIdentifier: nil
+            recordedTimeZoneIdentifier: nil,
+            travelContext: effectiveTravelContext
         )
     }
 
