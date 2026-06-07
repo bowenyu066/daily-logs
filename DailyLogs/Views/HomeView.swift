@@ -926,37 +926,47 @@ struct HomeView: View {
     }
 
     private func travelTimelineRow(_ item: TravelTimelineItem) -> some View {
-        HStack(alignment: .top, spacing: 10) {
-            Image(systemName: item.systemImage)
-                .font(.system(size: 13, weight: .bold))
-                .foregroundStyle(item.accent)
-                .frame(width: 18, height: 22)
+        Button {
+            openTravelTimelineItem(item)
+        } label: {
+            HStack(alignment: .top, spacing: 10) {
+                Image(systemName: item.systemImage)
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(item.accent)
+                    .frame(width: 18, height: 22)
 
-            VStack(alignment: .leading, spacing: 3) {
-                Text(item.title)
-                    .font(.system(size: 14, weight: .bold, design: .rounded))
-                    .foregroundStyle(AppTheme.primaryText)
-                    .lineLimit(2)
-
-                travelAwareTime(
-                    item.date,
-                    context: item.context,
-                    fallback: item.fallback,
-                    accent: item.accent,
-                    isCompact: false
-                )
-
-                if let note = item.note, !note.isEmpty {
-                    Text(note)
-                        .font(.system(size: 12, weight: .medium, design: .rounded))
-                        .foregroundStyle(AppTheme.secondaryText)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(item.title)
+                        .font(.system(size: 14, weight: .bold, design: .rounded))
+                        .foregroundStyle(AppTheme.primaryText)
                         .lineLimit(2)
-                }
-            }
 
-            Spacer(minLength: 8)
+                    travelAwareTime(
+                        item.date,
+                        context: item.context,
+                        fallback: item.fallback,
+                        accent: item.accent,
+                        isCompact: false
+                    )
+
+                    if let note = item.note, !note.isEmpty {
+                        Text(note)
+                            .font(.system(size: 12, weight: .medium, design: .rounded))
+                            .foregroundStyle(AppTheme.secondaryText)
+                            .lineLimit(2)
+                    }
+                }
+
+                Spacer(minLength: 8)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .buttonStyle(.plain)
+        .disabled(!appViewModel.canEditSelectedDate)
+        .contextMenu {
+            travelTimelineContextMenu(item)
+        }
+        .opacity(appViewModel.canEditSelectedDate ? 1 : 0.65)
     }
 
     private func travelTimelineItems(for plan: TravelPlan, segmentID: UUID?) -> [TravelTimelineItem] {
@@ -964,7 +974,7 @@ struct HomeView: View {
         let meals = records.flatMap(\.meals).compactMap { meal -> TravelTimelineItem? in
             guard meal.travelContext?.planID == plan.id,
                   meal.travelContext?.segmentID == segmentID,
-                  meal.status != .empty || meal.hasPhoto else {
+                  mealHasVisibleContent(meal) else {
                 return nil
             }
             let fallback = meal.status == .skipped
@@ -979,7 +989,8 @@ struct HomeView: View {
                 fallback: fallback,
                 accent: mealAccentColor(meal),
                 systemImage: "fork.knife",
-                note: meal.note
+                note: meal.note,
+                payload: .meal(meal)
             )
         }
 
@@ -997,7 +1008,8 @@ struct HomeView: View {
                     ?? NSLocalizedString("已记录", comment: ""),
                 accent: AppTheme.showerAccent,
                 systemImage: "drop.degreesign",
-                note: shower.note
+                note: shower.note,
+                payload: .shower(shower)
             )
         }
 
@@ -1015,7 +1027,8 @@ struct HomeView: View {
                     ?? NSLocalizedString("已记录", comment: ""),
                 accent: AppTheme.bowelAccent,
                 systemImage: "leaf",
-                note: entry.note
+                note: entry.note,
+                payload: .bowelMovement(entry)
             )
         }
 
@@ -1033,7 +1046,8 @@ struct HomeView: View {
                     ?? NSLocalizedString("已记录", comment: ""),
                 accent: AppTheme.sexualAccent,
                 systemImage: "heart",
-                note: entry.note
+                note: entry.note,
+                payload: .sexualActivity(entry)
             )
         }
 
@@ -1836,7 +1850,7 @@ struct HomeView: View {
                     .flatMap(\.meals)
                     .filter {
                         $0.travelContext?.planID == activeTravelPlan.id
-                            && ($0.status != .empty || $0.hasPhoto)
+                            && mealHasVisibleContent($0)
                     }
             )
             .sorted { lhs, rhs in sortOptionalTimes(lhs.time, rhs.time, fallback: lhs.displayTitle < rhs.displayTitle) }
@@ -1878,6 +1892,10 @@ struct HomeView: View {
             .sorted { sortOptionalTimes($0.time, $1.time) }
         }
         return appViewModel.dailyRecord.sexualActivities.filter { isRecordVisibleInCurrentMode($0.travelContext) }
+    }
+
+    private func mealHasVisibleContent(_ meal: MealEntry) -> Bool {
+        meal.status != .empty || meal.time != nil || meal.hasPhoto
     }
 
     private func uniqueEntries<Entry: Identifiable>(_ entries: [Entry]) -> [Entry] where Entry.ID == UUID {
@@ -2097,6 +2115,60 @@ struct HomeView: View {
         }
     }
 
+    private func openTravelTimelineItem(_ item: TravelTimelineItem) {
+        guard appViewModel.canEditSelectedDate else { return }
+        switch item.payload {
+        case .meal(let meal):
+            openMealEditor(meal, with: .editRecord)
+        case .shower(let shower):
+            editingShower = shower
+        case .bowelMovement(let entry):
+            editingBowelMovement = entry
+        case .sexualActivity(let entry):
+            editingSexualActivity = entry
+        }
+    }
+
+    @ViewBuilder
+    private func travelTimelineContextMenu(_ item: TravelTimelineItem) -> some View {
+        switch item.payload {
+        case .meal(let meal):
+            Button(NSLocalizedString("修改记录", comment: "")) {
+                openMealEditor(meal, with: .editRecord)
+            }
+            if appViewModel.canDeleteMealEntry(meal) {
+                Button(NSLocalizedString("删除餐次", comment: ""), role: .destructive) {
+                    pendingDestructiveAction = .deleteMeal(meal)
+                }
+            } else {
+                Button(NSLocalizedString("删除记录", comment: ""), role: .destructive) {
+                    pendingDestructiveAction = .clearMealRecord(meal)
+                }
+            }
+        case .shower(let shower):
+            Button(NSLocalizedString("修改记录", comment: "")) {
+                editingShower = shower
+            }
+            Button(NSLocalizedString("删除记录", comment: ""), role: .destructive) {
+                pendingDestructiveAction = .deleteShower(shower)
+            }
+        case .bowelMovement(let entry):
+            Button(NSLocalizedString("修改记录", comment: "")) {
+                editingBowelMovement = entry
+            }
+            Button(NSLocalizedString("删除记录", comment: ""), role: .destructive) {
+                pendingDestructiveAction = .deleteBowelMovement(entry)
+            }
+        case .sexualActivity(let entry):
+            Button(NSLocalizedString("修改记录", comment: "")) {
+                editingSexualActivity = entry
+            }
+            Button(NSLocalizedString("删除记录", comment: ""), role: .destructive) {
+                pendingDestructiveAction = .deleteSexualActivity(entry)
+            }
+        }
+    }
+
     private func presentDailyVideoSourceOptions() {
         guard appViewModel.canEditSelectedDate else { return }
         showingDailyVideoSourceOptions = true
@@ -2168,6 +2240,14 @@ private struct TravelTimelineItem: Identifiable {
     let accent: Color
     let systemImage: String
     let note: String?
+    let payload: TravelTimelineItemPayload
+}
+
+private enum TravelTimelineItemPayload {
+    case meal(MealEntry)
+    case shower(ShowerEntry)
+    case bowelMovement(BowelMovementEntry)
+    case sexualActivity(SexualActivityEntry)
 }
 
 enum TravelEditorContext: Identifiable {
