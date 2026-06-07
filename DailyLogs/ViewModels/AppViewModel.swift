@@ -2013,21 +2013,45 @@ final class AppViewModel: ObservableObject {
         recordedTimeZoneIdentifier: String?,
         travelContext: TravelRecordContext?
     ) -> (date: Date, timeZoneIdentifier: String?) {
-        guard let expectedIdentifier = travelRecordingTimeZoneIdentifier(for: travelContext),
-              let expectedTimeZone = TimeZone(identifier: expectedIdentifier) else {
+        guard let travelContext,
+              let segment = travelSegment(for: travelContext),
+              let expectedIdentifier = travelRecordingTimeZoneIdentifier(for: travelContext),
+              TimeZone(identifier: expectedIdentifier) != nil else {
             return (date, recordedTimeZoneIdentifier)
         }
-        guard recordedTimeZoneIdentifier != expectedIdentifier else {
-            return (date, expectedIdentifier)
-        }
-        guard let sourceIdentifier = recordedTimeZoneIdentifier,
-              let sourceTimeZone = TimeZone(identifier: sourceIdentifier) else {
-            return (date, expectedIdentifier)
-        }
+        let repairedDate = repairedTravelRecordTimestampIfNeeded(
+            date,
+            segment: segment,
+            phase: travelContext.phase
+        )
         return (
-            date: retaggingWallClock(date, from: sourceTimeZone, to: expectedTimeZone),
+            date: repairedDate,
             timeZoneIdentifier: expectedIdentifier
         )
+    }
+
+    private func repairedTravelRecordTimestampIfNeeded(
+        _ date: Date,
+        segment: TravelSegment,
+        phase: TravelPlanStatus
+    ) -> Date {
+        guard phase == .inFlight,
+              date < segment.departureTime || date > segment.arrivalTime else {
+            return date
+        }
+
+        let departureOffset = TimeInterval(segment.departureTimeZone.secondsFromGMT(for: date))
+        let arrivalOffset = TimeInterval(segment.arrivalTimeZone.secondsFromGMT(for: date))
+        let routeOffsetDelta = departureOffset - arrivalOffset
+        guard routeOffsetDelta != 0 else { return date }
+
+        let candidates = [
+            date.addingTimeInterval(routeOffsetDelta),
+            date.addingTimeInterval(-routeOffsetDelta)
+        ]
+        return candidates.first { candidate in
+            candidate >= segment.departureTime && candidate <= segment.arrivalTime
+        } ?? date
     }
 
     private func mealEntry(_ entry: MealEntry, matches slot: MealSlot) -> Bool {
@@ -2350,13 +2374,8 @@ final class AppViewModel: ObservableObject {
     }
 
     private func travelRecordingTimeZoneIdentifier(for context: TravelRecordContext?) -> String? {
-        guard let context, let segment = travelSegment(for: context) else { return nil }
-        switch context.phase {
-        case .arrived, .completed:
-            return segment.arrivalTimeZoneIdentifier
-        case .planned, .preDeparture, .inFlight, .layover:
-            return segment.departureTimeZoneIdentifier
-        }
+        guard let segment = travelSegment(for: context) else { return nil }
+        return segment.departureTimeZoneIdentifier
     }
 
     private func travelSegment(for context: TravelRecordContext?) -> TravelSegment? {
@@ -2369,26 +2388,6 @@ final class AppViewModel: ObservableObject {
             return segment
         }
         return plan.currentSegment ?? plan.segments.first
-    }
-
-    private func retaggingWallClock(_ date: Date, from sourceTimeZone: TimeZone, to destinationTimeZone: TimeZone) -> Date {
-        var sourceCalendar = Calendar(identifier: .gregorian)
-        sourceCalendar.locale = .autoupdatingCurrent
-        sourceCalendar.timeZone = sourceTimeZone
-        let components = sourceCalendar.dateComponents([.year, .month, .day, .hour, .minute, .second], from: date)
-
-        var destinationCalendar = Calendar(identifier: .gregorian)
-        destinationCalendar.locale = .autoupdatingCurrent
-        destinationCalendar.timeZone = destinationTimeZone
-        return destinationCalendar.date(from: DateComponents(
-            timeZone: destinationTimeZone,
-            year: components.year,
-            month: components.month,
-            day: components.day,
-            hour: components.hour,
-            minute: components.minute,
-            second: components.second ?? 0
-        )) ?? date
     }
 
     private func travelTimeDisplay(
@@ -2416,7 +2415,7 @@ final class AppViewModel: ObservableObject {
             )
         case .arrived, .completed:
             return TravelTimeDisplay(
-                primary: "\(segment.destinationCode) " + date.displayClockTime(in: segment.arrivalTimeZone),
+                primary: "\(segment.originCode) " + date.displayClockTime(in: segment.departureTimeZone),
                 secondary: phase.title
             )
         }
