@@ -895,10 +895,13 @@ final class AppViewModel: ObservableObject {
 
             if updatedEntry.status == .logged || updatedEntry.time != nil || updatedEntry.hasPhoto {
                 updatedEntry.status = .logged
-                updatedEntry.timeZoneIdentifier = updatedEntry.time != nil
-                    ? editedTimeZoneIdentifier(for: existingEntry?.timeZoneIdentifier ?? updatedEntry.timeZoneIdentifier)
-                    : nil
                 updatedEntry.travelContext = travelContextForCurrentRecording() ?? updatedEntry.travelContext
+                updatedEntry.timeZoneIdentifier = updatedEntry.time != nil
+                    ? editedTimeZoneIdentifier(
+                        for: existingEntry?.timeZoneIdentifier ?? updatedEntry.timeZoneIdentifier,
+                        travelContext: updatedEntry.travelContext
+                    )
+                    : nil
             }
             if let index = existingMatch?.index {
                 dailyRecord.meals[index] = updatedEntry
@@ -1052,9 +1055,11 @@ final class AppViewModel: ObservableObject {
     func saveShower(_ shower: ShowerEntry) async {
         guard canEditSelectedDate else { return }
         var updatedShower = shower
-        updatedShower.timeZoneIdentifier = shower.time != nil ? editedTimeZoneIdentifier(for: shower.timeZoneIdentifier) : nil
         updatedShower.note = trimmedNote(shower.note)
         updatedShower.travelContext = travelContextForCurrentRecording() ?? shower.travelContext
+        updatedShower.timeZoneIdentifier = shower.time != nil
+            ? editedTimeZoneIdentifier(for: shower.timeZoneIdentifier, travelContext: updatedShower.travelContext)
+            : nil
         if let index = dailyRecord.showers.firstIndex(where: { $0.id == shower.id }) {
             dailyRecord.showers[index] = updatedShower
         } else {
@@ -1075,9 +1080,11 @@ final class AppViewModel: ObservableObject {
     func saveBowelMovement(_ entry: BowelMovementEntry) async {
         guard canEditSelectedDate else { return }
         var updated = entry
-        updated.timeZoneIdentifier = entry.time != nil ? editedTimeZoneIdentifier(for: entry.timeZoneIdentifier) : nil
         updated.note = trimmedNote(entry.note)
         updated.travelContext = travelContextForCurrentRecording() ?? entry.travelContext
+        updated.timeZoneIdentifier = entry.time != nil
+            ? editedTimeZoneIdentifier(for: entry.timeZoneIdentifier, travelContext: updated.travelContext)
+            : nil
         if let index = dailyRecord.bowelMovements.firstIndex(where: { $0.id == entry.id }) {
             dailyRecord.bowelMovements[index] = updated
         } else {
@@ -1099,10 +1106,13 @@ final class AppViewModel: ObservableObject {
         guard canEditSelectedDate else { return }
         var updated = entry
         updated.note = trimmedNote(entry.note)
-        if updated.time != nil {
-            updated.timeZoneIdentifier = editedTimeZoneIdentifier(for: entry.timeZoneIdentifier)
-        }
         updated.travelContext = travelContextForCurrentRecording() ?? entry.travelContext
+        if updated.time != nil {
+            updated.timeZoneIdentifier = editedTimeZoneIdentifier(
+                for: entry.timeZoneIdentifier,
+                travelContext: updated.travelContext
+            )
+        }
         if let index = dailyRecord.sexualActivities.firstIndex(where: { $0.id == entry.id }) {
             dailyRecord.sexualActivities[index] = updated
         } else {
@@ -1275,6 +1285,11 @@ final class AppViewModel: ObservableObject {
         }
         var record = try repository.loadRecord(for: selectedDate, preferences: preferences, userID: user.userID)
         record = record.backfillingRecordedTimeZones(TimeZone.autoupdatingCurrent.identifier)
+        let normalized = normalizedTravelRecordTimeZones(in: record)
+        if normalized.didChange {
+            record = normalized.record
+            try repository.saveRecord(record, preferences: preferences, userID: user.userID)
+        }
         record.sleepRecord.targetBedtime = preferences.bedtimeSchedule.target(for: selectedDate)
         dailyRecord = mergedRecord(record, with: preferences)
         restoreEnvironmentSnapshot()
@@ -1291,6 +1306,7 @@ final class AppViewModel: ObservableObject {
 
     private func loadTravelPlans(for userID: String) throws {
         travelPlans = try travelPlanRepository.loadTravelPlans(userID: userID)
+        try normalizeStoredTravelRecordTimeZonesIfNeeded(for: userID)
     }
 
     private func persistCurrentRecord() {
@@ -1901,12 +1917,117 @@ final class AppViewModel: ObservableObject {
 
     private func migrateRecordedTimeZonesIfNeeded(in records: [DailyRecord], userID: String) throws -> [DailyRecord] {
         let identifier = TimeZone.autoupdatingCurrent.identifier
-        let migrated = records.map { $0.backfillingRecordedTimeZones(identifier) }
+        let migrated = records.map { record in
+            normalizedTravelRecordTimeZones(in: record.backfillingRecordedTimeZones(identifier)).record
+        }
         guard migrated != records else { return migrated.sorted { $0.date < $1.date } }
         for record in migrated {
             try repository.saveRecord(record, preferences: preferences, userID: userID)
         }
         return migrated.sorted { $0.date < $1.date }
+    }
+
+    private func normalizeStoredTravelRecordTimeZonesIfNeeded(for userID: String) throws {
+        guard !travelPlans.isEmpty else { return }
+        let records = try repository.loadAllRecords(userID: userID, preferences: preferences)
+            .filter { $0.date >= availableStartDate }
+        allRecords = try migrateRecordedTimeZonesIfNeeded(in: records, userID: userID)
+    }
+
+    private func normalizedTravelRecordTimeZones(in record: DailyRecord) -> (record: DailyRecord, didChange: Bool) {
+        guard !travelPlans.isEmpty else { return (record, false) }
+        var updated = record
+        updated.meals = record.meals.map { normalizedTravelMeal($0) }
+        updated.showers = record.showers.map { normalizedTravelShower($0) }
+        updated.bowelMovements = record.bowelMovements.map { normalizedTravelBowelMovement($0) }
+        updated.sexualActivities = record.sexualActivities.map { normalizedTravelSexualActivity($0) }
+        return (updated, updated != record)
+    }
+
+    private func normalizedTravelMeal(_ meal: MealEntry) -> MealEntry {
+        guard let time = meal.time else { return meal }
+        let normalized = normalizedTravelTimestamp(
+            time,
+            recordedTimeZoneIdentifier: meal.timeZoneIdentifier,
+            travelContext: meal.travelContext
+        )
+        guard normalized.date != time || normalized.timeZoneIdentifier != meal.timeZoneIdentifier else {
+            return meal
+        }
+        var updated = meal
+        updated.time = normalized.date
+        updated.timeZoneIdentifier = normalized.timeZoneIdentifier
+        return updated
+    }
+
+    private func normalizedTravelShower(_ shower: ShowerEntry) -> ShowerEntry {
+        guard let time = shower.time else { return shower }
+        let normalized = normalizedTravelTimestamp(
+            time,
+            recordedTimeZoneIdentifier: shower.timeZoneIdentifier,
+            travelContext: shower.travelContext
+        )
+        guard normalized.date != time || normalized.timeZoneIdentifier != shower.timeZoneIdentifier else {
+            return shower
+        }
+        var updated = shower
+        updated.time = normalized.date
+        updated.timeZoneIdentifier = normalized.timeZoneIdentifier
+        return updated
+    }
+
+    private func normalizedTravelBowelMovement(_ entry: BowelMovementEntry) -> BowelMovementEntry {
+        guard let time = entry.time else { return entry }
+        let normalized = normalizedTravelTimestamp(
+            time,
+            recordedTimeZoneIdentifier: entry.timeZoneIdentifier,
+            travelContext: entry.travelContext
+        )
+        guard normalized.date != time || normalized.timeZoneIdentifier != entry.timeZoneIdentifier else {
+            return entry
+        }
+        var updated = entry
+        updated.time = normalized.date
+        updated.timeZoneIdentifier = normalized.timeZoneIdentifier
+        return updated
+    }
+
+    private func normalizedTravelSexualActivity(_ entry: SexualActivityEntry) -> SexualActivityEntry {
+        guard let time = entry.time else { return entry }
+        let normalized = normalizedTravelTimestamp(
+            time,
+            recordedTimeZoneIdentifier: entry.timeZoneIdentifier,
+            travelContext: entry.travelContext
+        )
+        guard normalized.date != time || normalized.timeZoneIdentifier != entry.timeZoneIdentifier else {
+            return entry
+        }
+        var updated = entry
+        updated.time = normalized.date
+        updated.timeZoneIdentifier = normalized.timeZoneIdentifier
+        return updated
+    }
+
+    private func normalizedTravelTimestamp(
+        _ date: Date,
+        recordedTimeZoneIdentifier: String?,
+        travelContext: TravelRecordContext?
+    ) -> (date: Date, timeZoneIdentifier: String?) {
+        guard let expectedIdentifier = travelRecordingTimeZoneIdentifier(for: travelContext),
+              let expectedTimeZone = TimeZone(identifier: expectedIdentifier) else {
+            return (date, recordedTimeZoneIdentifier)
+        }
+        guard recordedTimeZoneIdentifier != expectedIdentifier else {
+            return (date, expectedIdentifier)
+        }
+        guard let sourceIdentifier = recordedTimeZoneIdentifier,
+              let sourceTimeZone = TimeZone(identifier: sourceIdentifier) else {
+            return (date, expectedIdentifier)
+        }
+        return (
+            date: retaggingWallClock(date, from: sourceTimeZone, to: expectedTimeZone),
+            timeZoneIdentifier: expectedIdentifier
+        )
     }
 
     private func mealEntry(_ entry: MealEntry, matches slot: MealSlot) -> Bool {
@@ -2097,13 +2218,24 @@ final class AppViewModel: ObservableObject {
         return date.displayShortTime(in: timeZone) + nextDayDisplaySuffix(for: date, displayedTimeZone: timeZone)
     }
 
+    func recordingTimeZone(
+        for recordedTimeZoneIdentifier: String?,
+        travelContext: TravelRecordContext? = nil
+    ) -> TimeZone {
+        if let identifier = travelRecordingTimeZoneIdentifier(for: travelContext),
+           let timeZone = TimeZone(identifier: identifier) {
+            return timeZone
+        }
+        return displayedTimeZone(for: recordedTimeZoneIdentifier)
+    }
+
     func suggestedEventTimestamp(
         for logicalDate: Date,
         recordedTimeZoneIdentifier: String?,
         referenceDate: Date = .now,
         travelContext: TravelRecordContext? = nil
     ) -> Date {
-        let timeZone = displayedTimeZone(for: recordedTimeZoneIdentifier)
+        let timeZone = recordingTimeZone(for: recordedTimeZoneIdentifier, travelContext: travelContext)
         var calendar = Calendar.current
         calendar.timeZone = timeZone
         let components = calendar.dateComponents([.hour, .minute], from: referenceDate)
@@ -2123,7 +2255,7 @@ final class AppViewModel: ObservableObject {
         recordedTimeZoneIdentifier: String?,
         travelContext: TravelRecordContext? = nil
     ) -> Date {
-        let timeZone = displayedTimeZone(for: recordedTimeZoneIdentifier)
+        let timeZone = recordingTimeZone(for: recordedTimeZoneIdentifier, travelContext: travelContext)
         return resolvedTimestamp(
             for: logicalDate,
             hour: hour,
@@ -2139,7 +2271,7 @@ final class AppViewModel: ObservableObject {
         recordedTimeZoneIdentifier: String?,
         travelContext: TravelRecordContext? = nil
     ) -> Date {
-        let timeZone = displayedTimeZone(for: recordedTimeZoneIdentifier)
+        let timeZone = recordingTimeZone(for: recordedTimeZoneIdentifier, travelContext: travelContext)
         var calendar = Calendar.current
         calendar.timeZone = timeZone
         let components = calendar.dateComponents([.hour, .minute], from: displayedTime)
@@ -2202,13 +2334,61 @@ final class AppViewModel: ObservableObject {
         return "\(currentWeather.conditionDescription) · \(formattedDailyTemperatureRange())"
     }
 
-    private func editedTimeZoneIdentifier(for recordedTimeZoneIdentifier: String?) -> String {
+    private func editedTimeZoneIdentifier(
+        for recordedTimeZoneIdentifier: String?,
+        travelContext: TravelRecordContext? = nil
+    ) -> String {
+        if let identifier = travelRecordingTimeZoneIdentifier(for: travelContext) {
+            return identifier
+        }
         switch preferences.timeDisplayMode {
         case .current:
             return TimeZone.autoupdatingCurrent.identifier
         case .recorded:
             return recordedTimeZoneIdentifier ?? TimeZone.autoupdatingCurrent.identifier
         }
+    }
+
+    private func travelRecordingTimeZoneIdentifier(for context: TravelRecordContext?) -> String? {
+        guard let context, let segment = travelSegment(for: context) else { return nil }
+        switch context.phase {
+        case .arrived, .completed:
+            return segment.arrivalTimeZoneIdentifier
+        case .planned, .preDeparture, .inFlight, .layover:
+            return segment.departureTimeZoneIdentifier
+        }
+    }
+
+    private func travelSegment(for context: TravelRecordContext?) -> TravelSegment? {
+        guard let context,
+              let plan = travelPlans.first(where: { $0.id == context.planID }) else {
+            return nil
+        }
+        if let segmentID = context.segmentID,
+           let segment = plan.segments.first(where: { $0.id == segmentID }) {
+            return segment
+        }
+        return plan.currentSegment ?? plan.segments.first
+    }
+
+    private func retaggingWallClock(_ date: Date, from sourceTimeZone: TimeZone, to destinationTimeZone: TimeZone) -> Date {
+        var sourceCalendar = Calendar(identifier: .gregorian)
+        sourceCalendar.locale = .autoupdatingCurrent
+        sourceCalendar.timeZone = sourceTimeZone
+        let components = sourceCalendar.dateComponents([.year, .month, .day, .hour, .minute, .second], from: date)
+
+        var destinationCalendar = Calendar(identifier: .gregorian)
+        destinationCalendar.locale = .autoupdatingCurrent
+        destinationCalendar.timeZone = destinationTimeZone
+        return destinationCalendar.date(from: DateComponents(
+            timeZone: destinationTimeZone,
+            year: components.year,
+            month: components.month,
+            day: components.day,
+            hour: components.hour,
+            minute: components.minute,
+            second: components.second ?? 0
+        )) ?? date
     }
 
     private func travelTimeDisplay(

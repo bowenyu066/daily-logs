@@ -859,12 +859,12 @@ struct TravelSegment: Codable, Equatable, Identifiable {
     var plannedArrivalTime: Date
     var departureTimeZoneIdentifier: String
     var arrivalTimeZoneIdentifier: String
-    var actualDepartureTime: Date?
-    var actualArrivalTime: Date?
+    var actualDepartureTime: Date? = nil
+    var actualArrivalTime: Date? = nil
 
     enum CodingKeys: String, CodingKey {
         case id, flightNumber, originCode, destinationCode, plannedDepartureTime, plannedArrivalTime
-        case departureTimeZoneIdentifier, arrivalTimeZoneIdentifier, actualDepartureTime, actualArrivalTime
+        case departureTimeZoneIdentifier, arrivalTimeZoneIdentifier
     }
 
     init(
@@ -887,8 +887,8 @@ struct TravelSegment: Codable, Equatable, Identifiable {
         self.plannedArrivalTime = plannedArrivalTime
         self.departureTimeZoneIdentifier = departureTimeZoneIdentifier
         self.arrivalTimeZoneIdentifier = arrivalTimeZoneIdentifier
-        self.actualDepartureTime = actualDepartureTime
-        self.actualArrivalTime = actualArrivalTime
+        self.actualDepartureTime = nil
+        self.actualArrivalTime = nil
     }
 
     var departureTimeZone: TimeZone {
@@ -900,39 +900,32 @@ struct TravelSegment: Codable, Equatable, Identifiable {
     }
 
     var departureTime: Date {
-        actualDepartureTime ?? plannedDepartureTime
+        plannedDepartureTime
     }
 
     var arrivalTime: Date {
-        actualArrivalTime ?? plannedArrivalTime
+        plannedArrivalTime
     }
 
     var plannedDuration: TimeInterval {
-        plannedArrivalTime.timeIntervalSince(plannedDepartureTime)
+        normalizedPlannedArrivalTime.timeIntervalSince(plannedDepartureTime)
     }
 
     var actualDuration: TimeInterval? {
-        guard let actualDepartureTime, let actualArrivalTime else { return nil }
-        return actualArrivalTime.timeIntervalSince(actualDepartureTime)
+        nil
     }
 
     var effectiveDuration: TimeInterval {
-        if let actualDuration, Self.isPlausibleFlightDuration(actualDuration) {
-            return actualDuration
-        }
+        max(0, plannedDuration)
+    }
 
-        let normalizedPlannedArrival = Self.normalizedArrivalTime(
+    private var normalizedPlannedArrivalTime: Date {
+        Self.normalizedArrivalTime(
             departure: plannedDepartureTime,
             arrival: plannedArrivalTime,
             departureTimeZone: departureTimeZone,
             arrivalTimeZone: arrivalTimeZone
         )
-        let normalizedPlannedDuration = normalizedPlannedArrival.timeIntervalSince(plannedDepartureTime)
-        if Self.isPlausibleFlightDuration(normalizedPlannedDuration) {
-            return normalizedPlannedDuration
-        }
-
-        return max(0, arrivalTime.timeIntervalSince(departureTime))
     }
 
     var routeTitle: String {
@@ -952,16 +945,8 @@ struct TravelSegment: Codable, Equatable, Identifiable {
             departureTimeZone: departureTimeZone,
             arrivalTimeZone: arrivalTimeZone
         )
-        if let actualDepartureTime,
-           let actualArrivalTime,
-           Self.isPlausibleFlightDuration(actualArrivalTime.timeIntervalSince(actualDepartureTime)) {
-            normalized.actualArrivalTime = Self.normalizedArrivalTime(
-                departure: actualDepartureTime,
-                arrival: actualArrivalTime,
-                departureTimeZone: departureTimeZone,
-                arrivalTimeZone: arrivalTimeZone
-            )
-        }
+        normalized.actualDepartureTime = nil
+        normalized.actualArrivalTime = nil
         return normalized
     }
 
@@ -1162,10 +1147,8 @@ struct TravelPlan: Codable, Equatable, Identifiable {
             currentSegmentID = segments.first?.id
             status = .preDeparture
         case .preDeparture:
-            markCurrentSegmentDeparture(now)
             status = .inFlight
         case .inFlight:
-            markCurrentSegmentArrival(now)
             if let nextSegment = nextSegmentAfterCurrent() {
                 currentSegmentID = nextSegment.id
                 status = .layover
@@ -1173,7 +1156,6 @@ struct TravelPlan: Codable, Equatable, Identifiable {
                 status = .arrived
             }
         case .layover:
-            markCurrentSegmentDeparture(now)
             status = .inFlight
         case .arrived:
             status = .completed
@@ -1205,16 +1187,6 @@ struct TravelPlan: Codable, Equatable, Identifiable {
             status = .arrived
         }
         modifiedAt = now
-    }
-
-    private mutating func markCurrentSegmentDeparture(_ date: Date) {
-        guard let index = currentSegmentIndex else { return }
-        segments[index].actualDepartureTime = date
-    }
-
-    private mutating func markCurrentSegmentArrival(_ date: Date) {
-        guard let index = currentSegmentIndex else { return }
-        segments[index].actualArrivalTime = date
     }
 
     private func nextSegmentAfterCurrent() -> TravelSegment? {
@@ -1664,7 +1636,7 @@ extension SleepRecord {
 
 extension MealEntry {
     var needsRecordedTimeZoneMigration: Bool {
-        time != nil && timeZoneIdentifier == nil
+        time != nil && timeZoneIdentifier == nil && travelContext == nil
     }
 
     func backfillingRecordedTimeZone(_ identifier: String) -> MealEntry {
@@ -1677,7 +1649,7 @@ extension MealEntry {
 
 extension ShowerEntry {
     var needsRecordedTimeZoneMigration: Bool {
-        time != nil && timeZoneIdentifier == nil
+        time != nil && timeZoneIdentifier == nil && travelContext == nil
     }
 
     func backfillingRecordedTimeZone(_ identifier: String) -> ShowerEntry {
@@ -1703,7 +1675,7 @@ extension SunTimes {
 
 extension BowelMovementEntry {
     var needsRecordedTimeZoneMigration: Bool {
-        time != nil && timeZoneIdentifier == nil
+        time != nil && timeZoneIdentifier == nil && travelContext == nil
     }
 
     func backfillingRecordedTimeZone(_ identifier: String) -> BowelMovementEntry {
@@ -1716,7 +1688,7 @@ extension BowelMovementEntry {
 
 extension SexualActivityEntry {
     var needsRecordedTimeZoneMigration: Bool {
-        time != nil && timeZoneIdentifier == nil
+        time != nil && timeZoneIdentifier == nil && travelContext == nil
     }
 
     func backfillingRecordedTimeZone(_ identifier: String) -> SexualActivityEntry {

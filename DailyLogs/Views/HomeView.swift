@@ -1827,19 +1827,72 @@ struct HomeView: View {
     }
 
     private var visibleMeals: [MealEntry] {
-        appViewModel.dailyRecord.meals.filter { isRecordVisibleInCurrentMode($0.travelContext) }
+        if let activeTravelPlan {
+            return uniqueEntries(
+                travelTimelineRecords(for: activeTravelPlan)
+                    .flatMap(\.meals)
+                    .filter {
+                        $0.travelContext?.planID == activeTravelPlan.id
+                            && ($0.status != .empty || $0.hasPhoto)
+                    }
+            )
+            .sorted { lhs, rhs in sortOptionalTimes(lhs.time, rhs.time, fallback: lhs.displayTitle < rhs.displayTitle) }
+        }
+        return appViewModel.dailyRecord.meals.filter { isRecordVisibleInCurrentMode($0.travelContext) }
     }
 
     private var visibleShowers: [ShowerEntry] {
-        appViewModel.dailyRecord.showers.filter { isRecordVisibleInCurrentMode($0.travelContext) }
+        if let activeTravelPlan {
+            return uniqueEntries(
+                travelTimelineRecords(for: activeTravelPlan)
+                    .flatMap(\.showers)
+                    .filter { $0.travelContext?.planID == activeTravelPlan.id }
+            )
+            .sorted { sortOptionalTimes($0.time, $1.time) }
+        }
+        return appViewModel.dailyRecord.showers.filter { isRecordVisibleInCurrentMode($0.travelContext) }
     }
 
     private var visibleBowelMovements: [BowelMovementEntry] {
-        appViewModel.dailyRecord.bowelMovements.filter { isRecordVisibleInCurrentMode($0.travelContext) }
+        if let activeTravelPlan {
+            return uniqueEntries(
+                travelTimelineRecords(for: activeTravelPlan)
+                    .flatMap(\.bowelMovements)
+                    .filter { $0.travelContext?.planID == activeTravelPlan.id }
+            )
+            .sorted { sortOptionalTimes($0.time, $1.time) }
+        }
+        return appViewModel.dailyRecord.bowelMovements.filter { isRecordVisibleInCurrentMode($0.travelContext) }
     }
 
     private var visibleSexualActivities: [SexualActivityEntry] {
-        appViewModel.dailyRecord.sexualActivities.filter { isRecordVisibleInCurrentMode($0.travelContext) }
+        if let activeTravelPlan {
+            return uniqueEntries(
+                travelTimelineRecords(for: activeTravelPlan)
+                    .flatMap(\.sexualActivities)
+                    .filter { $0.travelContext?.planID == activeTravelPlan.id }
+            )
+            .sorted { sortOptionalTimes($0.time, $1.time) }
+        }
+        return appViewModel.dailyRecord.sexualActivities.filter { isRecordVisibleInCurrentMode($0.travelContext) }
+    }
+
+    private func uniqueEntries<Entry: Identifiable>(_ entries: [Entry]) -> [Entry] where Entry.ID == UUID {
+        var seenIDs = Set<UUID>()
+        return entries.filter { seenIDs.insert($0.id).inserted }
+    }
+
+    private func sortOptionalTimes(_ lhs: Date?, _ rhs: Date?, fallback: Bool = false) -> Bool {
+        switch (lhs, rhs) {
+        case (let lhs?, let rhs?):
+            return lhs == rhs ? fallback : lhs < rhs
+        case (_?, nil):
+            return true
+        case (nil, _?):
+            return false
+        case (nil, nil):
+            return fallback
+        }
     }
 
     private var durationText: String {
@@ -1962,7 +2015,7 @@ struct HomeView: View {
 
     private func travelSegmentTimeSummary(_ segment: TravelSegment) -> String {
         travelDateTimeText(segment.departureTime, timeZoneIdentifier: segment.departureTimeZoneIdentifier)
-            + " -> "
+            + " → "
             + travelDateTimeText(segment.arrivalTime, timeZoneIdentifier: segment.arrivalTimeZoneIdentifier)
     }
 
@@ -3689,7 +3742,7 @@ private struct TravelPlanDebugPlanCard: View {
 
     private func segmentPreviewTimeText(_ segment: TravelSegment) -> String {
         "\(segment.originCode) \(localDateTime(segment.departureTime, in: segment.departureTimeZoneIdentifier))"
-            + " -> "
+            + " → "
             + "\(segment.destinationCode) \(localDateTime(segment.arrivalTime, in: segment.arrivalTimeZoneIdentifier))"
     }
 
@@ -3948,8 +4001,6 @@ struct TravelSegmentDraft: Identifiable {
     var arrivalDate: Date
     var departureTimeZoneIdentifier: String
     var arrivalTimeZoneIdentifier: String
-    var actualDepartureTime: Date?
-    var actualArrivalTime: Date?
 
     init(
         id: UUID = UUID(),
@@ -3959,9 +4010,7 @@ struct TravelSegmentDraft: Identifiable {
         departureDate: Date = Date().addingTimeInterval(86_400).settingTime(hour: 9, minute: 0),
         arrivalDate: Date = Date().addingTimeInterval(86_400).settingTime(hour: 17, minute: 0),
         departureTimeZoneIdentifier: String = TimeZone.autoupdatingCurrent.identifier,
-        arrivalTimeZoneIdentifier: String = TimeZone.autoupdatingCurrent.identifier,
-        actualDepartureTime: Date? = nil,
-        actualArrivalTime: Date? = nil
+        arrivalTimeZoneIdentifier: String = TimeZone.autoupdatingCurrent.identifier
     ) {
         self.id = id
         self.flightNumber = flightNumber
@@ -3971,8 +4020,6 @@ struct TravelSegmentDraft: Identifiable {
         self.arrivalDate = arrivalDate
         self.departureTimeZoneIdentifier = AirportCatalog.airport(for: originCode)?.timeZoneIdentifier ?? departureTimeZoneIdentifier
         self.arrivalTimeZoneIdentifier = AirportCatalog.airport(for: destinationCode)?.timeZoneIdentifier ?? arrivalTimeZoneIdentifier
-        self.actualDepartureTime = actualDepartureTime
-        self.actualArrivalTime = actualArrivalTime
     }
 
     init(segment: TravelSegment) {
@@ -3984,9 +4031,7 @@ struct TravelSegmentDraft: Identifiable {
             departureDate: segment.plannedDepartureTime,
             arrivalDate: segment.plannedArrivalTime,
             departureTimeZoneIdentifier: segment.departureTimeZoneIdentifier,
-            arrivalTimeZoneIdentifier: segment.arrivalTimeZoneIdentifier,
-            actualDepartureTime: segment.actualDepartureTime,
-            actualArrivalTime: segment.actualArrivalTime
+            arrivalTimeZoneIdentifier: segment.arrivalTimeZoneIdentifier
         )
     }
 
@@ -4040,9 +4085,7 @@ struct TravelSegmentDraft: Identifiable {
             plannedDepartureTime: departureDate,
             plannedArrivalTime: arrivalDate,
             departureTimeZoneIdentifier: resolvedDepartureTimeZoneIdentifier,
-            arrivalTimeZoneIdentifier: resolvedArrivalTimeZoneIdentifier,
-            actualDepartureTime: actualDepartureTime,
-            actualArrivalTime: actualArrivalTime
+            arrivalTimeZoneIdentifier: resolvedArrivalTimeZoneIdentifier
         )
     }
 

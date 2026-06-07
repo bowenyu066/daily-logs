@@ -170,6 +170,13 @@ struct MealEditorSheet: View {
         isTravelModeEditor ? AppTheme.travelBorder : AppTheme.border.opacity(0.7)
     }
 
+    private var recordingTimeZone: TimeZone {
+        appViewModel.recordingTimeZone(
+            for: draft.timeZoneIdentifier,
+            travelContext: effectiveTravelContext
+        )
+    }
+
     private var timeSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             Toggle(NSLocalizedString("仅记录有/无", comment: ""), isOn: $logsExistenceOnly)
@@ -183,10 +190,7 @@ struct MealEditorSheet: View {
                     .foregroundStyle(AppTheme.secondaryText)
 
                 VStack(spacing: 12) {
-                    Text(appViewModel.displayedClockTime(
-                        for: normalizedDraftTime,
-                        recordedTimeZoneIdentifier: draft.timeZoneIdentifier
-                    ))
+                    Text(normalizedDraftTime.displayClockTime(in: recordingTimeZone))
                         .font(.system(size: 34, weight: .bold, design: .rounded))
                         .foregroundStyle(timeAccent)
                         .monospacedDigit()
@@ -204,7 +208,7 @@ struct MealEditorSheet: View {
                     )
                     .datePickerStyle(.wheel)
                     .labelsHidden()
-                    .environment(\.timeZone, appViewModel.displayedTimeZone(for: draft.timeZoneIdentifier))
+                    .environment(\.timeZone, recordingTimeZone)
                 }
                 .padding(18)
                 .frame(maxWidth: .infinity)
@@ -447,7 +451,7 @@ struct MealEditorSheet: View {
         } else if !selectedImages.isEmpty || !entry.photoURLs.isEmpty || entry.time != nil || preferredSource == .editRecord {
             entry.status = .logged
             entry.time = normalizedDraftTime
-            entry.timeZoneIdentifier = appViewModel.displayedTimeZone(for: entry.timeZoneIdentifier).identifier
+            entry.timeZoneIdentifier = recordingTimeZone.identifier
         } else {
             entry.status = .empty
             entry.time = nil
@@ -590,7 +594,7 @@ struct MealEditorSheet: View {
 
     private func normalizedPickedDate(_ pickedDate: Date?) -> Date? {
         guard let pickedDate else { return nil }
-        let timeZone = appViewModel.displayedTimeZone(for: draft.timeZoneIdentifier)
+        let timeZone = recordingTimeZone
         var calendar = Calendar.current
         calendar.timeZone = timeZone
         let components = calendar.dateComponents([.hour, .minute], from: pickedDate)

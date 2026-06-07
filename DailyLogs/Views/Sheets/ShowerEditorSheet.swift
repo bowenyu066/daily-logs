@@ -120,10 +120,7 @@ struct ShowerEditorSheet: View {
                     }
                 }
 
-                Text(appViewModel.displayedClockTime(
-                    for: normalizedTime,
-                    recordedTimeZoneIdentifier: nil
-                ))
+                Text(normalizedTime.displayClockTime(in: phoneTimeZone))
                     .font(.system(size: 34, weight: .bold, design: .rounded))
                     .foregroundStyle(editorAccent)
                     .monospacedDigit()
@@ -174,7 +171,7 @@ struct ShowerEditorSheet: View {
     }
 
     private var phoneTimeZone: TimeZone {
-        .autoupdatingCurrent
+        appViewModel.recordingTimeZone(for: nil, travelContext: effectiveTravelContext)
     }
 
     private var phoneTimeBadge: some View {

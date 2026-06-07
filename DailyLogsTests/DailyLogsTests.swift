@@ -2923,7 +2923,7 @@ struct DailyLogsTests {
     }
 
     @Test
-    func travelPlanManualStateMachineStoresActualTimes() throws {
+    func travelPlanManualStateMachineDoesNotStoreActualTimes() throws {
         var plan = TravelPlan.sampleBOSPKX()
         let firstSegment = try #require(plan.segments.first)
         let secondSegment = try #require(plan.segments.dropFirst().first)
@@ -2937,12 +2937,12 @@ struct DailyLogsTests {
 
         plan.advance(now: actualDeparture)
         #expect(plan.status == .inFlight)
-        #expect(plan.segments.first?.actualDepartureTime == actualDeparture)
+        #expect(plan.segments.first?.actualDepartureTime == nil)
 
         plan.advance(now: actualArrival)
         #expect(plan.status == .layover)
         #expect(plan.currentSegmentID == secondSegment.id)
-        #expect(plan.segments.first?.actualArrivalTime == actualArrival)
+        #expect(plan.segments.first?.actualArrivalTime == nil)
 
         plan.advance(now: secondSegment.plannedDepartureTime)
         #expect(plan.status == .inFlight)
@@ -3146,7 +3146,7 @@ struct DailyLogsTests {
     }
 
     @Test @MainActor
-    func travelTimeDisplayUsesActualDepartureForElapsedClock() async throws {
+    func travelTimeDisplayIgnoresActualDepartureForElapsedClock() async throws {
         let user = UserAccount(
             userID: "actual-flight-traveler",
             displayName: "Traveler",
@@ -3183,8 +3183,190 @@ struct DailyLogsTests {
             context: TravelRecordContext(planID: plan.id, segmentID: originalSegment.id, phase: .inFlight)
         ))
 
-        #expect(display.primary.contains("1h 5m"))
-        #expect(display.primary.contains("1h 40m") == false)
+        #expect(display.primary.contains("1h 40m"))
+        #expect(display.primary.contains("1h 5m") == false)
+    }
+
+    @Test @MainActor
+    func travelEventTimestampUsesSegmentDepartureTimeZone() async throws {
+        let departure = try zonedDate(
+            year: 2026,
+            month: 6,
+            day: 7,
+            hour: 19,
+            minute: 50,
+            timeZoneIdentifier: "Asia/Hong_Kong"
+        )
+        let arrival = try zonedDate(
+            year: 2026,
+            month: 6,
+            day: 7,
+            hour: 23,
+            minute: 50,
+            timeZoneIdentifier: "America/New_York"
+        )
+        let expected = try zonedDate(
+            year: 2026,
+            month: 6,
+            day: 7,
+            hour: 22,
+            minute: 10,
+            timeZoneIdentifier: "Asia/Hong_Kong"
+        )
+        let segment = TravelSegment(
+            flightNumber: "CX844",
+            originCode: "HKG",
+            destinationCode: "JFK",
+            plannedDepartureTime: departure,
+            plannedArrivalTime: arrival,
+            departureTimeZoneIdentifier: "Asia/Hong_Kong",
+            arrivalTimeZoneIdentifier: "America/New_York"
+        )
+        let plan = TravelPlan(
+            title: "HKG-JFK",
+            segments: [segment],
+            status: .inFlight,
+            currentSegmentID: segment.id
+        )
+        let user = UserAccount(
+            userID: "travel-timezone-input",
+            displayName: "Traveler",
+            email: nil,
+            authMode: .guest,
+            createdAt: departure.addingTimeInterval(-86_400)
+        )
+        let baseDate = try #require(Calendar.current.date(from: DateComponents(year: 2026, month: 6, day: 7)))
+        let viewModel = AppViewModel(
+            authService: MockAuthService(user: user),
+            repository: InMemoryDailyRecordRepository(records: [:]),
+            travelPlanRepository: InMemoryTravelPlanRepository(plans: [plan]),
+            preferencesStore: MockPreferencesStore(preferences: UserPreferences()),
+            photoStorageService: MockPhotoStorageService(),
+            videoStorageService: MockVideoStorageService(),
+            sunTimesService: MockSunTimesService(),
+            weatherService: MockWeatherService(),
+            healthSyncAdapter: MockHealthSyncAdapter(sleepRecord: nil),
+            cloudSyncService: NoopCloudSyncService(),
+            aiInsightNarrativeService: MockAIInsightNarrativeService(responses: []),
+            openAIKeyStore: MockOpenAIKeyStore(key: nil),
+            locationService: LocationService(),
+            selectedDate: baseDate,
+            dailyRecord: DailyRecord.empty(for: baseDate, preferences: UserPreferences()),
+            preferences: UserPreferences()
+        )
+        await viewModel.bootstrap()
+
+        let resolved = viewModel.resolvedEventTimestamp(
+            for: baseDate,
+            hour: 22,
+            minute: 10,
+            recordedTimeZoneIdentifier: nil,
+            travelContext: TravelRecordContext(planID: plan.id, segmentID: segment.id, phase: .inFlight)
+        )
+
+        #expect(resolved == expected)
+        #expect(clockText(resolved, timeZoneIdentifier: "Asia/Hong_Kong") == "22:10")
+    }
+
+    @Test @MainActor
+    func travelRecordTimezoneMigrationRetagsWrongCurrentTimezone() async throws {
+        let departure = try zonedDate(
+            year: 2026,
+            month: 6,
+            day: 7,
+            hour: 19,
+            minute: 50,
+            timeZoneIdentifier: "Asia/Hong_Kong"
+        )
+        let arrival = try zonedDate(
+            year: 2026,
+            month: 6,
+            day: 7,
+            hour: 23,
+            minute: 50,
+            timeZoneIdentifier: "America/New_York"
+        )
+        let intendedTime = try zonedDate(
+            year: 2026,
+            month: 6,
+            day: 7,
+            hour: 22,
+            minute: 10,
+            timeZoneIdentifier: "Asia/Hong_Kong"
+        )
+        let wronglyRetaggedTime = try zonedDate(
+            year: 2026,
+            month: 6,
+            day: 7,
+            hour: 22,
+            minute: 10,
+            timeZoneIdentifier: "America/New_York"
+        )
+        let segment = TravelSegment(
+            flightNumber: "CX844",
+            originCode: "HKG",
+            destinationCode: "JFK",
+            plannedDepartureTime: departure,
+            plannedArrivalTime: arrival,
+            departureTimeZoneIdentifier: "Asia/Hong_Kong",
+            arrivalTimeZoneIdentifier: "America/New_York"
+        )
+        let plan = TravelPlan(
+            title: "HKG-JFK",
+            segments: [segment],
+            status: .inFlight,
+            currentSegmentID: segment.id
+        )
+        let context = TravelRecordContext(planID: plan.id, segmentID: segment.id, phase: .inFlight)
+        let day = try #require(Calendar.current.date(from: DateComponents(year: 2026, month: 6, day: 7)))
+        let record = DailyRecord(
+            date: day,
+            sleepRecord: SleepRecord(),
+            meals: [
+                MealEntry(
+                    mealKind: .custom,
+                    customTitle: "飞机餐",
+                    status: .logged,
+                    time: wronglyRetaggedTime,
+                    timeZoneIdentifier: "America/New_York",
+                    travelContext: context
+                )
+            ],
+            showers: []
+        )
+        let user = UserAccount(
+            userID: "travel-timezone-migration",
+            displayName: "Traveler",
+            email: nil,
+            authMode: .guest,
+            createdAt: departure.addingTimeInterval(-86_400)
+        )
+        let viewModel = AppViewModel(
+            authService: MockAuthService(user: user),
+            repository: InMemoryDailyRecordRepository(records: [day.storageKey(): record]),
+            travelPlanRepository: InMemoryTravelPlanRepository(plans: [plan]),
+            preferencesStore: MockPreferencesStore(preferences: UserPreferences()),
+            photoStorageService: MockPhotoStorageService(),
+            videoStorageService: MockVideoStorageService(),
+            sunTimesService: MockSunTimesService(),
+            weatherService: MockWeatherService(),
+            healthSyncAdapter: MockHealthSyncAdapter(sleepRecord: nil),
+            cloudSyncService: NoopCloudSyncService(),
+            aiInsightNarrativeService: MockAIInsightNarrativeService(responses: []),
+            openAIKeyStore: MockOpenAIKeyStore(key: nil),
+            locationService: LocationService(),
+            selectedDate: day,
+            dailyRecord: DailyRecord.empty(for: day, preferences: UserPreferences()),
+            preferences: UserPreferences()
+        )
+        await viewModel.bootstrap()
+
+        let migratedMeal = try #require(viewModel.allRecords.flatMap { $0.meals }.first { $0.travelContext == context })
+        let migratedTime = try #require(migratedMeal.time)
+
+        #expect(migratedTime == intendedTime)
+        #expect(migratedMeal.timeZoneIdentifier == "Asia/Hong_Kong")
+        #expect(clockText(migratedTime, timeZoneIdentifier: "Asia/Hong_Kong") == "22:10")
     }
 
     @Test
@@ -3255,7 +3437,9 @@ struct DailyLogsTests {
 
         let normalized = segment.normalizedForChronology()
 
-        #expect(segment.plannedDuration == 28 * 3600)
+        #expect(segment.plannedArrivalTime == legacyDoubleShiftedArrival)
+        #expect(segment.plannedDuration == 16 * 3600)
+        #expect(segment.effectiveDuration == 16 * 3600)
         #expect(normalized.plannedArrivalTime == expectedArrival)
         #expect(normalized.plannedDuration == 16 * 3600)
         #expect(clockText(normalized.plannedArrivalTime, timeZoneIdentifier: "America/New_York") == "07:50")
@@ -3287,8 +3471,8 @@ struct DailyLogsTests {
 
         let normalized = segment.normalizedForChronology()
 
-        #expect(segment.actualDuration == 0)
-        #expect(normalized.actualDuration == 0)
+        #expect(segment.actualDuration == nil)
+        #expect(normalized.actualDuration == nil)
         #expect(normalized.plannedDuration == 15 * 3600 + 35 * 60)
         #expect(normalized.effectiveDuration == 15 * 3600 + 35 * 60)
     }
