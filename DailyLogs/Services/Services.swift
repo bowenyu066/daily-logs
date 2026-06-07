@@ -580,8 +580,14 @@ final class LocalTravelPlanRepository: TravelPlanRepository {
     }
 
     func loadTravelPlans(userID: String) throws -> [TravelPlan] {
-        let database = try store.load()
-        return (database.travelPlansByUser[userID] ?? [])
+        var database = try store.load()
+        let storedPlans = database.travelPlansByUser[userID] ?? []
+        let normalizedPlans = storedPlans.map { $0.normalizedForChronology() }
+        if normalizedPlans != storedPlans {
+            database.travelPlansByUser[userID] = normalizedPlans
+            try store.save(database)
+        }
+        return normalizedPlans
             .sorted { lhs, rhs in
                 (lhs.earliestCalendarDate ?? .distantFuture) < (rhs.earliestCalendarDate ?? .distantFuture)
             }
@@ -590,10 +596,11 @@ final class LocalTravelPlanRepository: TravelPlanRepository {
     func saveTravelPlan(_ plan: TravelPlan, userID: String) throws {
         var database = try store.load()
         var plans = database.travelPlansByUser[userID] ?? []
+        let normalizedPlan = plan.normalizedForChronology()
         if let index = plans.firstIndex(where: { $0.id == plan.id }) {
-            plans[index] = plan
+            plans[index] = normalizedPlan
         } else {
-            plans.append(plan)
+            plans.append(normalizedPlan)
         }
         database.travelPlansByUser[userID] = plans.sorted {
             ($0.earliestCalendarDate ?? .distantFuture) < ($1.earliestCalendarDate ?? .distantFuture)

@@ -916,6 +916,10 @@ struct TravelSegment: Codable, Equatable, Identifiable {
         return actualArrivalTime.timeIntervalSince(actualDepartureTime)
     }
 
+    var effectiveDuration: TimeInterval {
+        arrivalTime.timeIntervalSince(departureTime)
+    }
+
     var routeTitle: String {
         "\(originCode)-\(destinationCode)"
     }
@@ -924,6 +928,58 @@ struct TravelSegment: Codable, Equatable, Identifiable {
         guard let flightNumber, !flightNumber.isEmpty else { return routeTitle }
         return "\(flightNumber) · \(routeTitle)"
     }
+
+    func normalizedForChronology() -> TravelSegment {
+        var normalized = self
+        normalized.plannedArrivalTime = Self.normalizedArrivalTime(
+            departure: plannedDepartureTime,
+            arrival: plannedArrivalTime,
+            departureTimeZone: departureTimeZone,
+            arrivalTimeZone: arrivalTimeZone
+        )
+        if let actualDepartureTime, let actualArrivalTime {
+            normalized.actualArrivalTime = Self.normalizedArrivalTime(
+                departure: actualDepartureTime,
+                arrival: actualArrivalTime,
+                departureTimeZone: departureTimeZone,
+                arrivalTimeZone: arrivalTimeZone
+            )
+        }
+        return normalized
+    }
+
+    private static func normalizedArrivalTime(
+        departure: Date,
+        arrival: Date,
+        departureTimeZone: TimeZone,
+        arrivalTimeZone: TimeZone
+    ) -> Date {
+        var normalized = arrival
+        while normalized <= departure {
+            normalized = normalized.addingTimeInterval(86_400)
+        }
+
+        let duration = normalized.timeIntervalSince(departure)
+        guard duration < minimumPlausibleFlightDuration || duration > maximumPlausibleFlightDuration else {
+            return normalized
+        }
+
+        let departureOffset = TimeInterval(departureTimeZone.secondsFromGMT(for: departure))
+        let arrivalOffset = TimeInterval(arrivalTimeZone.secondsFromGMT(for: normalized))
+        let legacyDoubleShift = departureOffset - arrivalOffset
+        guard legacyDoubleShift != 0 else { return normalized }
+
+        let repaired = normalized.addingTimeInterval(-legacyDoubleShift)
+        let repairedDuration = repaired.timeIntervalSince(departure)
+        if repairedDuration >= minimumPlausibleFlightDuration,
+           repairedDuration <= maximumPlausibleFlightDuration {
+            return repaired
+        }
+        return normalized
+    }
+
+    private static let minimumPlausibleFlightDuration: TimeInterval = 20.0 * 60.0
+    private static let maximumPlausibleFlightDuration: TimeInterval = 20.0 * 3600.0
 }
 
 struct TravelPlan: Codable, Equatable, Identifiable {
@@ -1070,6 +1126,12 @@ struct TravelPlan: Codable, Equatable, Identifiable {
             return nil
         }
         return DateInterval(start: start, end: end)
+    }
+
+    func normalizedForChronology() -> TravelPlan {
+        var normalized = self
+        normalized.segments = segments.map { $0.normalizedForChronology() }
+        return normalized
     }
 
     mutating func advance(now: Date = .now) {

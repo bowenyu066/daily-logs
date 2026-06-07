@@ -720,7 +720,7 @@ struct HomeView: View {
 
             Spacer(minLength: 8)
 
-            Text(travelDurationText(segment.plannedDuration))
+            Text(travelDurationText(segment.effectiveDuration))
                 .font(.system(size: 13, weight: .bold, design: .rounded))
                 .foregroundStyle(AppTheme.travelAccent)
                 .monospacedDigit()
@@ -957,7 +957,8 @@ struct HomeView: View {
     }
 
     private func travelTimelineItems(for plan: TravelPlan, segmentID: UUID?) -> [TravelTimelineItem] {
-        let meals = appViewModel.dailyRecord.meals.compactMap { meal -> TravelTimelineItem? in
+        let records = travelTimelineRecords(for: plan)
+        let meals = records.flatMap(\.meals).compactMap { meal -> TravelTimelineItem? in
             guard meal.travelContext?.planID == plan.id,
                   meal.travelContext?.segmentID == segmentID,
                   meal.status != .empty || meal.hasPhoto else {
@@ -979,7 +980,7 @@ struct HomeView: View {
             )
         }
 
-        let showers = appViewModel.dailyRecord.showers.compactMap { shower -> TravelTimelineItem? in
+        let showers = records.flatMap(\.showers).compactMap { shower -> TravelTimelineItem? in
             guard shower.travelContext?.planID == plan.id,
                   shower.travelContext?.segmentID == segmentID else {
                 return nil
@@ -997,7 +998,7 @@ struct HomeView: View {
             )
         }
 
-        let bowelMovements = appViewModel.dailyRecord.bowelMovements.compactMap { entry -> TravelTimelineItem? in
+        let bowelMovements = records.flatMap(\.bowelMovements).compactMap { entry -> TravelTimelineItem? in
             guard entry.travelContext?.planID == plan.id,
                   entry.travelContext?.segmentID == segmentID else {
                 return nil
@@ -1015,7 +1016,7 @@ struct HomeView: View {
             )
         }
 
-        let sexualActivities = appViewModel.dailyRecord.sexualActivities.compactMap { entry -> TravelTimelineItem? in
+        let sexualActivities = records.flatMap(\.sexualActivities).compactMap { entry -> TravelTimelineItem? in
             guard entry.travelContext?.planID == plan.id,
                   entry.travelContext?.segmentID == segmentID else {
                 return nil
@@ -1033,7 +1034,10 @@ struct HomeView: View {
             )
         }
 
-        return (meals + showers + bowelMovements + sexualActivities).sorted { lhs, rhs in
+        var seenIDs = Set<String>()
+        return (meals + showers + bowelMovements + sexualActivities)
+            .filter { seenIDs.insert($0.id).inserted }
+            .sorted { lhs, rhs in
             switch (lhs.date, rhs.date) {
             case (let lhsDate?, let rhsDate?):
                 return lhsDate < rhsDate
@@ -1045,6 +1049,32 @@ struct HomeView: View {
                 return lhs.title < rhs.title
             }
         }
+    }
+
+    private func travelTimelineRecords(for plan: TravelPlan) -> [DailyRecord] {
+        var recordsByDate: [String: DailyRecord] = [:]
+        for record in appViewModel.allRecords + [appViewModel.dailyRecord] {
+            let key = record.date.storageKey()
+            if let existing = recordsByDate[key] {
+                recordsByDate[key] = existing.mergedPreservingSupplementalContent(
+                    with: record,
+                    preferences: appViewModel.preferences
+                )
+            } else {
+                recordsByDate[key] = record
+            }
+        }
+
+        return recordsByDate.values
+            .filter { recordContainsTravelContext($0, planID: plan.id) }
+            .sorted { $0.date < $1.date }
+    }
+
+    private func recordContainsTravelContext(_ record: DailyRecord, planID: UUID) -> Bool {
+        record.meals.contains { $0.travelContext?.planID == planID }
+            || record.showers.contains { $0.travelContext?.planID == planID }
+            || record.bowelMovements.contains { $0.travelContext?.planID == planID }
+            || record.sexualActivities.contains { $0.travelContext?.planID == planID }
     }
 
     // MARK: - Sleep
@@ -3909,7 +3939,7 @@ private struct AirportSearchField: View {
     }
 }
 
-private struct TravelSegmentDraft: Identifiable {
+struct TravelSegmentDraft: Identifiable {
     var id: UUID
     var flightNumber: String
     var originCode: String
@@ -3951,8 +3981,8 @@ private struct TravelSegmentDraft: Identifiable {
             flightNumber: segment.flightNumber ?? "",
             originCode: segment.originCode,
             destinationCode: segment.destinationCode,
-            departureDate: Self.editorDate(from: segment.plannedDepartureTime, timeZoneIdentifier: segment.departureTimeZoneIdentifier),
-            arrivalDate: Self.editorDate(from: segment.plannedArrivalTime, timeZoneIdentifier: segment.arrivalTimeZoneIdentifier),
+            departureDate: segment.plannedDepartureTime,
+            arrivalDate: segment.plannedArrivalTime,
             departureTimeZoneIdentifier: segment.departureTimeZoneIdentifier,
             arrivalTimeZoneIdentifier: segment.arrivalTimeZoneIdentifier,
             actualDepartureTime: segment.actualDepartureTime,
@@ -4007,8 +4037,8 @@ private struct TravelSegmentDraft: Identifiable {
             flightNumber: normalizedFlightNumber,
             originCode: Self.normalizedAirportCode(originCode),
             destinationCode: Self.normalizedAirportCode(destinationCode),
-            plannedDepartureTime: Self.absoluteDate(from: departureDate, timeZoneIdentifier: resolvedDepartureTimeZoneIdentifier),
-            plannedArrivalTime: Self.absoluteDate(from: arrivalDate, timeZoneIdentifier: resolvedArrivalTimeZoneIdentifier),
+            plannedDepartureTime: departureDate,
+            plannedArrivalTime: arrivalDate,
             departureTimeZoneIdentifier: resolvedDepartureTimeZoneIdentifier,
             arrivalTimeZoneIdentifier: resolvedArrivalTimeZoneIdentifier,
             actualDepartureTime: actualDepartureTime,
@@ -4018,29 +4048,6 @@ private struct TravelSegmentDraft: Identifiable {
 
     private static func normalizedAirportCode(_ code: String) -> String {
         code.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
-    }
-
-    private static func editorDate(from date: Date, timeZoneIdentifier: String) -> Date {
-        let sourceTimeZone = TimeZone(identifier: timeZoneIdentifier) ?? .autoupdatingCurrent
-        var sourceCalendar = Calendar(identifier: .gregorian)
-        sourceCalendar.timeZone = sourceTimeZone
-        let components = sourceCalendar.dateComponents([.year, .month, .day, .hour, .minute], from: date)
-        return Calendar.current.date(from: components) ?? date
-    }
-
-    private static func absoluteDate(from editorDate: Date, timeZoneIdentifier: String) -> Date {
-        let targetTimeZone = TimeZone(identifier: timeZoneIdentifier) ?? .autoupdatingCurrent
-        let components = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: editorDate)
-        var targetCalendar = Calendar(identifier: .gregorian)
-        targetCalendar.timeZone = targetTimeZone
-        return targetCalendar.date(from: DateComponents(
-            timeZone: targetTimeZone,
-            year: components.year,
-            month: components.month,
-            day: components.day,
-            hour: components.hour,
-            minute: components.minute
-        )) ?? editorDate
     }
 }
 

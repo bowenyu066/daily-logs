@@ -3186,6 +3186,125 @@ struct DailyLogsTests {
         #expect(display.primary.contains("1h 5m"))
         #expect(display.primary.contains("1h 40m") == false)
     }
+
+    @Test
+    func travelSegmentDraftPreservesAirportZonedDatePickerSelection() throws {
+        let departure = try zonedDate(
+            year: 2026,
+            month: 6,
+            day: 7,
+            hour: 3,
+            minute: 50,
+            timeZoneIdentifier: "Asia/Hong_Kong"
+        )
+        let arrival = try zonedDate(
+            year: 2026,
+            month: 6,
+            day: 7,
+            hour: 7,
+            minute: 50,
+            timeZoneIdentifier: "America/New_York"
+        )
+
+        let draft = TravelSegmentDraft(
+            flightNumber: "CX844",
+            originCode: "HKG",
+            destinationCode: "JFK",
+            departureDate: departure,
+            arrivalDate: arrival,
+            departureTimeZoneIdentifier: "Asia/Hong_Kong",
+            arrivalTimeZoneIdentifier: "America/New_York"
+        )
+        let segment = draft.makeSegment()
+
+        #expect(segment.plannedDepartureTime == departure)
+        #expect(segment.plannedArrivalTime == arrival)
+        #expect(segment.plannedDuration == 16 * 3600)
+        #expect(clockText(segment.plannedDepartureTime, timeZoneIdentifier: "Asia/Hong_Kong") == "03:50")
+        #expect(clockText(segment.plannedArrivalTime, timeZoneIdentifier: "America/New_York") == "07:50")
+    }
+
+    @Test
+    func travelSegmentNormalizationRepairsLegacyDoubleShiftedArrival() throws {
+        let departure = try zonedDate(
+            year: 2026,
+            month: 6,
+            day: 7,
+            hour: 3,
+            minute: 50,
+            timeZoneIdentifier: "Asia/Hong_Kong"
+        )
+        let expectedArrival = try zonedDate(
+            year: 2026,
+            month: 6,
+            day: 7,
+            hour: 7,
+            minute: 50,
+            timeZoneIdentifier: "America/New_York"
+        )
+        let legacyDoubleShiftedArrival = expectedArrival.addingTimeInterval(12 * 3600)
+        let segment = TravelSegment(
+            flightNumber: "CX844",
+            originCode: "HKG",
+            destinationCode: "JFK",
+            plannedDepartureTime: departure,
+            plannedArrivalTime: legacyDoubleShiftedArrival,
+            departureTimeZoneIdentifier: "Asia/Hong_Kong",
+            arrivalTimeZoneIdentifier: "America/New_York"
+        )
+
+        let normalized = segment.normalizedForChronology()
+
+        #expect(segment.plannedDuration == 28 * 3600)
+        #expect(normalized.plannedArrivalTime == expectedArrival)
+        #expect(normalized.plannedDuration == 16 * 3600)
+        #expect(clockText(normalized.plannedArrivalTime, timeZoneIdentifier: "America/New_York") == "07:50")
+    }
+
+    @Test
+    func travelSegmentNormalizationRepairsArrivalStoredOnDepartureDate() throws {
+        let departure = try zonedDate(
+            year: 2026,
+            month: 6,
+            day: 6,
+            hour: 22,
+            minute: 9,
+            timeZoneIdentifier: "Asia/Shanghai"
+        )
+        let arrivalStoredOnWrongDay = try zonedDate(
+            year: 2026,
+            month: 6,
+            day: 6,
+            hour: 1,
+            minute: 43,
+            timeZoneIdentifier: "Asia/Hong_Kong"
+        )
+        let actualArrival = try zonedDate(
+            year: 2026,
+            month: 6,
+            day: 7,
+            hour: 1,
+            minute: 43,
+            timeZoneIdentifier: "Asia/Hong_Kong"
+        )
+        let segment = TravelSegment(
+            flightNumber: "CX931",
+            originCode: "WUH",
+            destinationCode: "HKG",
+            plannedDepartureTime: departure,
+            plannedArrivalTime: arrivalStoredOnWrongDay,
+            departureTimeZoneIdentifier: "Asia/Shanghai",
+            arrivalTimeZoneIdentifier: "Asia/Hong_Kong",
+            actualDepartureTime: departure,
+            actualArrivalTime: actualArrival
+        )
+
+        let normalized = segment.normalizedForChronology()
+
+        #expect(normalized.plannedDuration == 3 * 3600 + 34 * 60)
+        #expect(segment.effectiveDuration == 3 * 3600 + 34 * 60)
+        #expect(clockText(normalized.plannedArrivalTime, timeZoneIdentifier: "Asia/Hong_Kong") == "01:43")
+    }
 }
 
 @MainActor
@@ -3259,6 +3378,35 @@ private final class InMemoryTravelPlanRepository: TravelPlanRepository {
     func deleteTravelPlan(_ plan: TravelPlan, userID: String) throws {
         plans.removeAll { $0.id == plan.id }
     }
+}
+
+private func zonedDate(
+    year: Int,
+    month: Int,
+    day: Int,
+    hour: Int,
+    minute: Int,
+    timeZoneIdentifier: String
+) throws -> Date {
+    let timeZone = try #require(TimeZone(identifier: timeZoneIdentifier))
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.timeZone = timeZone
+    return try #require(calendar.date(from: DateComponents(
+        timeZone: timeZone,
+        year: year,
+        month: month,
+        day: day,
+        hour: hour,
+        minute: minute
+    )))
+}
+
+private func clockText(_ date: Date, timeZoneIdentifier: String) -> String {
+    let formatter = DateFormatter()
+    formatter.locale = Locale(identifier: "en_US_POSIX")
+    formatter.timeZone = TimeZone(identifier: timeZoneIdentifier)
+    formatter.dateFormat = "HH:mm"
+    return formatter.string(from: date)
 }
 
 private func sampleInsightPayload() -> DailyInsightPayload {
