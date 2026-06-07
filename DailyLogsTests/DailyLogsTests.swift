@@ -3262,6 +3262,38 @@ struct DailyLogsTests {
     }
 
     @Test
+    func travelSegmentDurationFallsBackToPlanWhenActualTimesCollapseToZero() throws {
+        let departure = try zonedDate(
+            year: 2026,
+            month: 6,
+            day: 7,
+            hour: 19,
+            minute: 50,
+            timeZoneIdentifier: "Asia/Hong_Kong"
+        )
+        let intendedArrival = departure.addingTimeInterval(15 * 3600 + 35 * 60)
+        let legacyDoubleShiftedArrival = intendedArrival.addingTimeInterval(12 * 3600)
+        let segment = TravelSegment(
+            flightNumber: "CX844",
+            originCode: "HKG",
+            destinationCode: "JFK",
+            plannedDepartureTime: departure,
+            plannedArrivalTime: legacyDoubleShiftedArrival,
+            departureTimeZoneIdentifier: "Asia/Hong_Kong",
+            arrivalTimeZoneIdentifier: "America/New_York",
+            actualDepartureTime: departure,
+            actualArrivalTime: departure
+        )
+
+        let normalized = segment.normalizedForChronology()
+
+        #expect(segment.actualDuration == 0)
+        #expect(normalized.actualDuration == 0)
+        #expect(normalized.plannedDuration == 15 * 3600 + 35 * 60)
+        #expect(normalized.effectiveDuration == 15 * 3600 + 35 * 60)
+    }
+
+    @Test
     func travelSegmentNormalizationRepairsArrivalStoredOnDepartureDate() throws {
         let departure = try zonedDate(
             year: 2026,

@@ -917,7 +917,22 @@ struct TravelSegment: Codable, Equatable, Identifiable {
     }
 
     var effectiveDuration: TimeInterval {
-        arrivalTime.timeIntervalSince(departureTime)
+        if let actualDuration, Self.isPlausibleFlightDuration(actualDuration) {
+            return actualDuration
+        }
+
+        let normalizedPlannedArrival = Self.normalizedArrivalTime(
+            departure: plannedDepartureTime,
+            arrival: plannedArrivalTime,
+            departureTimeZone: departureTimeZone,
+            arrivalTimeZone: arrivalTimeZone
+        )
+        let normalizedPlannedDuration = normalizedPlannedArrival.timeIntervalSince(plannedDepartureTime)
+        if Self.isPlausibleFlightDuration(normalizedPlannedDuration) {
+            return normalizedPlannedDuration
+        }
+
+        return max(0, arrivalTime.timeIntervalSince(departureTime))
     }
 
     var routeTitle: String {
@@ -937,7 +952,9 @@ struct TravelSegment: Codable, Equatable, Identifiable {
             departureTimeZone: departureTimeZone,
             arrivalTimeZone: arrivalTimeZone
         )
-        if let actualDepartureTime, let actualArrivalTime {
+        if let actualDepartureTime,
+           let actualArrivalTime,
+           Self.isPlausibleFlightDuration(actualArrivalTime.timeIntervalSince(actualDepartureTime)) {
             normalized.actualArrivalTime = Self.normalizedArrivalTime(
                 departure: actualDepartureTime,
                 arrival: actualArrivalTime,
@@ -976,6 +993,10 @@ struct TravelSegment: Codable, Equatable, Identifiable {
             return repaired
         }
         return normalized
+    }
+
+    private static func isPlausibleFlightDuration(_ duration: TimeInterval) -> Bool {
+        duration >= minimumPlausibleFlightDuration && duration <= maximumPlausibleFlightDuration
     }
 
     private static let minimumPlausibleFlightDuration: TimeInterval = 20.0 * 60.0
