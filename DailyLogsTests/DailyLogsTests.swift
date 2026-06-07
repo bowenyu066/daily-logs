@@ -3372,6 +3372,107 @@ struct DailyLogsTests {
     }
 
     @Test @MainActor
+    func travelRecordTimezoneMigrationRebuildsWrongArrivalZoneWallClockOnSegment() async throws {
+        let departure = try zonedDate(
+            year: 2026,
+            month: 6,
+            day: 7,
+            hour: 19,
+            minute: 50,
+            timeZoneIdentifier: "Asia/Hong_Kong"
+        )
+        let arrival = try zonedDate(
+            year: 2026,
+            month: 6,
+            day: 7,
+            hour: 23,
+            minute: 50,
+            timeZoneIdentifier: "America/New_York"
+        )
+        let intendedTime = try zonedDate(
+            year: 2026,
+            month: 6,
+            day: 7,
+            hour: 22,
+            minute: 10,
+            timeZoneIdentifier: "Asia/Hong_Kong"
+        )
+        let wrongArrivalZoneTime = try zonedDate(
+            year: 2026,
+            month: 6,
+            day: 7,
+            hour: 22,
+            minute: 10,
+            timeZoneIdentifier: "America/New_York"
+        )
+        let segment = TravelSegment(
+            flightNumber: "CX844",
+            originCode: "HKG",
+            destinationCode: "JFK",
+            plannedDepartureTime: departure,
+            plannedArrivalTime: arrival,
+            departureTimeZoneIdentifier: "Asia/Hong_Kong",
+            arrivalTimeZoneIdentifier: "America/New_York"
+        )
+        let plan = TravelPlan(
+            title: "HKG-JFK",
+            segments: [segment],
+            status: .inFlight,
+            currentSegmentID: segment.id
+        )
+        let context = TravelRecordContext(planID: plan.id, segmentID: segment.id, phase: .inFlight)
+        let day = try #require(Calendar.current.date(from: DateComponents(year: 2026, month: 6, day: 7)))
+        let record = DailyRecord(
+            date: day,
+            sleepRecord: SleepRecord(),
+            meals: [
+                MealEntry(
+                    mealKind: .custom,
+                    customTitle: "飞机餐",
+                    status: .logged,
+                    time: wrongArrivalZoneTime,
+                    timeZoneIdentifier: "America/New_York",
+                    travelContext: context
+                )
+            ],
+            showers: []
+        )
+        let user = UserAccount(
+            userID: "travel-timezone-wall-clock-migration",
+            displayName: "Traveler",
+            email: nil,
+            authMode: .guest,
+            createdAt: departure.addingTimeInterval(-86_400)
+        )
+        let viewModel = AppViewModel(
+            authService: MockAuthService(user: user),
+            repository: InMemoryDailyRecordRepository(records: [day.storageKey(): record]),
+            travelPlanRepository: InMemoryTravelPlanRepository(plans: [plan]),
+            preferencesStore: MockPreferencesStore(preferences: UserPreferences()),
+            photoStorageService: MockPhotoStorageService(),
+            videoStorageService: MockVideoStorageService(),
+            sunTimesService: MockSunTimesService(),
+            weatherService: MockWeatherService(),
+            healthSyncAdapter: MockHealthSyncAdapter(sleepRecord: nil),
+            cloudSyncService: NoopCloudSyncService(),
+            aiInsightNarrativeService: MockAIInsightNarrativeService(responses: []),
+            openAIKeyStore: MockOpenAIKeyStore(key: nil),
+            locationService: LocationService(),
+            selectedDate: day,
+            dailyRecord: DailyRecord.empty(for: day, preferences: UserPreferences()),
+            preferences: UserPreferences()
+        )
+        await viewModel.bootstrap()
+
+        let migratedMeal = try #require(viewModel.allRecords.flatMap { $0.meals }.first { $0.travelContext == context })
+        let migratedTime = try #require(migratedMeal.time)
+
+        #expect(migratedTime == intendedTime)
+        #expect(migratedMeal.timeZoneIdentifier == "Asia/Hong_Kong")
+        #expect(migratedMeal.travelContext?.segmentID == segment.id)
+    }
+
+    @Test @MainActor
     func travelRecordTimezoneMigrationRepairsPreviousOffsetShiftOutsideFlightWindow() async throws {
         let departure = try zonedDate(
             year: 2026,

@@ -1589,6 +1589,10 @@ final class AppViewModel: ObservableObject {
                     try store.save(database)
                 }
                 allRecords = prunedLocalRecordMap.values.sorted { $0.date < $1.date }
+                let normalizedRecords = try normalizeStoredTravelRecordTimeZonesIfNeeded(for: user.userID)
+                for record in deduplicatedPendingUploads(normalizedRecords) {
+                    try await cloudSyncService.pushRecord(record, user: user)
+                }
                 await refreshRemotePhotoCache()
             }
 
@@ -1621,11 +1625,12 @@ final class AppViewModel: ObservableObject {
                     .values
                     .filter { $0.date >= user.createdAt.startOfDay }
                     .sorted { $0.date < $1.date } ?? []
+                let normalizedRecords = try normalizeStoredTravelRecordTimeZonesIfNeeded(for: user.userID)
                 await refreshRemotePhotoCache()
 
                 await deleteCloudPhotoReferencesIfPossible(Array(discardedRemotePhotoReferences))
 
-                for record in deduplicatedPendingUploads(recordsToPush) {
+                for record in deduplicatedPendingUploads(recordsToPush + normalizedRecords) {
                     try await cloudSyncService.pushRecord(record, user: user)
                 }
             }
@@ -1915,23 +1920,49 @@ final class AppViewModel: ObservableObject {
         locationService.refreshCurrentLocation()
     }
 
-    private func migrateRecordedTimeZonesIfNeeded(in records: [DailyRecord], userID: String) throws -> [DailyRecord] {
-        let identifier = TimeZone.autoupdatingCurrent.identifier
-        let migrated = records.map { record in
-            normalizedTravelRecordTimeZones(in: record.backfillingRecordedTimeZones(identifier)).record
-        }
-        guard migrated != records else { return migrated.sorted { $0.date < $1.date } }
-        for record in migrated {
-            try repository.saveRecord(record, preferences: preferences, userID: userID)
-        }
-        return migrated.sorted { $0.date < $1.date }
+    private struct MigratedRecordsResult {
+        var records: [DailyRecord]
+        var changedRecords: [DailyRecord]
     }
 
-    private func normalizeStoredTravelRecordTimeZonesIfNeeded(for userID: String) throws {
-        guard !travelPlans.isEmpty else { return }
+    private func migrateRecordedTimeZonesIfNeeded(in records: [DailyRecord], userID: String) throws -> [DailyRecord] {
+        try migrateRecordedTimeZones(in: records, userID: userID).records
+    }
+
+    private func migrateRecordedTimeZones(in records: [DailyRecord], userID: String) throws -> MigratedRecordsResult {
+        let identifier = TimeZone.autoupdatingCurrent.identifier
+        var changedRecords: [DailyRecord] = []
+        let migrated = records.map { record in
+            let normalized = normalizedTravelRecordTimeZones(in: record.backfillingRecordedTimeZones(identifier)).record
+            if normalized != record {
+                changedRecords.append(normalized)
+            }
+            return normalized
+        }
+        let sorted = migrated.sorted { $0.date < $1.date }
+        guard !changedRecords.isEmpty else {
+            return MigratedRecordsResult(records: sorted, changedRecords: [])
+        }
+        for record in changedRecords {
+            try repository.saveRecord(record, preferences: preferences, userID: userID)
+        }
+        return MigratedRecordsResult(records: sorted, changedRecords: changedRecords)
+    }
+
+    @discardableResult
+    private func normalizeStoredTravelRecordTimeZonesIfNeeded(for userID: String) throws -> [DailyRecord] {
+        guard !travelPlans.isEmpty else { return [] }
         let records = try repository.loadAllRecords(userID: userID, preferences: preferences)
             .filter { $0.date >= availableStartDate }
-        allRecords = try migrateRecordedTimeZonesIfNeeded(in: records, userID: userID)
+        let migration = try migrateRecordedTimeZones(in: records, userID: userID)
+        allRecords = migration.records
+        return migration.changedRecords
+    }
+
+    private struct NormalizedTravelTimestamp {
+        var date: Date
+        var timeZoneIdentifier: String?
+        var travelContext: TravelRecordContext?
     }
 
     private func normalizedTravelRecordTimeZones(in record: DailyRecord) -> (record: DailyRecord, didChange: Bool) {
@@ -1951,12 +1982,15 @@ final class AppViewModel: ObservableObject {
             recordedTimeZoneIdentifier: meal.timeZoneIdentifier,
             travelContext: meal.travelContext
         )
-        guard normalized.date != time || normalized.timeZoneIdentifier != meal.timeZoneIdentifier else {
+        guard normalized.date != time
+            || normalized.timeZoneIdentifier != meal.timeZoneIdentifier
+            || normalized.travelContext != meal.travelContext else {
             return meal
         }
         var updated = meal
         updated.time = normalized.date
         updated.timeZoneIdentifier = normalized.timeZoneIdentifier
+        updated.travelContext = normalized.travelContext
         return updated
     }
 
@@ -1967,12 +2001,15 @@ final class AppViewModel: ObservableObject {
             recordedTimeZoneIdentifier: shower.timeZoneIdentifier,
             travelContext: shower.travelContext
         )
-        guard normalized.date != time || normalized.timeZoneIdentifier != shower.timeZoneIdentifier else {
+        guard normalized.date != time
+            || normalized.timeZoneIdentifier != shower.timeZoneIdentifier
+            || normalized.travelContext != shower.travelContext else {
             return shower
         }
         var updated = shower
         updated.time = normalized.date
         updated.timeZoneIdentifier = normalized.timeZoneIdentifier
+        updated.travelContext = normalized.travelContext
         return updated
     }
 
@@ -1983,12 +2020,15 @@ final class AppViewModel: ObservableObject {
             recordedTimeZoneIdentifier: entry.timeZoneIdentifier,
             travelContext: entry.travelContext
         )
-        guard normalized.date != time || normalized.timeZoneIdentifier != entry.timeZoneIdentifier else {
+        guard normalized.date != time
+            || normalized.timeZoneIdentifier != entry.timeZoneIdentifier
+            || normalized.travelContext != entry.travelContext else {
             return entry
         }
         var updated = entry
         updated.time = normalized.date
         updated.timeZoneIdentifier = normalized.timeZoneIdentifier
+        updated.travelContext = normalized.travelContext
         return updated
     }
 
@@ -1999,12 +2039,15 @@ final class AppViewModel: ObservableObject {
             recordedTimeZoneIdentifier: entry.timeZoneIdentifier,
             travelContext: entry.travelContext
         )
-        guard normalized.date != time || normalized.timeZoneIdentifier != entry.timeZoneIdentifier else {
+        guard normalized.date != time
+            || normalized.timeZoneIdentifier != entry.timeZoneIdentifier
+            || normalized.travelContext != entry.travelContext else {
             return entry
         }
         var updated = entry
         updated.time = normalized.date
         updated.timeZoneIdentifier = normalized.timeZoneIdentifier
+        updated.travelContext = normalized.travelContext
         return updated
     }
 
@@ -2012,22 +2055,66 @@ final class AppViewModel: ObservableObject {
         _ date: Date,
         recordedTimeZoneIdentifier: String?,
         travelContext: TravelRecordContext?
-    ) -> (date: Date, timeZoneIdentifier: String?) {
+    ) -> NormalizedTravelTimestamp {
         guard let travelContext,
-              let segment = travelSegment(for: travelContext),
-              let expectedIdentifier = travelRecordingTimeZoneIdentifier(for: travelContext),
-              TimeZone(identifier: expectedIdentifier) != nil else {
-            return (date, recordedTimeZoneIdentifier)
+              let plan = travelPlan(for: travelContext),
+              let resolution = resolvedTravelSegment(for: date, context: travelContext, in: plan),
+              let expectedTimeZone = TimeZone(identifier: resolution.segment.departureTimeZoneIdentifier) else {
+            return NormalizedTravelTimestamp(
+                date: date,
+                timeZoneIdentifier: recordedTimeZoneIdentifier,
+                travelContext: travelContext
+            )
+        }
+
+        var normalizedContext = travelContext
+        normalizedContext.segmentID = resolution.segment.id
+
+        var candidateDate = resolution.date
+        if let sourceIdentifier = recordedTimeZoneIdentifier,
+           sourceIdentifier != resolution.segment.departureTimeZoneIdentifier,
+           let sourceTimeZone = TimeZone(identifier: sourceIdentifier) {
+            let retaggedDate = retaggingWallClock(
+                date,
+                from: sourceTimeZone,
+                to: expectedTimeZone
+            )
+            candidateDate = preferredTravelRecordDate(
+                originalDate: date,
+                retaggedDate: retaggedDate,
+                segment: resolution.segment,
+                phase: travelContext.phase
+            )
         }
         let repairedDate = repairedTravelRecordTimestampIfNeeded(
-            date,
-            segment: segment,
+            candidateDate,
+            segment: resolution.segment,
             phase: travelContext.phase
         )
-        return (
+        return NormalizedTravelTimestamp(
             date: repairedDate,
-            timeZoneIdentifier: expectedIdentifier
+            timeZoneIdentifier: resolution.segment.departureTimeZoneIdentifier,
+            travelContext: normalizedContext
         )
+    }
+
+    private func preferredTravelRecordDate(
+        originalDate: Date,
+        retaggedDate: Date,
+        segment: TravelSegment,
+        phase: TravelPlanStatus
+    ) -> Date {
+        guard phase == .inFlight else { return retaggedDate }
+
+        let retaggedIsInSegment = travelDate(retaggedDate, isIn: segment)
+        let originalIsInSegment = travelDate(originalDate, isIn: segment)
+        if retaggedIsInSegment {
+            return retaggedDate
+        }
+        if originalIsInSegment {
+            return originalDate
+        }
+        return retaggedDate
     }
 
     private func repairedTravelRecordTimestampIfNeeded(
@@ -2036,7 +2123,7 @@ final class AppViewModel: ObservableObject {
         phase: TravelPlanStatus
     ) -> Date {
         guard phase == .inFlight,
-              date < segment.departureTime || date > segment.arrivalTime else {
+              !travelDate(date, isIn: segment) else {
             return date
         }
 
@@ -2050,8 +2137,28 @@ final class AppViewModel: ObservableObject {
             date.addingTimeInterval(-routeOffsetDelta)
         ]
         return candidates.first { candidate in
-            candidate >= segment.departureTime && candidate <= segment.arrivalTime
+            travelDate(candidate, isIn: segment)
         } ?? date
+    }
+
+    private func retaggingWallClock(_ date: Date, from sourceTimeZone: TimeZone, to destinationTimeZone: TimeZone) -> Date {
+        var sourceCalendar = Calendar(identifier: .gregorian)
+        sourceCalendar.locale = .autoupdatingCurrent
+        sourceCalendar.timeZone = sourceTimeZone
+        let components = sourceCalendar.dateComponents([.year, .month, .day, .hour, .minute, .second], from: date)
+
+        var destinationCalendar = Calendar(identifier: .gregorian)
+        destinationCalendar.locale = .autoupdatingCurrent
+        destinationCalendar.timeZone = destinationTimeZone
+        return destinationCalendar.date(from: DateComponents(
+            timeZone: destinationTimeZone,
+            year: components.year,
+            month: components.month,
+            day: components.day,
+            hour: components.hour,
+            minute: components.minute,
+            second: components.second ?? 0
+        )) ?? date
     }
 
     private func mealEntry(_ entry: MealEntry, matches slot: MealSlot) -> Bool {
@@ -2197,9 +2304,9 @@ final class AppViewModel: ObservableObject {
 
         if let context,
            let plan = travelPlans.first(where: { $0.id == context.planID }) {
-            let segment = context.segmentID.flatMap { segmentID in
-                plan.segments.first(where: { $0.id == segmentID })
-            } ?? travelSegment(containing: date, in: plan) ?? plan.currentSegment
+            let segment = resolvedTravelSegment(for: date, context: context, in: plan)?.segment
+                ?? travelSegment(containing: date, in: plan)
+                ?? plan.currentSegment
             return travelTimeDisplay(for: date, phase: context.phase, segment: segment)
         }
 
@@ -2378,9 +2485,13 @@ final class AppViewModel: ObservableObject {
         return segment.departureTimeZoneIdentifier
     }
 
+    private func travelPlan(for context: TravelRecordContext?) -> TravelPlan? {
+        guard let context else { return nil }
+        return travelPlans.first(where: { $0.id == context.planID })
+    }
+
     private func travelSegment(for context: TravelRecordContext?) -> TravelSegment? {
-        guard let context,
-              let plan = travelPlans.first(where: { $0.id == context.planID }) else {
+        guard let context, let plan = travelPlan(for: context) else {
             return nil
         }
         if let segmentID = context.segmentID,
@@ -2388,6 +2499,96 @@ final class AppViewModel: ObservableObject {
             return segment
         }
         return plan.currentSegment ?? plan.segments.first
+    }
+
+    private func resolvedTravelSegment(
+        for date: Date,
+        context: TravelRecordContext,
+        in plan: TravelPlan
+    ) -> (segment: TravelSegment, date: Date)? {
+        if let segmentID = context.segmentID,
+           let segment = plan.segments.first(where: { $0.id == segmentID }) {
+            let repairedDate = repairedTravelRecordTimestampIfNeeded(
+                date,
+                segment: segment,
+                phase: context.phase
+            )
+            if travelDate(date, isIn: segment) || travelDate(repairedDate, isIn: segment) {
+                return (segment, repairedDate)
+            }
+        }
+
+        if let inferred = inferredTravelSegment(for: date, phase: context.phase, in: plan) {
+            return inferred
+        }
+
+        if let segmentID = context.segmentID,
+           let segment = plan.segments.first(where: { $0.id == segmentID }) {
+            return (segment, date)
+        }
+        guard let closest = closestTravelSegment(to: date, in: plan) else { return nil }
+        return (closest, date)
+    }
+
+    private func inferredTravelSegment(
+        for date: Date,
+        phase: TravelPlanStatus,
+        in plan: TravelPlan
+    ) -> (segment: TravelSegment, date: Date)? {
+        var bestMatch: (segment: TravelSegment, date: Date, score: TimeInterval)?
+        for segment in plan.segments {
+            let candidates = travelRecordTimestampCandidates(for: date, segment: segment, phase: phase)
+            for (index, candidate) in candidates.enumerated() where travelDate(candidate, isIn: segment) {
+                let score = TimeInterval(index) * 86_400 + distanceFromSegmentMidpoint(candidate, segment: segment)
+                if bestMatch == nil || score < bestMatch!.score {
+                    bestMatch = (segment, candidate, score)
+                }
+            }
+        }
+        guard let bestMatch else { return nil }
+        return (bestMatch.segment, bestMatch.date)
+    }
+
+    private func travelRecordTimestampCandidates(
+        for date: Date,
+        segment: TravelSegment,
+        phase: TravelPlanStatus
+    ) -> [Date] {
+        guard phase == .inFlight else { return [date] }
+        let departureOffset = TimeInterval(segment.departureTimeZone.secondsFromGMT(for: date))
+        let arrivalOffset = TimeInterval(segment.arrivalTimeZone.secondsFromGMT(for: date))
+        let routeOffsetDelta = departureOffset - arrivalOffset
+        guard routeOffsetDelta != 0 else { return [date] }
+        return [
+            date,
+            date.addingTimeInterval(routeOffsetDelta),
+            date.addingTimeInterval(-routeOffsetDelta)
+        ]
+    }
+
+    private func closestTravelSegment(to date: Date, in plan: TravelPlan) -> TravelSegment? {
+        plan.segments.min { lhs, rhs in
+            distanceFromSegmentWindow(date, segment: lhs) < distanceFromSegmentWindow(date, segment: rhs)
+        }
+    }
+
+    private func travelDate(_ date: Date, isIn segment: TravelSegment) -> Bool {
+        date >= segment.departureTime && date <= segment.arrivalTime
+    }
+
+    private func distanceFromSegmentWindow(_ date: Date, segment: TravelSegment) -> TimeInterval {
+        if date < segment.departureTime {
+            return segment.departureTime.timeIntervalSince(date)
+        }
+        if date > segment.arrivalTime {
+            return date.timeIntervalSince(segment.arrivalTime)
+        }
+        return 0
+    }
+
+    private func distanceFromSegmentMidpoint(_ date: Date, segment: TravelSegment) -> TimeInterval {
+        let midpoint = segment.departureTime.addingTimeInterval(segment.arrivalTime.timeIntervalSince(segment.departureTime) / 2)
+        return abs(date.timeIntervalSince(midpoint))
     }
 
     private func travelTimeDisplay(
