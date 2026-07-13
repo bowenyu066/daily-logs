@@ -997,7 +997,7 @@ private struct TimeLineChart: View {
                 .frame(height: compact ? (usesWrappedClock ? 214 : 190) : 260)
                 .chartPlotStyle { plotArea in
                     plotArea
-                        .padding(.top, usesWrappedClock ? 18 : 0)
+                        .padding(.top, 18)
                         .padding(.bottom, usesWrappedClock ? 8 : 0)
                 }
                 .chartYScale(domain: adaptiveDomain)
