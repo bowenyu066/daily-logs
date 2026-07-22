@@ -30,6 +30,7 @@ struct MealEditorSheet: View {
     @State private var logsExistenceOnly: Bool
     @State private var showingLocationPicker = false
     @State private var showingDeleteMealConfirmation = false
+    @FocusState private var isTitleFocused: Bool
 
     let baseDate: Date
     let preferredSource: MealCaptureMode
@@ -101,6 +102,11 @@ struct MealEditorSheet: View {
             .onChange(of: photoPickerItems) { _, newItems in
                 Task { await loadSelectedPhotoItems(newItems) }
             }
+            .onChange(of: logsExistenceOnly) { _, isExistenceOnly in
+                guard !isExistenceOnly else { return }
+                draft.time = draft.time ?? defaultLoggedTime
+                applySuggestedTitleIfNeeded()
+            }
             .sheet(isPresented: $showingImagePicker) {
                 if let pickerSource {
                     ImagePicker(
@@ -113,6 +119,7 @@ struct MealEditorSheet: View {
                             draft.status = .logged
                             draft.time = normalizedPickedDate(selectedImage.capturedAt) ?? draft.time ?? defaultLoggedTime
                             logsExistenceOnly = false
+                            applySuggestedTitleIfNeeded()
                             Task {
                                 await applyAutomaticLocationIfNeeded(
                                     from: selectedImage.location,
@@ -202,6 +209,8 @@ struct MealEditorSheet: View {
                             set: {
                                 draft.time = $0
                                 draft.status = .logged
+                                logsExistenceOnly = false
+                                applySuggestedTitleIfNeeded()
                             }
                         ),
                         displayedComponents: .hourAndMinute
@@ -230,9 +239,17 @@ struct MealEditorSheet: View {
 
             TextField(NSLocalizedString("名称", comment: ""), text: Binding(
                 get: { draft.customTitle ?? "" },
-                set: { draft.customTitle = $0 }
+                set: {
+                    if $0 != draft.customTitle {
+                        draft.isCustomTitleManuallyEdited = true
+                    }
+                    draft.customTitle = $0
+                }
             ))
             .font(.system(size: 18, weight: .semibold, design: .rounded))
+            .submitLabel(.done)
+            .focused($isTitleFocused)
+            .onSubmit { isTitleFocused = false }
             .padding(.horizontal, 18)
             .padding(.vertical, 14)
             .background(editorSurface)
@@ -242,6 +259,16 @@ struct MealEditorSheet: View {
                     .strokeBorder(editorBorder, lineWidth: 1)
             }
             .disabled(!isEditable)
+            .toolbar {
+                ToolbarItemGroup(placement: .keyboard) {
+                    if isTitleFocused {
+                        Spacer()
+                        Button(NSLocalizedString("完成", comment: "")) {
+                            isTitleFocused = false
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -464,6 +491,14 @@ struct MealEditorSheet: View {
             entry.isLocationManuallyEdited = false
             entry.travelContext = nil
         }
+
+        if entry.mealKind == .custom,
+           !entry.isCustomTitleManuallyEdited,
+           effectiveTravelContext == nil,
+           !logsExistenceOnly,
+           let time = entry.time {
+            entry.customTitle = MealTitleSuggestion.title(for: time, in: recordingTimeZone)
+        }
         return entry
     }
 
@@ -530,6 +565,25 @@ struct MealEditorSheet: View {
                 logsExistenceOnly = true
             }
         }
+
+        applySuggestedTitleIfNeeded()
+    }
+
+    private func applySuggestedTitleIfNeeded() {
+        guard draft.mealKind == .custom,
+              !draft.isCustomTitleManuallyEdited,
+              !logsExistenceOnly,
+              effectiveTravelContext == nil else {
+            return
+        }
+
+        let timestamp = appViewModel.normalizedEventTimestamp(
+            from: draft.time ?? defaultLoggedTime,
+            baseDate: baseDate,
+            recordedTimeZoneIdentifier: draft.timeZoneIdentifier,
+            travelContext: nil
+        )
+        draft.customTitle = MealTitleSuggestion.title(for: timestamp, in: recordingTimeZone)
     }
 
     private func presentPhotoSourceOptions() {
@@ -583,6 +637,7 @@ struct MealEditorSheet: View {
             draft.status = .logged
             draft.time = draft.time ?? normalizedPickedDate(appendedImages.first?.capturedAt) ?? defaultLoggedTime
             logsExistenceOnly = false
+            applySuggestedTitleIfNeeded()
             await applyAutomaticLocationIfNeeded(
                 from: appendedImages.first?.location,
                 shouldAutofillFromFirstPhoto: !hadPhotosBeforeAppending

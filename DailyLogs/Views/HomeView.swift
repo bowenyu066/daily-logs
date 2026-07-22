@@ -1855,7 +1855,10 @@ struct HomeView: View {
             )
             .sorted { lhs, rhs in sortOptionalTimes(lhs.time, rhs.time, fallback: lhs.displayTitle < rhs.displayTitle) }
         }
-        return appViewModel.dailyRecord.meals.filter { isRecordVisibleInCurrentMode($0.travelContext) }
+        return MealEntry.sortedByTime(
+            appViewModel.dailyRecord.meals.filter { isRecordVisibleInCurrentMode($0.travelContext) },
+            on: appViewModel.selectedDate
+        )
     }
 
     private var visibleShowers: [ShowerEntry] {

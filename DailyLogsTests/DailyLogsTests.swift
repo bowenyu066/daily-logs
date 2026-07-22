@@ -3131,6 +3131,80 @@ struct DailyLogsTests {
     }
 
     @Test
+    func mealTitleSuggestionUsesLocalTimeBuckets() throws {
+        let timeZone = try #require(TimeZone(identifier: "America/New_York"))
+        let cases: [(hour: Int, minute: Int, title: String)] = [
+            (4, 59, "夜宵"),
+            (5, 0, "早咖啡"),
+            (10, 0, "上午茶"),
+            (12, 0, "午间加餐"),
+            (14, 0, "下午茶"),
+            (18, 0, "晚间加餐"),
+            (22, 0, "夜宵")
+        ]
+
+        for entry in cases {
+            let date = try zonedDate(
+                year: 2026,
+                month: 6,
+                day: 10,
+                hour: entry.hour,
+                minute: entry.minute,
+                timeZoneIdentifier: timeZone.identifier
+            )
+            #expect(
+                MealTitleSuggestion.title(for: date, in: timeZone)
+                    == NSLocalizedString(entry.title, comment: "")
+            )
+        }
+    }
+
+    @Test
+    func mealEntriesSortTimedSnackBetweenDefaultMeals() {
+        let day = Calendar.current.date(from: DateComponents(year: 2026, month: 6, day: 10))!
+        let sorted = MealEntry.sortedByTime([
+            MealEntry(mealKind: .dinner),
+            MealEntry(
+                mealKind: .custom,
+                customTitle: "下午茶",
+                status: .logged,
+                time: day.settingTime(hour: 15, minute: 30)
+            ),
+            MealEntry(mealKind: .lunch)
+        ], on: day)
+
+        #expect(sorted.map(\.mealKind) == [.lunch, .custom, .dinner])
+    }
+
+    @Test
+    func mealEntryTreatsLegacyCustomTitleAsManualEdit() throws {
+        let json = """
+        {
+          "mealKind": "custom",
+          "customTitle": "旧加餐"
+        }
+        """.data(using: .utf8)!
+
+        let decoded = try JSONDecoder().decode(MealEntry.self, from: json)
+
+        #expect(decoded.isCustomTitleManuallyEdited == true)
+    }
+
+    @Test
+    func mealEntryRoundTripPreservesCustomTitleManualEditState() throws {
+        let original = MealEntry(
+            mealKind: .custom,
+            customTitle: "旅行餐食",
+            isCustomTitleManuallyEdited: true
+        )
+
+        let data = try JSONEncoder().encode(original)
+        let decoded = try JSONDecoder().decode(MealEntry.self, from: data)
+
+        #expect(decoded.isCustomTitleManuallyEdited == true)
+    }
+
+    @Test
     func mealEntryRoundTripPreservesMultiplePhotoURLs() throws {
         let original = MealEntry(
             mealKind: .lunch,

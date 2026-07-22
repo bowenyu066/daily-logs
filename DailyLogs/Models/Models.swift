@@ -207,6 +207,30 @@ enum MealKind: String, Codable, CaseIterable, Identifiable {
     }
 }
 
+enum MealTitleSuggestion {
+    static func title(for date: Date, in timeZone: TimeZone = .autoupdatingCurrent) -> String {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timeZone
+        let minutes = calendar.component(.hour, from: date) * 60
+            + calendar.component(.minute, from: date)
+
+        switch minutes {
+        case 5 * 60 ..< 10 * 60:
+            return NSLocalizedString("早咖啡", comment: "")
+        case 10 * 60 ..< 12 * 60:
+            return NSLocalizedString("上午茶", comment: "")
+        case 12 * 60 ..< 14 * 60:
+            return NSLocalizedString("午间加餐", comment: "")
+        case 14 * 60 ..< 18 * 60:
+            return NSLocalizedString("下午茶", comment: "")
+        case 18 * 60 ..< 22 * 60:
+            return NSLocalizedString("晚间加餐", comment: "")
+        default:
+            return NSLocalizedString("夜宵", comment: "")
+        }
+    }
+}
+
 enum MealStatus: String, Codable, CaseIterable {
     case empty
     case logged
@@ -380,6 +404,7 @@ struct MealEntry: Codable, Equatable, Identifiable {
     var latitude: Double?
     var longitude: Double?
     var isLocationManuallyEdited: Bool
+    var isCustomTitleManuallyEdited: Bool
     var travelContext: TravelRecordContext?
 
     var displayTitle: String {
@@ -408,6 +433,48 @@ struct MealEntry: Codable, Equatable, Identifiable {
         set { photoURLs = newValue.map { [$0] } ?? [] }
     }
 
+    static func sortedByTime(_ meals: [MealEntry], on baseDate: Date) -> [MealEntry] {
+        meals.sorted { lhs, rhs in
+            let lhsDate = lhs.sortingDate(on: baseDate)
+            let rhsDate = rhs.sortingDate(on: baseDate)
+
+            switch (lhsDate, rhsDate) {
+            case let (lhs?, rhs?):
+                if lhs != rhs {
+                    return lhs < rhs
+                }
+            case (_?, nil):
+                return true
+            case (nil, _?):
+                return false
+            case (nil, nil):
+                break
+            }
+
+            if lhs.displayTitle != rhs.displayTitle {
+                return lhs.displayTitle < rhs.displayTitle
+            }
+            return lhs.id.uuidString < rhs.id.uuidString
+        }
+    }
+
+    private func sortingDate(on baseDate: Date) -> Date? {
+        if let time {
+            return time
+        }
+
+        switch mealKind {
+        case .breakfast:
+            return baseDate.settingTime(hour: 8, minute: 0)
+        case .lunch:
+            return baseDate.settingTime(hour: 12, minute: 0)
+        case .dinner:
+            return baseDate.settingTime(hour: 18, minute: 0)
+        case .custom:
+            return nil
+        }
+    }
+
     var isLoggedWithoutTime: Bool {
         effectiveStatus(on: .now, relativeTo: .now) == .logged && time == nil
     }
@@ -425,7 +492,7 @@ struct MealEntry: Codable, Equatable, Identifiable {
     enum CodingKeys: String, CodingKey {
         case id, mealKind, customTitle, status, time, photoURL, photoURLs, timeZoneIdentifier
         case note, locationName, latitude, longitude, isLocationManuallyEdited
-        case travelContext
+        case isCustomTitleManuallyEdited, travelContext
     }
 
     init(
@@ -442,6 +509,7 @@ struct MealEntry: Codable, Equatable, Identifiable {
         latitude: Double? = nil,
         longitude: Double? = nil,
         isLocationManuallyEdited: Bool = false,
+        isCustomTitleManuallyEdited: Bool = false,
         travelContext: TravelRecordContext? = nil
     ) {
         self.id = id
@@ -456,6 +524,7 @@ struct MealEntry: Codable, Equatable, Identifiable {
         self.latitude = latitude
         self.longitude = longitude
         self.isLocationManuallyEdited = isLocationManuallyEdited
+        self.isCustomTitleManuallyEdited = isCustomTitleManuallyEdited
         self.travelContext = travelContext
     }
 
@@ -479,6 +548,8 @@ struct MealEntry: Codable, Equatable, Identifiable {
         longitude = try container.decodeIfPresent(Double.self, forKey: .longitude)
         isLocationManuallyEdited = try container.decodeIfPresent(Bool.self, forKey: .isLocationManuallyEdited)
             ?? (locationName != nil || latitude != nil || longitude != nil)
+        isCustomTitleManuallyEdited = try container.decodeIfPresent(Bool.self, forKey: .isCustomTitleManuallyEdited)
+            ?? (mealKind == .custom && customTitle?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false)
         travelContext = try container.decodeIfPresent(TravelRecordContext.self, forKey: .travelContext)
     }
 
@@ -497,6 +568,7 @@ struct MealEntry: Codable, Equatable, Identifiable {
         try container.encodeIfPresent(latitude, forKey: .latitude)
         try container.encodeIfPresent(longitude, forKey: .longitude)
         try container.encode(isLocationManuallyEdited, forKey: .isLocationManuallyEdited)
+        try container.encode(isCustomTitleManuallyEdited, forKey: .isCustomTitleManuallyEdited)
         try container.encodeIfPresent(travelContext, forKey: .travelContext)
     }
 }
@@ -1326,7 +1398,11 @@ struct DailyRecord: Codable, Equatable {
             date: date.startOfDay,
             sleepRecord: SleepRecord(targetBedtime: preferences.bedtimeSchedule.target(for: date)),
             meals: preferences.defaultMealSlots.map {
-                MealEntry(mealKind: $0.kind, customTitle: $0.kind == .custom ? $0.title : nil)
+                MealEntry(
+                    mealKind: $0.kind,
+                    customTitle: $0.kind == .custom ? $0.title : nil,
+                    isCustomTitleManuallyEdited: $0.kind == .custom
+                )
             },
             showers: [],
             bowelMovements: [],

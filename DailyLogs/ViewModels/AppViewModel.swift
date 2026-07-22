@@ -1728,18 +1728,13 @@ final class AppViewModel: ObservableObject {
                         customTitle: slot.kind == .custom ? slot.title : nil,
                         status: .empty,
                         time: nil,
-                        photoURL: nil
+                        photoURL: nil,
+                        isCustomTitleManuallyEdited: slot.kind == .custom
                     )
                 )
             }
         }
-        updated.meals.sort { lhs, rhs in
-            let order: [MealKind: Int] = [.breakfast: 0, .lunch: 1, .dinner: 2, .custom: 3]
-            if lhs.mealKind == rhs.mealKind {
-                return lhs.displayTitle < rhs.displayTitle
-            }
-            return (order[lhs.mealKind] ?? 99) < (order[rhs.mealKind] ?? 99)
-        }
+        updated.meals = MealEntry.sortedByTime(updated.meals, on: updated.date)
         return updated
     }
 
