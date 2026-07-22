@@ -90,7 +90,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%1$@ to %2$@, %.1f hours total"
+            "value" : "%1$@ to %2$@, %3$.1f hours total"
           }
         },
         "zh-Hans" : {
@@ -122,7 +122,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%1$@ was the main reference for that day, with the overall score landing at %2$d."
+            "value" : "%1$@ was the day's main factor. Overall score: %2$d points."
           }
         },
         "zh-Hans" : {
@@ -139,7 +139,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%1$@ was yesterday's main driver, with the overall score landing at %2$d."
+            "value" : "%1$@ was yesterday's main factor. Overall score: %2$d points."
           }
         },
         "zh-Hans" : {
@@ -155,7 +155,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ has clear records, earning stable points here."
+            "value" : "%1$@ was clearly logged, earning steady points."
           }
         }
       }
@@ -165,7 +165,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ had no records that day, so scoring is conservative."
+            "value" : "%1$@ was not logged that day, so the score is conservative."
           }
         },
         "zh-Hans" : {
@@ -182,7 +182,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ had no records yesterday, so scoring is conservative."
+            "value" : "%1$@ was not logged yesterday, so the score is conservative."
           }
         }
       }
@@ -224,7 +224,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%d min"
+            "value" : "%d points"
           }
         }
       }
@@ -330,7 +330,14 @@
       }
     },
     "affectedStorageKeys" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "affectedStorageKeys"
+          }
+        }
+      }
     },
     "AI" : {
       "localizations" : {
@@ -409,7 +416,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "AI requests are routed through your cloud proxy. New scores are saved permanently unless the underlying records change."
+            "value" : "AI requests are routed through your cloud proxy; new scores are saved and remain fixed unless the related records change."
           }
         }
       }
@@ -493,7 +500,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Apple Sign In"
+            "value" : "Apple sign-in"
           }
         },
         "zh-Hans" : {
@@ -597,7 +604,14 @@
       }
     },
     "legacyNaturalKeys" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "legacyNaturalKeys"
+          }
+        }
+      }
     },
     "REM 时长" : {
       "localizations" : {
@@ -616,14 +630,21 @@
       }
     },
     "UTC 未知" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unknown UTC offset"
+          }
+        }
+      }
     },
     "一" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "M"
+            "value" : "Mon"
           }
         },
         "zh-Hans" : {
@@ -639,7 +660,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "W"
+            "value" : "Wed"
           }
         },
         "zh-Hans" : {
@@ -655,7 +676,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Meal Completion"
+            "value" : "Meal completion rate"
           }
         },
         "zh-Hans" : {
@@ -677,25 +698,73 @@
       }
     },
     "上一步" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Back"
+          }
+        }
+      }
     },
     "上一阶段" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Previous stage"
+          }
+        }
+      }
     },
     "下一步" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Next"
+          }
+        }
+      }
     },
     "下一步只需要给整段旅行命名。" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The next step is to name the trip."
+          }
+        }
+      }
     },
     "下一程 " : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Next leg "
+          }
+        }
+      }
     },
     "下一程会默认从 %@ 出发。" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The next leg will depart from %@ by default."
+          }
+        }
+      }
     },
     "下一程第 %d / 共 %d 段 · %@" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Next leg %1$d of %2$d · %3$@"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "new",
@@ -741,7 +810,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "T"
+            "value" : "Tue"
           }
         },
         "zh-Hans" : {
@@ -835,7 +904,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Cloud AI unavailable"
+            "value" : "Cloud AI not ready"
           }
         },
         "zh-Hans" : {
@@ -881,7 +950,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Cloud AI requires a Firebase token. Please sign in."
+            "value" : "Cloud AI requires a signed-in Firebase identity token."
           }
         }
       }
@@ -969,7 +1038,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "F"
+            "value" : "Fri"
           }
         },
         "zh-Hans" : {
@@ -1012,7 +1081,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Record occurrence only"
+            "value" : "Log presence/absence only"
           }
         },
         "zh-Hans" : {
@@ -1034,7 +1103,14 @@
       }
     },
     "今天你想从哪里出发？" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Where are you departing from today?"
+          }
+        }
+      }
     },
     "今天是" : {
       "extractionState" : "stale",
@@ -1094,7 +1170,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Location access"
+            "value" : "Location permission"
           }
         },
         "zh-Hans" : {
@@ -1139,13 +1215,34 @@
       }
     },
     "例如 BA238" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "e.g. BA238"
+          }
+        }
+      }
     },
     "例如 BOS-PKX 旅程" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "e.g. BOS-PKX trip"
+          }
+        }
+      }
     },
     "例如 NH938，可留空" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "e.g. NH938 (optional)"
+          }
+        }
+      }
     },
     "保存" : {
       "localizations" : {
@@ -1168,7 +1265,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Save a life clip up to 10 seconds"
+            "value" : "Save a daily clip up to 10 seconds long."
           }
         },
         "zh-Hans" : {
@@ -1190,26 +1287,91 @@
       }
     },
     "保存到相册" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save to Photos"
+          }
+        }
+      }
     },
     "保存到相册失败，请稍后再试。" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't save to Photos. Please try again."
+          }
+        }
+      }
     },
     "保存失败" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save failed"
+          }
+        }
+      }
+    },
+    "保存性生活失败：" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Failed to save sexual activity: "
+          }
+        }
+      }
+    },
+    "保存排便失败：" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Failed to save bowel movement: "
+          }
+        }
+      }
     },
     "保存旅行睡眠失败：" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Failed to save travel sleep session: "
+          }
+        }
+      }
     },
     "保存旅行计划失败：" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Failed to save travel plan: "
+          }
+        }
+      }
+    },
+    "保存洗澡失败：" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Failed to save shower: "
+          }
+        }
+      }
     },
     "保存片段" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Save Clip"
+            "value" : "Save clip"
           }
         },
         "zh-Hans" : {
@@ -1237,7 +1399,14 @@
       }
     },
     "保存视频失败：" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Failed to save video: "
+          }
+        }
+      }
     },
     "保存记录失败：" : {
       "localizations" : {
@@ -1335,10 +1504,24 @@
       }
     },
     "先选择一个起飞机场。" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Select a departure airport first."
+          }
+        }
+      }
     },
     "先选择一个降落机场。" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Select an arrival airport first."
+          }
+        }
+      }
     },
     "入睡" : {
       "localizations" : {
@@ -1404,7 +1587,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "S"
+            "value" : "Sat"
           }
         },
         "zh-Hans" : {
@@ -1417,6 +1600,12 @@
     },
     "共 %d 段行程 · %@" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$d-segment trip · %2$@"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "new",
@@ -1484,7 +1673,14 @@
       }
     },
     "最后，给这次旅行起个名字" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Finally, name the trip."
+          }
+        }
+      }
     },
     "最近只有 %d 天可用记录，趋势判断会更保守。" : {
       "localizations" : {
@@ -1501,7 +1697,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Clip up to 10 Seconds"
+            "value" : "Clip up to 10 seconds"
           }
         },
         "zh-Hans" : {
@@ -1527,16 +1723,29 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "-%@"
+            "value" : "Decrease by %@"
           }
         }
       }
     },
     "出发前" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Before departure"
+          }
+        }
+      }
     },
     "出发前 · 第 %d / 共 %d 段 · %@" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Before departure · segment %1$d of %2$d · %3$@"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "new",
@@ -1546,7 +1755,14 @@
       }
     },
     "出发前餐食" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pre-departure meal"
+          }
+        }
+      }
     },
     "初始化失败：" : {
       "localizations" : {
@@ -1559,19 +1775,84 @@
       }
     },
     "删除" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete"
+          }
+        }
+      }
+    },
+    "删除性生活失败：" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Failed to delete sexual activity: "
+          }
+        }
+      }
+    },
+    "删除排便失败：" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Failed to delete bowel movement: "
+          }
+        }
+      }
     },
     "删除旅行睡眠失败：" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Failed to delete travel sleep session: "
+          }
+        }
+      }
     },
     "删除旅行计划" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete travel plan"
+          }
+        }
+      }
     },
     "删除旅行计划？" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete travel plan?"
+          }
+        }
+      }
     },
     "删除旅行计划失败：" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Failed to delete travel plan: "
+          }
+        }
+      }
+    },
+    "删除洗澡失败：" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Failed to delete shower: "
+          }
+        }
+      }
     },
     "删除照片" : {
       "localizations" : {
@@ -1610,17 +1891,31 @@
       }
     },
     "删除睡眠记录" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete sleep record"
+          }
+        }
+      }
     },
     "删除睡眠记录？" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete sleep record?"
+          }
+        }
+      }
     },
     "删除视频" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Delete Video"
+            "value" : "Delete video"
           }
         },
         "zh-Hans" : {
@@ -1648,13 +1943,34 @@
       }
     },
     "删除视频失败：" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Failed to delete video: "
+          }
+        }
+      }
     },
     "删除航段" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete segment"
+          }
+        }
+      }
     },
     "删除航段？" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete segment?"
+          }
+        }
+      }
     },
     "删除记录" : {
       "localizations" : {
@@ -1729,25 +2045,74 @@
       }
     },
     "删除默认餐次？" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete default meal?"
+          }
+        }
+      }
     },
     "到达地会决定后续旅行记录里的目的地时间。" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The arrival location determines the destination time zone for later travel records."
+          }
+        }
+      }
     },
     "到达当地时间" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Arrival local time"
+          }
+        }
+      }
     },
     "到达时间" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Arrival time"
+          }
+        }
+      }
     },
     "到达时间：" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Arrival time: "
+          }
+        }
+      }
     },
     "到达时间需要晚于起飞时间。" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Arrival time must be later than departure time."
+          }
+        }
+      }
     },
     "刷新旅行计划失败：" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Failed to refresh travel plans: "
+          }
+        }
+      }
     },
     "刷新记录失败：" : {
       "localizations" : {
@@ -1813,6 +2178,12 @@
     },
     "午夜模式：%@ · cutoff %@:00" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Midnight mode: %1$@ · cutoff %2$@:00"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "new",
@@ -1826,7 +2197,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "How should midnight mode apply?"
+            "value" : "How does midnight mode work?"
           }
         }
       }
@@ -1884,7 +2255,14 @@
       }
     },
     "去命名" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Name the trip"
+          }
+        }
+      }
     },
     "取消" : {
       "localizations" : {
@@ -1955,7 +2333,14 @@
       }
     },
     "可留空，系统会用起点和终点生成名称。" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Leave blank to generate a name from the origin and destination."
+          }
+        }
+      }
     },
     "同步" : {
       "localizations" : {
@@ -1994,14 +2379,21 @@
       }
     },
     "名称，例如 飞机小睡" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Name, e.g. in-flight nap"
+          }
+        }
+      }
     },
     "含备注" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "With note"
+            "value" : "Has note"
           }
         }
       }
@@ -2011,7 +2403,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "With photo"
+            "value" : "Has photo"
           }
         }
       }
@@ -2047,7 +2439,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "When the section is enabled with a clear record, score 8-10."
+            "value" : "An enabled section with a clear record can earn 8–10 points."
           }
         }
       }
@@ -2169,7 +2561,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "T"
+            "value" : "Thu"
           }
         },
         "zh-Hans" : {
@@ -2256,14 +2648,21 @@
       }
     },
     "填入 BOS-PKX 示例" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Use BOS-PKX as an example"
+          }
+        }
+      }
     },
     "增加 %@" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "+%@"
+            "value" : "Increase by %@"
           }
         }
       }
@@ -2343,7 +2742,14 @@
       }
     },
     "小睡" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nap"
+          }
+        }
+      }
     },
     "尚未记录超过7天，请等待使用7天后再来浏览数据趋势哦" : {
       "extractionState" : "stale",
@@ -2351,7 +2757,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "You haven't logged more than 7 days yet. Please come back after 7 days to view your trends."
+            "value" : "Log for 7 days to unlock your trends."
           }
         },
         "zh-Hans" : {
@@ -2385,16 +2791,43 @@
       }
     },
     "已保存" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saved"
+          }
+        }
+      }
     },
     "已到达" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Arrived"
+          }
+        }
+      }
     },
     "已抵达" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Arrived"
+          }
+        }
+      }
     },
     "已抵达 · 共 %d 段 · %@" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Arrived · %1$d segments · %2$@"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "new",
@@ -2404,10 +2837,23 @@
       }
     },
     "已结束" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Completed"
+          }
+        }
+      }
     },
     "已结束 · 共 %d 段 · %@" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Completed · %1$d segments · %2$@"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "new",
@@ -2453,7 +2899,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Avg Bedtime"
+            "value" : "Avg. bedtime"
           }
         },
         "zh-Hans" : {
@@ -2469,7 +2915,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Avg. BM"
+            "value" : "Avg. bowel movements"
           }
         },
         "zh-Hans" : {
@@ -2485,7 +2931,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Average bowel movement time"
+            "value" : "Avg. bowel movement time"
           }
         },
         "zh-Hans" : {
@@ -2533,7 +2979,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Avg Showers"
+            "value" : "Avg. showers"
           }
         },
         "zh-Hans" : {
@@ -2565,7 +3011,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Avg Sleep"
+            "value" : "Avg. sleep duration"
           }
         },
         "zh-Hans" : {
@@ -2581,7 +3027,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Avg Wake"
+            "value" : "Avg. wake time"
           }
         },
         "zh-Hans" : {
@@ -2646,7 +3092,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Start upgrade"
+            "value" : "Upgrade"
           }
         },
         "zh-Hans" : {
@@ -2658,7 +3104,14 @@
       }
     },
     "开始本程" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Start this leg"
+          }
+        }
+      }
     },
     "当前" : {
       "localizations" : {
@@ -2675,7 +3128,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Standard cloud sync"
+            "value" : "Still using standard cloud sync"
           }
         },
         "zh-Hans" : {
@@ -2744,7 +3197,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Showing local scoring"
+            "value" : "Showing local score"
           }
         },
         "zh-Hans" : {
@@ -2756,10 +3209,23 @@
       }
     },
     "当前没有旅行计划" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No travel plans yet"
+          }
+        }
+      }
     },
     "当前第 %d / 共 %d 段 · %@" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Current segment %1$d of %2$d · %3$@"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "new",
@@ -2786,13 +3252,34 @@
       }
     },
     "当前选择日：%@" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Selected date: %1$@"
+          }
+        }
+      }
     },
     "当地" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Local"
+          }
+        }
+      }
     },
     "当地时间 " : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Local time "
+          }
+        }
+      }
     },
     "当天没有可分析的餐食数据。" : {
       "localizations" : {
@@ -2873,7 +3360,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Record Video"
+            "value" : "Record video"
           }
         },
         "zh-Hans" : {
@@ -2931,7 +3418,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Total sleep %.1f h"
+            "value" : "Total sleep: %.1f hours"
           }
         }
       }
@@ -2957,7 +3444,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "My Log"
+            "value" : "My records"
           }
         },
         "zh-Hans" : {
@@ -2969,17 +3456,31 @@
       }
     },
     "手机" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Phone"
+          }
+        }
+      }
     },
     "抵达" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Arrival"
+          }
+        }
+      }
     },
     "拍照" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Camera"
+            "value" : "Take photo"
           }
         },
         "zh-Hans" : {
@@ -2995,7 +3496,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Steady"
+            "value" : "No change"
           }
         }
       }
@@ -3118,58 +3619,184 @@
       }
     },
     "新航段" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New segment"
+          }
+        }
+      }
     },
     "旅程其他阶段" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Other trip stages"
+          }
+        }
+      }
     },
     "旅程名称" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trip name"
+          }
+        }
+      }
     },
     "旅程已结束" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trip completed"
+          }
+        }
+      }
     },
     "旅行" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Travel"
+          }
+        }
+      }
     },
     "旅行中的餐食、洗澡、排便等记录会按航段显示在这里" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Travel meals, showers, bowel movements, and other records are shown here by flight segment."
+          }
+        }
+      }
     },
     "旅行性生活" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Travel sexual activity"
+          }
+        }
+      }
     },
     "旅行排便" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Travel bowel movements"
+          }
+        }
+      }
     },
     "旅行数据" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Travel data"
+          }
+        }
+      }
     },
     "旅行模式" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Travel mode"
+          }
+        }
+      }
     },
     "旅行洗澡" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Travel showers"
+          }
+        }
+      }
     },
     "旅行睡眠" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Travel sleep"
+          }
+        }
+      }
     },
     "旅行计划数量：%@" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Travel plans: %1$@"
+          }
+        }
+      }
     },
     "旅行记录" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Travel records"
+          }
+        }
+      }
     },
     "旅行餐食" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Travel meals"
+          }
+        }
+      }
     },
     "旅途中" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In transit"
+          }
+        }
+      }
     },
     "无日期" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No date"
+          }
+        }
+      }
     },
     "无法保存，请在系统设置里允许保存到照片。" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unable to save. Allow Photos access in Settings."
+          }
+        }
+      }
     },
     "无法读取视频：" : {
       "localizations" : {
@@ -3188,7 +3815,14 @@
       }
     },
     "无法读取这个媒体文件。" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unable to read this media file."
+          }
+        }
+      }
     },
     "无记录" : {
       "localizations" : {
@@ -3211,7 +3845,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "S"
+            "value" : "Sun"
           }
         },
         "zh-Hans" : {
@@ -3255,7 +3889,14 @@
       }
     },
     "时长" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Duration"
+          }
+        }
+      }
     },
     "时长明显不足、严重偏离目标或记录残缺时，才给低分。" : {
       "localizations" : {
@@ -3272,7 +3913,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Slightly short/long sleep, or 30-120 minutes off target, lands in the middle range."
+            "value" : "Slightly short or long, or 30–120 minutes off target, earns a mid-range score."
           }
         }
       }
@@ -3549,13 +4190,34 @@
       }
     },
     "暂无时间线" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No timeline yet"
+          }
+        }
+      }
     },
     "暂无睡眠记录" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No sleep records yet"
+          }
+        }
+      }
     },
     "暂无航段" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No segments yet"
+          }
+        }
+      }
     },
     "更换视频" : {
       "localizations" : {
@@ -3574,7 +4236,14 @@
       }
     },
     "更改" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Change"
+          }
+        }
+      }
     },
     "更新之前日期的数据" : {
       "localizations" : {
@@ -3597,7 +4266,14 @@
       }
     },
     "更新旅行状态失败：" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Failed to update travel status: "
+          }
+        }
+      }
     },
     "更新餐食失败：" : {
       "localizations" : {
@@ -3610,16 +4286,44 @@
       }
     },
     "有航班号吗？" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Do you have a flight number?"
+          }
+        }
+      }
     },
     "有转机或下一段飞行，就继续添加下一程。" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If there is a connection or another flight, keep adding the next leg."
+          }
+        }
+      }
     },
     "未命名旅程" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unnamed trip"
+          }
+        }
+      }
     },
     "未开始" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not started"
+          }
+        }
+      }
     },
     "未检测到云同步。" : {
       "localizations" : {
@@ -3714,6 +4418,12 @@
     },
     "本程 · 第 %d / 共 %d 段 · %@" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This segment · %1$d of %2$d · %3$@"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "new",
@@ -3899,10 +4609,24 @@
       }
     },
     "此操作会从当前旅行计划里移除这一航段。" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This will remove this segment from the current travel plan."
+          }
+        }
+      }
     },
     "此操作会删除整个旅行计划，且无法撤销。" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This will delete the entire travel plan and cannot be undone."
+          }
+        }
+      }
     },
     "此操作会删除整个餐次，且无法撤销。" : {
       "localizations" : {
@@ -3915,7 +4639,14 @@
       }
     },
     "此操作会删除这个默认餐次，且无法撤销。" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This will delete this default meal and cannot be undone."
+          }
+        }
+      }
     },
     "此操作会清除当前时间记录，且无法撤销。" : {
       "localizations" : {
@@ -3974,7 +4705,14 @@
       }
     },
     "段" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "segment"
+          }
+        }
+      }
     },
     "每天只记几件事" : {
       "localizations" : {
@@ -4009,7 +4747,14 @@
       }
     },
     "没有了，完成行程" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No more, finish trip"
+          }
+        }
+      }
     },
     "没有记录时给保守中低分，不做重罚。" : {
       "localizations" : {
@@ -4058,7 +4803,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Light"
+            "value" : "Light sleep"
           }
         },
         "zh-Hans" : {
@@ -4074,7 +4819,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Light Sleep"
+            "value" : "Light sleep duration"
           }
         },
         "zh-Hans" : {
@@ -4102,14 +4847,21 @@
       }
     },
     "测试操作" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Test actions"
+          }
+        }
+      }
     },
     "深睡" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Deep"
+            "value" : "Deep sleep"
           }
         },
         "zh-Hans" : {
@@ -4125,7 +4877,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Deep Sleep"
+            "value" : "Deep sleep duration"
           }
         },
         "zh-Hans" : {
@@ -4169,7 +4921,14 @@
       }
     },
     "添加下一程" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add next leg"
+          }
+        }
+      }
     },
     "添加位置" : {
       "localizations" : {
@@ -4205,7 +4964,14 @@
       }
     },
     "添加旅行" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add travel plan"
+          }
+        }
+      }
     },
     "添加照片" : {
       "localizations" : {
@@ -4228,7 +4994,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Add Video"
+            "value" : "Add video"
           }
         },
         "zh-Hans" : {
@@ -4240,7 +5006,14 @@
       }
     },
     "添加航段" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add segment"
+          }
+        }
+      }
     },
     "添加记录" : {
       "localizations" : {
@@ -4450,7 +5223,14 @@
       }
     },
     "现在你在旅途中" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You're in transit"
+          }
+        }
+      }
     },
     "现在的数据还不足以形成稳定分析。" : {
       "localizations" : {
@@ -4681,7 +5461,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Sleep Window"
+            "value" : "Sleep window"
           }
         },
         "zh-Hans" : {
@@ -4734,7 +5514,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Sleep ran long, which may suggest that day needed more recovery."
+            "value" : "Sleep ran long, which may suggest you needed more recovery that day."
           }
         },
         "zh-Hans" : {
@@ -4751,7 +5531,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Sleep ran long — may suggest you needed more recovery yesterday."
+            "value" : "Sleep ran long, which may suggest you needed more recovery yesterday."
           }
         }
       }
@@ -4895,7 +5675,14 @@
       }
     },
     "第 %d 段" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Segment %d"
+          }
+        }
+      }
     },
     "第%d次" : {
       "localizations" : {
@@ -4957,7 +5744,14 @@
       }
     },
     "结束旅行模式" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "End travel mode"
+          }
+        }
+      }
     },
     "结束游客模式" : {
       "localizations" : {
@@ -4993,10 +5787,24 @@
       }
     },
     "继续填写下一段航班。" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Continue with the next flight."
+          }
+        }
+      }
     },
     "编辑旅行" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Edit travel plan"
+          }
+        }
+      }
     },
     "编辑照片" : {
       "extractionState" : "stale",
@@ -5081,7 +5889,14 @@
       }
     },
     "航班号" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flight number"
+          }
+        }
+      }
     },
     "范围" : {
       "localizations" : {
@@ -5117,6 +5932,12 @@
     },
     "计划 · 第 %d / 共 %d 段 · %@" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Planned · segment %1$d of %2$d · %3$@"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "new",
@@ -5126,10 +5947,24 @@
       }
     },
     "计划什么时候到达？" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "When will you arrive?"
+          }
+        }
+      }
     },
     "计划起飞：" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Planned departure: "
+          }
+        }
+      }
     },
     "记录了 %d 次" : {
       "localizations" : {
@@ -5162,7 +5997,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Recorded"
+            "value" : "Recorded time"
           }
         }
       }
@@ -5265,10 +6100,24 @@
       }
     },
     "请选择列表中的机场" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Select an airport from the list."
+          }
+        }
+      }
     },
     "请选择是否还有下一程。" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Please choose whether there is another leg."
+          }
+        }
+      }
     },
     "账号" : {
       "extractionState" : "stale",
@@ -5353,16 +6202,44 @@
       }
     },
     "起飞后 " : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "After takeoff "
+          }
+        }
+      }
     },
     "起飞当地时间" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Departure local time"
+          }
+        }
+      }
     },
     "起飞时间" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Departure time"
+          }
+        }
+      }
     },
     "起飞机场" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Departure airport"
+          }
+        }
+      }
     },
     "跟随系统" : {
       "localizations" : {
@@ -5397,10 +6274,23 @@
       }
     },
     "转机" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Layover"
+          }
+        }
+      }
     },
     "转机 · 下一程第 %d / 共 %d 段 · %@" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Layover · next segment %1$d of %2$d · %3$@"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "new",
@@ -5410,22 +6300,64 @@
       }
     },
     "转机中" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Layover"
+          }
+        }
+      }
     },
     "转机餐食" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Layover meal"
+          }
+        }
+      }
     },
     "输入 BOS / Boston / Logan" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enter BOS / Boston / Logan"
+          }
+        }
+      }
     },
     "输入 NRT / Tokyo / Narita" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enter NRT / Tokyo / Narita"
+          }
+        }
+      }
     },
     "输入 PKX / Beijing / Daxing" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enter PKX / Beijing / Daxing"
+          }
+        }
+      }
     },
     "输入 WUH / Wuhan / Tianhe" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enter WUH / Wuhan / Tianhe"
+          }
+        }
+      }
     },
     "输入你想使用的昵称" : {
       "localizations" : {
@@ -5444,7 +6376,14 @@
       }
     },
     "输入机场代码或城市名，从列表里选中一个机场。" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enter an airport code or city, then select an airport from the list."
+          }
+        }
+      }
     },
     "迁移失败，请重试。" : {
       "localizations" : {
@@ -5483,13 +6422,20 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%d meals have no records — meal score mainly deducted for completeness."
+            "value" : "%d meals are unlogged; most of the meal score deduction comes from completeness."
           }
         }
       }
     },
     "还有下一程" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Another leg"
+          }
+        }
+      }
     },
     "还没有可分析的数据" : {
       "localizations" : {
@@ -5512,7 +6458,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "No mapped meals yet"
+            "value" : "No meals with locations yet"
           }
         },
         "zh-Hans" : {
@@ -5582,7 +6528,14 @@
       }
     },
     "还没有航段" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No flight segments yet"
+          }
+        }
+      }
     },
     "还没有足够的睡眠阶段数据。" : {
       "localizations" : {
@@ -5754,7 +6707,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "That day's rhythm was smooth, worth keeping up."
+            "value" : "That day's overall rhythm was smooth—keep it up."
           }
         },
         "zh-Hans" : {
@@ -5770,7 +6723,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Today's observations"
+            "value" : "Observations for the day"
           }
         }
       }
@@ -5808,13 +6761,34 @@
       }
     },
     "这一程之后还有下一程吗？" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Is there another leg after this one?"
+          }
+        }
+      }
     },
     "这一项可以跳过，不会影响旅行模式。" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You can skip this; it won't affect travel mode."
+          }
+        }
+      }
     },
     "这些是目标当天的权威计数；历史窗口只用于趋势对比，不能当作当天记录。" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "These are the authoritative counts for the target day. The history window is for trend comparison only, not for the day's records."
+          }
+        }
+      }
     },
     "这台设备已受端到端加密保护" : {
       "extractionState" : "stale",
@@ -5908,22 +6882,64 @@
       }
     },
     "这程要飞到哪里？" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Where are you flying to?"
+          }
+        }
+      }
     },
     "这程计划什么时候起飞？" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "When is this leg scheduled to depart?"
+          }
+        }
+      }
     },
     "这里按起飞机场的当地时间填写。" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enter this using the departure airport's local time."
+          }
+        }
+      }
     },
     "这里按降落机场的当地时间填写。" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enter this using the arrival airport's local time."
+          }
+        }
+      }
     },
     "进入旅行模式" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enter travel mode"
+          }
+        }
+      }
     },
     "进入旅行模式后可添加多段睡眠" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Once travel mode starts, you can add multiple sleep sessions."
+          }
+        }
+      }
     },
     "进入游客模式失败：" : {
       "localizations" : {
@@ -6014,7 +7030,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Photo library"
+            "value" : "Choose photo from Photos"
           }
         },
         "zh-Hans" : {
@@ -6030,7 +7046,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Choose Library Video"
+            "value" : "Choose video from Photos"
           }
         },
         "zh-Hans" : {
@@ -6042,7 +7058,14 @@
       }
     },
     "醒来" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wake up"
+          }
+        }
+      }
     },
     "重新检查同步密钥" : {
       "localizations" : {
@@ -6093,7 +7116,14 @@
       }
     },
     "降落机场" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Arrival airport"
+          }
+        }
+      }
     },
     "频率月历" : {
       "localizations" : {
@@ -6112,10 +7142,24 @@
       }
     },
     "飞机餐" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In-flight meal"
+          }
+        }
+      }
     },
     "飞行中" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In flight"
+          }
+        }
+      }
     },
     "餐食" : {
       "localizations" : {
@@ -6264,6 +7308,322 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "默认餐次"
+          }
+        }
+      }
+    },
+    "中文" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chinese"
+          }
+        }
+      }
+    },
+    "晴朗" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clear"
+          }
+        }
+      }
+    },
+    "大部晴朗" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mostly clear"
+          }
+        }
+      }
+    },
+    "局部多云" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Partly cloudy"
+          }
+        }
+      }
+    },
+    "阴" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Overcast"
+          }
+        }
+      }
+    },
+    "有雾" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Foggy"
+          }
+        }
+      }
+    },
+    "毛毛雨" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drizzle"
+          }
+        }
+      }
+    },
+    "冻毛毛雨" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Freezing drizzle"
+          }
+        }
+      }
+    },
+    "下雨" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rain"
+          }
+        }
+      }
+    },
+    "冻雨" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Freezing rain"
+          }
+        }
+      }
+    },
+    "下雪" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Snow"
+          }
+        }
+      }
+    },
+    "阵雨" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rain showers"
+          }
+        }
+      }
+    },
+    "阵雪" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Snow showers"
+          }
+        }
+      }
+    },
+    "雷暴" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Thunderstorm"
+          }
+        }
+      }
+    },
+    "强雷暴" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Severe thunderstorm"
+          }
+        }
+      }
+    },
+    "天气" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Weather"
+          }
+        }
+      }
+    },
+    "平均" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Average"
+          }
+        }
+      }
+    },
+    "日期" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Date"
+          }
+        }
+      }
+    },
+    "选中" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Selected"
+          }
+        }
+      }
+    },
+    "时刻" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Time"
+          }
+        }
+      }
+    },
+    "周" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Week"
+          }
+        }
+      }
+    },
+    "次数" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Count"
+          }
+        }
+      }
+    },
+    "旅行测试面板" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Travel test panel"
+          }
+        }
+      }
+    },
+    "启动假想旅行（现在）" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Start hypothetical trip (now)"
+          }
+        }
+      }
+    },
+    "清除假想旅行" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clear hypothetical trip"
+          }
+        }
+      }
+    },
+    "开启" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "On"
+          }
+        }
+      }
+    },
+    "启动假想旅行失败：" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Failed to start hypothetical trip: "
+          }
+        }
+      }
+    },
+    "清除假想旅行失败：" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Failed to clear hypothetical trip: "
+          }
+        }
+      }
+    },
+    "BOS-PKX 旅程" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "BOS-PKX trip"
+          }
+        }
+      }
+    },
+    "%@-%@ 旅程" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@-%2$@ trip"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@-%2$@ 旅程"
+          }
+        }
+      }
+    },
+    "假想旅行" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hypothetical trip"
           }
         }
       }

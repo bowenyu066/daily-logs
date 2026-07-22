@@ -792,7 +792,7 @@ private struct SleepTrendChart: View {
 
                 Chart {
                     if let averageSleepHours {
-                        RuleMark(y: .value("平均", averageSleepHours))
+                        RuleMark(y: .value(NSLocalizedString("平均", comment: ""), averageSleepHours))
                             .foregroundStyle(AppTheme.accent.opacity(0.72))
                             .lineStyle(.init(lineWidth: 3, dash: [7, 5]))
                     }
@@ -800,38 +800,38 @@ private struct SleepTrendChart: View {
                     ForEach(days) { point in
                         if let sleepHours = point.sleepHours {
                             LineMark(
-                                x: .value("日期", point.date),
-                                y: .value("睡眠", sleepHours)
+                                x: .value(NSLocalizedString("日期", comment: ""), point.date),
+                                y: .value(NSLocalizedString("睡眠", comment: ""), sleepHours)
                             )
                             .interpolationMethod(.catmullRom)
                             .foregroundStyle(AppTheme.accent)
 
                             PointMark(
-                                x: .value("日期", point.date),
-                                y: .value("睡眠", sleepHours)
+                                x: .value(NSLocalizedString("日期", comment: ""), point.date),
+                                y: .value(NSLocalizedString("睡眠", comment: ""), sleepHours)
                             )
                             .foregroundStyle(AppTheme.accent)
                             .symbolSize(compact ? 34 : 46)
 
                             PointMark(
-                                x: .value("日期", point.date),
-                                y: .value("睡眠", sleepHours)
+                                x: .value(NSLocalizedString("日期", comment: ""), point.date),
+                                y: .value(NSLocalizedString("睡眠", comment: ""), sleepHours)
                             )
                             .foregroundStyle(AppTheme.background)
                             .symbolSize(compact ? 12 : 18)
 
                             if selectedDate.flatMap({ Calendar.current.isDate($0, inSameDayAs: point.date) ? point : nil }) != nil {
-                                RuleMark(x: .value("日期", point.date))
+                                RuleMark(x: .value(NSLocalizedString("日期", comment: ""), point.date))
                                     .foregroundStyle(AppTheme.primaryText.opacity(0.5))
                                     .lineStyle(.init(lineWidth: 3, dash: [7, 5]))
 
-                                RuleMark(y: .value("睡眠", sleepHours))
+                                RuleMark(y: .value(NSLocalizedString("睡眠", comment: ""), sleepHours))
                                     .foregroundStyle(AppTheme.primaryText.opacity(0.5))
                                     .lineStyle(.init(lineWidth: 3, dash: [7, 5]))
 
                                 PointMark(
-                                    x: .value("日期", point.date),
-                                    y: .value("睡眠", sleepHours)
+                                    x: .value(NSLocalizedString("日期", comment: ""), point.date),
+                                    y: .value(NSLocalizedString("睡眠", comment: ""), sleepHours)
                                 )
                                 .symbolSize(compact ? 58 : 72)
                                 .foregroundStyle(AppTheme.accent)
@@ -961,34 +961,34 @@ private struct TimeLineChart: View {
 
                 Chart {
                     if let averageMinutes {
-                        RuleMark(y: .value("平均", plotValue(for: averageMinutes)))
+                        RuleMark(y: .value(NSLocalizedString("平均", comment: ""), plotValue(for: averageMinutes)))
                             .foregroundStyle(tone.opacity(0.72))
                             .lineStyle(.init(lineWidth: 3, dash: [7, 5]))
                     }
 
                     ForEach(points) { point in
-                        LineMark(x: .value("日期", point.date), y: .value("时间", plotValue(for: point.minutes)))
+                        LineMark(x: .value(NSLocalizedString("日期", comment: ""), point.date), y: .value(NSLocalizedString("时间", comment: ""), plotValue(for: point.minutes)))
                             .interpolationMethod(.catmullRom)
                             .foregroundStyle(tone)
 
-                        PointMark(x: .value("日期", point.date), y: .value("时间", plotValue(for: point.minutes)))
+                        PointMark(x: .value(NSLocalizedString("日期", comment: ""), point.date), y: .value(NSLocalizedString("时间", comment: ""), plotValue(for: point.minutes)))
                             .foregroundStyle(tone)
                             .symbolSize(compact ? 34 : 46)
 
-                        PointMark(x: .value("日期", point.date), y: .value("时间", plotValue(for: point.minutes)))
+                        PointMark(x: .value(NSLocalizedString("日期", comment: ""), point.date), y: .value(NSLocalizedString("时间", comment: ""), plotValue(for: point.minutes)))
                             .foregroundStyle(AppTheme.background)
                             .symbolSize(compact ? 12 : 18)
 
                         if selectedDate.flatMap({ Calendar.current.isDate($0, inSameDayAs: point.date) ? point : nil }) != nil {
-                            RuleMark(x: .value("日期", point.date))
+                            RuleMark(x: .value(NSLocalizedString("日期", comment: ""), point.date))
                                 .foregroundStyle(AppTheme.primaryText.opacity(0.5))
                                 .lineStyle(.init(lineWidth: 3, dash: [7, 5]))
 
-                            RuleMark(y: .value("时间", plotValue(for: point.minutes)))
+                            RuleMark(y: .value(NSLocalizedString("时间", comment: ""), plotValue(for: point.minutes)))
                                 .foregroundStyle(AppTheme.primaryText.opacity(0.5))
                                 .lineStyle(.init(lineWidth: 3, dash: [7, 5]))
 
-                            PointMark(x: .value("日期", point.date), y: .value("时间", plotValue(for: point.minutes)))
+                            PointMark(x: .value(NSLocalizedString("日期", comment: ""), point.date), y: .value(NSLocalizedString("时间", comment: ""), plotValue(for: point.minutes)))
                                 .foregroundStyle(tone)
                                 .symbolSize(compact ? 54 : 70)
                         }
@@ -1137,9 +1137,9 @@ private struct SleepIntervalChart: View {
                             let plottedStart = plotValue(for: start)
                             let plottedEnd = plotValue(for: end)
                             BarMark(
-                                x: .value("日期", point.date),
-                                yStart: .value("入睡", plottedStart),
-                                yEnd: .value("起床", plottedEnd)
+                                x: .value(NSLocalizedString("日期", comment: ""), point.date),
+                                yStart: .value(NSLocalizedString("入睡", comment: ""), plottedStart),
+                                yEnd: .value(NSLocalizedString("起床", comment: ""), plottedEnd)
                             )
                             .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                             .foregroundStyle(
@@ -1151,13 +1151,13 @@ private struct SleepIntervalChart: View {
                             )
 
                             if selectedDate.flatMap({ Calendar.current.isDate($0, inSameDayAs: point.date) ? point : nil }) != nil {
-                                RuleMark(x: .value("选中", point.date))
+                                RuleMark(x: .value(NSLocalizedString("选中", comment: ""), point.date))
                                     .foregroundStyle(AppTheme.primaryText.opacity(0.5))
                                     .lineStyle(.init(lineWidth: 3, dash: [7, 5]))
 
                                 PointMark(
-                                    x: .value("日期", point.date),
-                                    y: .value("时刻", plotValue(for: (start + end) / 2))
+                                    x: .value(NSLocalizedString("日期", comment: ""), point.date),
+                                    y: .value(NSLocalizedString("时刻", comment: ""), plotValue(for: (start + end) / 2))
                                 )
                                 .foregroundStyle(AppTheme.accent)
                                 .symbolSize(compact ? 50 : 70)
@@ -1349,24 +1349,24 @@ private struct MealTimingScatterChart: View {
                     ForEach(series) { item in
                         ForEach(item.points) { point in
                             PointMark(
-                                x: .value("日期", point.date),
-                                y: .value("时间", plotValue(point.minutes))
+                                x: .value(NSLocalizedString("日期", comment: ""), point.date),
+                                y: .value(NSLocalizedString("时间", comment: ""), plotValue(point.minutes))
                             )
                             .foregroundStyle(chartColor(for: item.key))
                             .symbolSize(compact ? 28 : 44)
 
                             if selectedDate.flatMap({ Calendar.current.isDate($0, inSameDayAs: point.date) ? point : nil }) != nil {
-                                RuleMark(x: .value("日期", point.date))
+                                RuleMark(x: .value(NSLocalizedString("日期", comment: ""), point.date))
                                     .foregroundStyle(AppTheme.primaryText.opacity(0.5))
                                     .lineStyle(.init(lineWidth: 3, dash: [7, 5]))
 
-                                RuleMark(y: .value("时间", plotValue(point.minutes)))
+                                RuleMark(y: .value(NSLocalizedString("时间", comment: ""), plotValue(point.minutes)))
                                     .foregroundStyle(AppTheme.primaryText.opacity(0.5))
                                     .lineStyle(.init(lineWidth: 3, dash: [7, 5]))
 
                                 PointMark(
-                                    x: .value("日期", point.date),
-                                    y: .value("时间", plotValue(point.minutes))
+                                    x: .value(NSLocalizedString("日期", comment: ""), point.date),
+                                    y: .value(NSLocalizedString("时间", comment: ""), plotValue(point.minutes))
                                 )
                                 .foregroundStyle(chartColor(for: item.key))
                                 .symbolSize(compact ? 52 : 64)
@@ -1554,31 +1554,31 @@ private struct ShowerScatterChart: View {
 
                 Chart {
                     if let averageMinutes {
-                        RuleMark(y: .value("平均", plotValue(averageMinutes)))
+                        RuleMark(y: .value(NSLocalizedString("平均", comment: ""), plotValue(averageMinutes)))
                             .foregroundStyle(Color.teal.opacity(0.72))
                             .lineStyle(.init(lineWidth: 3, dash: [7, 5]))
                     }
 
                     ForEach(points) { point in
                         PointMark(
-                            x: .value("日期", point.date),
-                            y: .value("时间", plotValue(point.minutes))
+                            x: .value(NSLocalizedString("日期", comment: ""), point.date),
+                            y: .value(NSLocalizedString("时间", comment: ""), plotValue(point.minutes))
                         )
                         .foregroundStyle(.teal)
                         .symbolSize(compact ? 28 : 44)
 
                         if selectedDate.flatMap({ Calendar.current.isDate($0, inSameDayAs: point.date) ? point : nil }) != nil {
-                            RuleMark(x: .value("日期", point.date))
+                            RuleMark(x: .value(NSLocalizedString("日期", comment: ""), point.date))
                                 .foregroundStyle(AppTheme.primaryText.opacity(0.5))
                                 .lineStyle(.init(lineWidth: 3, dash: [7, 5]))
 
-                            RuleMark(y: .value("时间", plotValue(point.minutes)))
+                            RuleMark(y: .value(NSLocalizedString("时间", comment: ""), plotValue(point.minutes)))
                                 .foregroundStyle(AppTheme.primaryText.opacity(0.5))
                                 .lineStyle(.init(lineWidth: 3, dash: [7, 5]))
 
                             PointMark(
-                                x: .value("日期", point.date),
-                                y: .value("时间", plotValue(point.minutes))
+                                x: .value(NSLocalizedString("日期", comment: ""), point.date),
+                                y: .value(NSLocalizedString("时间", comment: ""), plotValue(point.minutes))
                             )
                             .foregroundStyle(.teal)
                             .symbolSize(compact ? 52 : 64)
@@ -1720,31 +1720,31 @@ private struct BowelMovementScatterChart: View {
 
                 Chart {
                     if let averageMinutes {
-                        RuleMark(y: .value("平均", plotValue(averageMinutes)))
+                        RuleMark(y: .value(NSLocalizedString("平均", comment: ""), plotValue(averageMinutes)))
                             .foregroundStyle(Color.brown.opacity(0.72))
                             .lineStyle(.init(lineWidth: 3, dash: [7, 5]))
                     }
 
                     ForEach(points) { point in
                         PointMark(
-                            x: .value("日期", point.date),
-                            y: .value("时间", plotValue(point.minutes))
+                            x: .value(NSLocalizedString("日期", comment: ""), point.date),
+                            y: .value(NSLocalizedString("时间", comment: ""), plotValue(point.minutes))
                         )
                         .foregroundStyle(.brown)
                         .symbolSize(compact ? 28 : 44)
 
                         if selectedDate.flatMap({ Calendar.current.isDate($0, inSameDayAs: point.date) ? point : nil }) != nil {
-                            RuleMark(x: .value("日期", point.date))
+                            RuleMark(x: .value(NSLocalizedString("日期", comment: ""), point.date))
                                 .foregroundStyle(AppTheme.primaryText.opacity(0.5))
                                 .lineStyle(.init(lineWidth: 3, dash: [7, 5]))
 
-                            RuleMark(y: .value("时间", plotValue(point.minutes)))
+                            RuleMark(y: .value(NSLocalizedString("时间", comment: ""), plotValue(point.minutes)))
                                 .foregroundStyle(AppTheme.primaryText.opacity(0.5))
                                 .lineStyle(.init(lineWidth: 3, dash: [7, 5]))
 
                             PointMark(
-                                x: .value("日期", point.date),
-                                y: .value("时间", plotValue(point.minutes))
+                                x: .value(NSLocalizedString("日期", comment: ""), point.date),
+                                y: .value(NSLocalizedString("时间", comment: ""), plotValue(point.minutes))
                             )
                             .foregroundStyle(.brown)
                             .symbolSize(compact ? 52 : 64)
@@ -1857,15 +1857,15 @@ private struct SexualActivityBarChart: View {
                     ForEach(weeklyData) { point in
                         if point.partnerCount > 0 {
                             BarMark(
-                                x: .value("周", point.weekLabel),
-                                y: .value("次数", point.partnerCount)
+                                x: .value(NSLocalizedString("周", comment: ""), point.weekLabel),
+                                y: .value(NSLocalizedString("次数", comment: ""), point.partnerCount)
                             )
                             .foregroundStyle(.pink)
                         }
                         if point.masturbationCount > 0 {
                             BarMark(
-                                x: .value("周", point.weekLabel),
-                                y: .value("次数", point.masturbationCount)
+                                x: .value(NSLocalizedString("周", comment: ""), point.weekLabel),
+                                y: .value(NSLocalizedString("次数", comment: ""), point.masturbationCount)
                             )
                             .foregroundStyle(.pink.opacity(0.4))
                         }
@@ -2814,34 +2814,34 @@ private struct DurationLineChart: View {
 
                 Chart {
                     if let averageHours {
-                        RuleMark(y: .value("平均", averageHours))
+                        RuleMark(y: .value(NSLocalizedString("平均", comment: ""), averageHours))
                             .foregroundStyle(tone.opacity(0.72))
                             .lineStyle(.init(lineWidth: 3, dash: [7, 5]))
                     }
 
                     ForEach(points) { point in
-                        LineMark(x: .value("日期", point.date), y: .value("时长", point.hours))
+                        LineMark(x: .value(NSLocalizedString("日期", comment: ""), point.date), y: .value(NSLocalizedString("时长", comment: ""), point.hours))
                             .interpolationMethod(.catmullRom)
                             .foregroundStyle(tone)
 
-                        PointMark(x: .value("日期", point.date), y: .value("时长", point.hours))
+                        PointMark(x: .value(NSLocalizedString("日期", comment: ""), point.date), y: .value(NSLocalizedString("时长", comment: ""), point.hours))
                             .foregroundStyle(tone)
                             .symbolSize(compact ? 34 : 46)
 
-                        PointMark(x: .value("日期", point.date), y: .value("时长", point.hours))
+                        PointMark(x: .value(NSLocalizedString("日期", comment: ""), point.date), y: .value(NSLocalizedString("时长", comment: ""), point.hours))
                             .foregroundStyle(AppTheme.background)
                             .symbolSize(compact ? 12 : 18)
 
                         if selectedDate.flatMap({ Calendar.current.isDate($0, inSameDayAs: point.date) ? point : nil }) != nil {
-                            RuleMark(x: .value("日期", point.date))
+                            RuleMark(x: .value(NSLocalizedString("日期", comment: ""), point.date))
                                 .foregroundStyle(AppTheme.primaryText.opacity(0.5))
                                 .lineStyle(.init(lineWidth: 3, dash: [7, 5]))
 
-                            RuleMark(y: .value("时长", point.hours))
+                            RuleMark(y: .value(NSLocalizedString("时长", comment: ""), point.hours))
                                 .foregroundStyle(AppTheme.primaryText.opacity(0.5))
                                 .lineStyle(.init(lineWidth: 3, dash: [7, 5]))
 
-                            PointMark(x: .value("日期", point.date), y: .value("时长", point.hours))
+                            PointMark(x: .value(NSLocalizedString("日期", comment: ""), point.date), y: .value(NSLocalizedString("时长", comment: ""), point.hours))
                                 .foregroundStyle(tone)
                                 .symbolSize(compact ? 54 : 70)
                         }

@@ -3136,7 +3136,11 @@ private struct TravelPlanWizardSheet: View {
         guard let first = segments.first, let last = segments.last else {
             return NSLocalizedString("未命名旅程", comment: "")
         }
-        return "\(first.originCode)-\(last.destinationCode) 旅程"
+        return String(
+            format: NSLocalizedString("%@-%@ 旅程", comment: ""),
+            first.originCode,
+            last.destinationCode
+        )
     }
 
     private func timeZoneSummary(for airport: AirportInfo?, timeZoneIdentifier: String, at date: Date) -> String {
@@ -3409,7 +3413,11 @@ private struct TravelPlanEditorSheet: View {
         guard let first = segments.first, let last = segments.last else {
             return NSLocalizedString("未命名旅程", comment: "")
         }
-        return "\(first.originCode)-\(last.destinationCode) 旅程"
+        return String(
+            format: NSLocalizedString("%@-%@ 旅程", comment: ""),
+            first.originCode,
+            last.destinationCode
+        )
     }
 
     private func appendSegment() {
@@ -3581,7 +3589,7 @@ private struct TravelPlanDebugPanelSheet: View {
                     debugSummary
 
                     if plans.isEmpty {
-                        Text("当前没有旅行计划")
+                        Text(NSLocalizedString("当前没有旅行计划", comment: ""))
                             .font(.system(size: 15, weight: .semibold, design: .rounded))
                             .foregroundStyle(AppTheme.secondaryText)
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -3597,11 +3605,11 @@ private struct TravelPlanDebugPanelSheet: View {
                 .padding(18)
             }
             .background(AppTheme.background.ignoresSafeArea())
-            .navigationTitle("旅行测试面板")
+            .navigationTitle(NSLocalizedString("旅行测试面板", comment: ""))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("关闭") { dismiss() }
+                    Button(NSLocalizedString("关闭", comment: "")) { dismiss() }
                 }
             }
         }
@@ -3609,14 +3617,14 @@ private struct TravelPlanDebugPanelSheet: View {
 
     private var debugActions: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("测试操作")
+            Text(NSLocalizedString("测试操作", comment: ""))
                 .font(.system(size: 16, weight: .bold, design: .rounded))
                 .foregroundStyle(AppTheme.primaryText)
 
             Button {
                 onStartHypotheticalTravel()
             } label: {
-                Label("启动假想旅行（现在）", systemImage: "play.fill")
+                Label(NSLocalizedString("启动假想旅行（现在）", comment: ""), systemImage: "play.fill")
                     .font(.system(size: 15, weight: .bold, design: .rounded))
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
@@ -3629,7 +3637,7 @@ private struct TravelPlanDebugPanelSheet: View {
             Button {
                 onClearHypotheticalTravel()
             } label: {
-                Label("清除假想旅行", systemImage: "trash")
+                Label(NSLocalizedString("清除假想旅行", comment: ""), systemImage: "trash")
                     .font(.system(size: 15, weight: .bold, design: .rounded))
                     .foregroundStyle(AppTheme.warning)
                     .frame(maxWidth: .infinity)
@@ -3650,9 +3658,9 @@ private struct TravelPlanDebugPanelSheet: View {
 
     private var debugSummary: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("当前选择日：\(selectedDate.storageKey())")
-            Text("午夜模式：\(preferences.midnightMode.isEnabled ? "开启" : "关闭") · cutoff \(MidnightModeSettings.fixedCutoffHour):00")
-            Text("旅行计划数量：\(plans.count)")
+            Text(String(format: NSLocalizedString("当前选择日：%@", comment: ""), selectedDate.storageKey()))
+            Text(String(format: NSLocalizedString("午夜模式：%@ · cutoff %@:00", comment: ""), preferences.midnightMode.isEnabled ? NSLocalizedString("开启", comment: "") : NSLocalizedString("关闭", comment: ""), String(MidnightModeSettings.fixedCutoffHour)))
+            Text(String(format: NSLocalizedString("旅行计划数量：%@", comment: ""), String(plans.count)))
         }
         .font(.system(size: 13, weight: .semibold, design: .rounded))
         .foregroundStyle(AppTheme.secondaryText)
@@ -3684,7 +3692,7 @@ private struct TravelPlanDebugPlanCard: View {
                     .clipShape(Circle())
 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("旅行数据")
+                    Text(NSLocalizedString("旅行数据", comment: ""))
                         .font(.system(size: 18, weight: .bold, design: .rounded))
                         .foregroundStyle(AppTheme.primaryText)
                     Text(plan.displayTitle)

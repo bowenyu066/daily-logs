@@ -39,7 +39,7 @@ enum AppLanguage: String, Codable, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .system: NSLocalizedString("跟随系统", comment: "")
-        case .zhHans: "中文"
+        case .zhHans: NSLocalizedString("中文", comment: "")
         case .en: "English"
         }
     }
@@ -1284,7 +1284,7 @@ struct TravelPlan: Codable, Equatable, Identifiable {
         let lhrTimeZone = "Europe/London"
         let pkxTimeZone = "Asia/Shanghai"
         return TravelPlan(
-            title: "BOS-PKX 旅程",
+            title: NSLocalizedString("BOS-PKX 旅程", comment: ""),
             segments: [
                 TravelSegment(
                     flightNumber: "BA238",

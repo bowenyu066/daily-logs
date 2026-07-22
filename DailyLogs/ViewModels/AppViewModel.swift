@@ -626,7 +626,7 @@ final class AppViewModel: ObservableObject {
             selectedDate = logicalToday
             try loadSelectedRecord()
         } catch {
-            errorMessage = "启动假想旅行失败：" + error.localizedDescription
+            errorMessage = NSLocalizedString("启动假想旅行失败：", comment: "") + error.localizedDescription
         }
     }
 
@@ -638,7 +638,7 @@ final class AppViewModel: ObservableObject {
             }
             try loadTravelPlans(for: user.userID)
         } catch {
-            errorMessage = "清除假想旅行失败：" + error.localizedDescription
+            errorMessage = NSLocalizedString("清除假想旅行失败：", comment: "") + error.localizedDescription
         }
     }
 
@@ -653,7 +653,7 @@ final class AppViewModel: ObservableObject {
         let secondDeparture = now.addingTimeInterval(65 * 60)
         let secondArrival = now.addingTimeInterval(120 * 60)
         return TravelPlan(
-            title: debugTravelPlanTitlePrefix + " 假想旅行",
+            title: debugTravelPlanTitlePrefix + " " + NSLocalizedString("假想旅行", comment: ""),
             segments: [
                 TravelSegment(
                     flightNumber: "DBG001",

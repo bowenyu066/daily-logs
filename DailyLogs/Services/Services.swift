@@ -820,21 +820,21 @@ private struct OpenMeteoCurrentWeatherResponse: Decodable {
 
         var conditionDescription: String {
             switch weatherCode {
-            case 0: "晴朗"
-            case 1: "大部晴朗"
-            case 2: "局部多云"
-            case 3: "阴"
-            case 45, 48: "有雾"
-            case 51, 53, 55: "毛毛雨"
-            case 56, 57: "冻毛毛雨"
-            case 61, 63, 65: "下雨"
-            case 66, 67: "冻雨"
-            case 71, 73, 75, 77: "下雪"
-            case 80, 81, 82: "阵雨"
-            case 85, 86: "阵雪"
-            case 95: "雷暴"
-            case 96, 99: "强雷暴"
-            default: "天气"
+            case 0: NSLocalizedString("晴朗", comment: "")
+            case 1: NSLocalizedString("大部晴朗", comment: "")
+            case 2: NSLocalizedString("局部多云", comment: "")
+            case 3: NSLocalizedString("阴", comment: "")
+            case 45, 48: NSLocalizedString("有雾", comment: "")
+            case 51, 53, 55: NSLocalizedString("毛毛雨", comment: "")
+            case 56, 57: NSLocalizedString("冻毛毛雨", comment: "")
+            case 61, 63, 65: NSLocalizedString("下雨", comment: "")
+            case 66, 67: NSLocalizedString("冻雨", comment: "")
+            case 71, 73, 75, 77: NSLocalizedString("下雪", comment: "")
+            case 80, 81, 82: NSLocalizedString("阵雨", comment: "")
+            case 85, 86: NSLocalizedString("阵雪", comment: "")
+            case 95: NSLocalizedString("雷暴", comment: "")
+            case 96, 99: NSLocalizedString("强雷暴", comment: "")
+            default: NSLocalizedString("天气", comment: "")
             }
         }
 

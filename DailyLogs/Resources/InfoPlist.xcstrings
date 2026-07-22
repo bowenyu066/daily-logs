@@ -5,6 +5,12 @@
       "comment" : "Bundle name",
       "extractionState" : "extracted_with_value",
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "DailyLogs"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "new",
@@ -51,6 +57,12 @@
       "comment" : "Privacy - Health Update Usage Description",
       "extractionState" : "extracted_with_value",
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Used to write sleep data to Apple Health when you manually record or correct it."
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "new",
