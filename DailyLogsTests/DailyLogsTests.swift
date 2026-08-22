@@ -849,7 +849,7 @@ struct DailyLogsTests {
 
         #expect(payload.meals.map(\.status) == ["logged_with_time", "logged_without_time", "skipped", "unrecorded"])
         #expect(payload.timeline.count == 6)
-        #expect(payload.scoringRubric.sampleCount == 5)
+        #expect(payload.scoringRubric.sampleCount == 1)
         #expect(payload.showerEnabled == false)
         #expect(payload.bowelMovementEnabled == false)
         #expect(payload.comparisonContext.trailing7Days.recordedDays == 0)
@@ -984,6 +984,70 @@ struct DailyLogsTests {
         )
 
         #expect(narrative.hasAIScoring == false)
+    }
+
+    @Test
+    func dailyInsightOnlyTreatsActualLogsAsMeaningfulData() {
+        let day = Date().startOfDay.adding(days: -1)
+        let preferences = UserPreferences()
+        let emptyRecord = DailyRecord.empty(for: day, preferences: preferences)
+
+        #expect(DailyInsightAnalyzer.hasMeaningfulLogData(in: emptyRecord) == false)
+
+        var recordedDay = emptyRecord
+        recordedDay.meals[0].status = .skipped
+
+        #expect(DailyInsightAnalyzer.hasMeaningfulLogData(in: recordedDay) == true)
+    }
+
+    @Test @MainActor
+    func automaticAIWaitsForYesterdayToHaveRealLogData() async {
+        let today = Date().startOfDay
+        let yesterday = today.adding(days: -1)
+        let preferences = UserPreferences(healthKitSyncEnabled: false)
+        let user = UserAccount(
+            userID: "empty-ai-day-user",
+            displayName: "Tester",
+            email: nil,
+            authMode: .guest,
+            createdAt: today.adding(days: -30)
+        )
+        let aiService = MockAIInsightNarrativeService(responses: [
+            sampleAINarrative(headline: "不应生成", overallScore: 50)
+        ])
+        let viewModel = AppViewModel(
+            authService: MockAuthService(user: user),
+            repository: InMemoryDailyRecordRepository(),
+            preferencesStore: MockPreferencesStore(preferences: preferences),
+            photoStorageService: MockPhotoStorageService(),
+            videoStorageService: MockVideoStorageService(),
+            sunTimesService: MockSunTimesService(),
+            weatherService: MockWeatherService(),
+            healthSyncAdapter: MockHealthSyncAdapter(sleepRecord: nil),
+            cloudSyncService: NoopCloudSyncService(),
+            aiInsightNarrativeService: aiService,
+            openAIKeyStore: MockOpenAIKeyStore(key: "test-key"),
+            locationService: LocationService(),
+            selectedDate: yesterday,
+            dailyRecord: DailyRecord.empty(for: yesterday, preferences: preferences),
+            preferences: preferences
+        )
+
+        await viewModel.bootstrap()
+        await viewModel.refreshDailyInsightNarrative(force: true)
+
+        #expect(aiService.callCount == 0)
+        #expect(viewModel.activeDailyInsightNarrative == nil)
+
+        await viewModel.updateSleep(
+            bedtime: yesterday.adding(days: -1).settingTime(hour: 23, minute: 15),
+            wakeTime: yesterday.settingTime(hour: 7, minute: 30)
+        )
+        for _ in 0..<50 where aiService.callCount == 0 {
+            try? await Task.sleep(nanoseconds: 10_000_000)
+        }
+
+        #expect(aiService.callCount == 1)
     }
 
     @Test
@@ -1142,7 +1206,7 @@ struct DailyLogsTests {
                 "bowelMovement": .init(score: 0, maxScore: 100, detail: "AI 排便未纳入", included: false)
             ],
             scoringVersion: DailyInsightNarrative.currentScoringVersion,
-            sampleCount: 5
+            sampleCount: 1
         )
         let unsignedRecord = DailyRecord(
             date: yesterday,
@@ -1369,7 +1433,7 @@ struct DailyLogsTests {
                 "bowelMovement": .init(score: 0, maxScore: 100, detail: "旧排便", included: false)
             ],
             scoringVersion: DailyInsightNarrative.currentScoringVersion,
-            sampleCount: 5,
+            sampleCount: 1,
             payloadSignature: "stale-signature"
         )
         let record = DailyRecord(
@@ -1435,14 +1499,40 @@ struct DailyLogsTests {
         let service = OpenAIResponsesInsightService(
             keyStore: MockOpenAIKeyStore(key: "test-key"),
             session: session,
-            model: "gpt-5.4-mini"
+            model: "gpt-5.6-luna"
         )
 
         let resolved = try await service.generateNarrative(from: payload)
 
         #expect(resolved.headline == "直接 JSON")
         #expect(resolved.overallScore == 88)
-        #expect(resolved.sampleCount == 5)
+        #expect(resolved.sampleCount == 1)
+    }
+
+    @Test
+    func openAIResponsesInsightServiceUsesFastCurrentModelConfiguration() async throws {
+        let payload = sampleInsightPayload()
+        let narrative = sampleAINarrative(headline: "快速配置", overallScore: 89)
+        let data = try JSONEncoder().encode(narrative)
+        let session = makeMockSession(responseData: data) { request in
+            guard let requestData = try requestBodyData(from: request),
+                  let body = try JSONSerialization.jsonObject(with: requestData) as? [String: Any],
+                  body["model"] as? String == "gpt-5.6-luna",
+                  let reasoning = body["reasoning"] as? [String: Any],
+                  reasoning["effort"] as? String == "low",
+                  let text = body["text"] as? [String: Any],
+                  text["verbosity"] as? String == "low" else {
+                throw MockRequestValidationError.invalidAIConfiguration
+            }
+        }
+        let service = OpenAIResponsesInsightService(
+            keyStore: MockOpenAIKeyStore(key: "test-key"),
+            session: session
+        )
+
+        let resolved = try await service.generateNarrative(from: payload)
+
+        #expect(resolved.sampleCount == 1)
     }
 
     @Test
@@ -1461,14 +1551,14 @@ struct DailyLogsTests {
         let service = OpenAIResponsesInsightService(
             keyStore: MockOpenAIKeyStore(key: "test-key"),
             session: session,
-            model: "gpt-5.4-mini"
+            model: "gpt-5.6-luna"
         )
 
         let resolved = try await service.generateNarrative(from: payload)
 
         #expect(resolved.headline == "结构化 parsed")
         #expect(resolved.overallScore == 91)
-        #expect(resolved.sampleCount == 5)
+        #expect(resolved.sampleCount == 1)
     }
 
     @Test
@@ -1477,7 +1567,7 @@ struct DailyLogsTests {
         let data = """
         {
           "error": {
-            "message": "Rate limit reached for gpt-5.4-mini.",
+            "message": "Rate limit reached for gpt-5.6-luna.",
             "type": "rate_limit_error",
             "code": "rate_limit_exceeded"
           }
@@ -1487,14 +1577,14 @@ struct DailyLogsTests {
         let service = OpenAIResponsesInsightService(
             keyStore: MockOpenAIKeyStore(key: "test-key"),
             session: session,
-            model: "gpt-5.4-mini"
+            model: "gpt-5.6-luna"
         )
 
         do {
             _ = try await service.generateNarrative(from: payload)
             Issue.record("Expected provider error to be thrown.")
         } catch {
-            #expect(error.localizedDescription == "Rate limit reached for gpt-5.4-mini.")
+            #expect(error.localizedDescription == "Rate limit reached for gpt-5.6-luna.")
         }
     }
 
@@ -1512,7 +1602,7 @@ struct DailyLogsTests {
         let service = CloudAIInsightService(
             configuration: AIProxyConfiguration(endpointURL: URL(string: "https://example.com/proxy")),
             session: session,
-            model: "gpt-5.4-mini",
+            model: "gpt-5.6-luna",
             authTokenProvider: { "mock-token" }
         )
 
@@ -1541,7 +1631,7 @@ struct DailyLogsTests {
         let service = CloudAIInsightService(
             configuration: AIProxyConfiguration(endpointURL: URL(string: "https://example.com/proxy")),
             session: session,
-            model: "gpt-5.4-mini",
+            model: "gpt-5.6-luna",
             authTokenProvider: { "mock-token" }
         )
 
@@ -4210,8 +4300,13 @@ private func sampleAINarrative(headline: String, overallScore: Int) -> DailyInsi
     )
 }
 
-private func makeMockSession(responseData: Data, statusCode: Int = 200) -> URLSession {
+private func makeMockSession(
+    responseData: Data,
+    statusCode: Int = 200,
+    validateRequest: (@Sendable (URLRequest) throws -> Void)? = nil
+) -> URLSession {
     MockURLProtocol.handler = { request in
+        try validateRequest?(request)
         let response = HTTPURLResponse(
             url: try #require(request.url),
             statusCode: statusCode,
@@ -4224,6 +4319,36 @@ private func makeMockSession(responseData: Data, statusCode: Int = 200) -> URLSe
     let configuration = URLSessionConfiguration.ephemeral
     configuration.protocolClasses = [MockURLProtocol.self]
     return URLSession(configuration: configuration)
+}
+
+private enum MockRequestValidationError: Error {
+    case invalidAIConfiguration
+}
+
+private func requestBodyData(from request: URLRequest) throws -> Data? {
+    if let body = request.httpBody {
+        return body
+    }
+    guard let stream = request.httpBodyStream else {
+        return nil
+    }
+
+    stream.open()
+    defer { stream.close() }
+
+    var body = Data()
+    var buffer = [UInt8](repeating: 0, count: 4_096)
+    while true {
+        let count = stream.read(&buffer, maxLength: buffer.count)
+        if count < 0 {
+            throw stream.streamError ?? MockRequestValidationError.invalidAIConfiguration
+        }
+        if count == 0 {
+            break
+        }
+        body.append(buffer, count: count)
+    }
+    return body
 }
 
 private struct ParsedNarrativeEnvelope: Encodable {

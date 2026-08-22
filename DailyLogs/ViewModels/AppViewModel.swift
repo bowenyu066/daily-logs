@@ -337,6 +337,7 @@ final class AppViewModel: ObservableObject {
         force: Bool,
         isAutomatic: Bool
     ) async {
+        guard hasMeaningfulLogData(for: targetDate) else { return }
         guard insightReport(for: targetDate) != nil else { return }
         guard canGenerateAIInsights else {
             aiInsightErrorMessage = nil
@@ -1430,6 +1431,7 @@ final class AppViewModel: ObservableObject {
             try repository.saveRecord(dailyRecord, preferences: preferences, userID: user.userID)
             try loadAllRecords(for: user.userID)
             invalidateDailyInsightNarrative()
+            scheduleAutomaticInsightIfNeeded(for: dailyRecord.date)
         } catch {
             errorMessage = NSLocalizedString("保存记录失败：", comment: "") + error.localizedDescription
         }
@@ -1451,6 +1453,7 @@ final class AppViewModel: ObservableObject {
             refreshEnvironmentIfNeeded()
         }
         invalidateDailyInsightNarrative()
+        scheduleAutomaticInsightIfNeeded(for: updated.date)
         return updated
     }
 
@@ -1699,8 +1702,23 @@ final class AppViewModel: ObservableObject {
 
     private func ensureAutomaticYesterdayInsightIfNeeded() async {
         guard let targetDate = automaticInsightTargetDate else { return }
+        guard hasMeaningfulLogData(for: targetDate) else { return }
         guard validatedNarrative(for: targetDate)?.hasAIScoring != true else { return }
         await generateDailyInsightNarrative(for: targetDate, force: false, isAutomatic: true)
+    }
+
+    private func hasMeaningfulLogData(for date: Date) -> Bool {
+        let resolvedRecord = record(for: date) ?? DailyRecord.empty(for: date, preferences: preferences)
+        return DailyInsightAnalyzer.hasMeaningfulLogData(
+            in: mergedRecord(resolvedRecord, with: preferences)
+        )
+    }
+
+    private func scheduleAutomaticInsightIfNeeded(for date: Date) {
+        guard automaticInsightTargetDate?.startOfDay == date.startOfDay else { return }
+        Task { [weak self] in
+            await self?.ensureAutomaticYesterdayInsightIfNeeded()
+        }
     }
 
     private var canUseCloudAIProxy: Bool {

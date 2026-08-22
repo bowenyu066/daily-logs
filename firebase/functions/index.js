@@ -8,10 +8,9 @@ initializeApp();
 const db = getFirestore();
 const auth = getAuth();
 
-// One visible AI score currently fans out to 5 upstream samples for averaging,
-// plus one extra translation request to freeze an English copy alongside the
-// canonical Chinese narrative. Keep the default ceiling comfortably above a few
-// real generations so automatic generation plus manual retries do not exhaust it.
+// One visible AI score uses one upstream scoring request, plus one optional
+// translation request to freeze an English copy alongside the canonical Chinese
+// narrative. Keep room for automatic generation and occasional manual retries.
 const DAILY_LIMIT = Number.parseInt(process.env.DAILY_AI_REQUEST_LIMIT || "40", 10);
 const OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses";
 const OPENAI_UPSTREAM_TIMEOUT_MS = Number.parseInt(process.env.OPENAI_UPSTREAM_TIMEOUT_MS || "55000", 10);

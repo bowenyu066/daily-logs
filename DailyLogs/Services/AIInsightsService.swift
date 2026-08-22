@@ -41,7 +41,7 @@ struct DailyInsightComponent: Identifiable, Equatable {
 }
 
 struct DailyInsightNarrative: Codable, Equatable {
-    static let currentScoringVersion = 3
+    static let currentScoringVersion = 4
 
     struct ComponentScoreOverride: Codable, Equatable {
         var score: Int?
@@ -353,6 +353,29 @@ struct DailyInsightPayload: Codable {
 }
 
 enum DailyInsightAnalyzer {
+    static func hasMeaningfulLogData(in record: DailyRecord) -> Bool {
+        let hasSleepNote = record.sleepRecord.note?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .isEmpty == false
+        let hasMealData = record.meals.contains { meal in
+            meal.status != .empty
+                || meal.time != nil
+                || meal.hasPhoto
+                || meal.note?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+                || meal.locationName?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+                || meal.latitude != nil
+                || meal.longitude != nil
+        }
+
+        return record.sleepRecord.hasSleepData
+            || hasSleepNote
+            || hasMealData
+            || !record.showers.isEmpty
+            || !record.bowelMovements.isEmpty
+            || !record.sexualActivities.isEmpty
+            || record.dailyVideo != nil
+    }
+
     static func buildReport(
         for record: DailyRecord,
         preferences: UserPreferences,
@@ -649,7 +672,7 @@ enum DailyInsightAnalyzer {
 
     private static func scoringRubric() -> DailyInsightPayload.ScoringRubric {
         DailyInsightPayload.ScoringRubric(
-            sampleCount: 5,
+            sampleCount: 1,
             overallMethod: NSLocalizedString("四个部分按固定满分评分后，按总分折算到 0-100。", comment: ""),
             sections: [
                 .init(
@@ -1383,7 +1406,7 @@ struct OpenAIResponsesInsightService: AIInsightNarrativeGenerating, Sendable {
     init(
         keyStore: OpenAIKeyStoring,
         session: URLSession = .shared,
-        model: String = "gpt-5.4-mini"
+        model: String = "gpt-5.6-luna"
     ) {
         self.keyStore = keyStore
         self.session = session
@@ -1399,15 +1422,13 @@ struct OpenAIResponsesInsightService: AIInsightNarrativeGenerating, Sendable {
             throw AIInsightServiceError.missingAPIKey
         }
 
-        return try await generateAveragedNarrative(sampleCount: 5) {
-            try await performNarrativeRequest(
-                endpointURL: URL(string: "https://api.openai.com/v1/responses")!,
-                authorizationHeader: "Bearer \(apiKey)",
-                payload: payload,
-                model: model,
-                session: session
-            )
-        }
+        return try await performNarrativeRequest(
+            endpointURL: URL(string: "https://api.openai.com/v1/responses")!,
+            authorizationHeader: "Bearer \(apiKey)",
+            payload: payload,
+            model: model,
+            session: session
+        )
     }
 
     func translateNarrative(_ narrative: DailyInsightNarrative, to language: AppLanguage) async throws -> DailyInsightNarrative.LocalizedText {
@@ -1435,7 +1456,7 @@ struct CloudAIInsightService: AIInsightNarrativeGenerating, Sendable {
     init(
         configuration: AIProxyConfiguration = AIProxyConfiguration(),
         session: URLSession = .shared,
-        model: String = "gpt-5.4-mini",
+        model: String = "gpt-5.6-luna",
         authTokenProvider: @escaping @Sendable () async throws -> String? = {
             try await fetchFirebaseIDToken()
         }
@@ -1458,15 +1479,13 @@ struct CloudAIInsightService: AIInsightNarrativeGenerating, Sendable {
             throw AIInsightServiceError.missingAuthToken
         }
 
-        return try await generateAveragedNarrative(sampleCount: 5) {
-            try await performNarrativeRequest(
-                endpointURL: endpointURL,
-                authorizationHeader: "Bearer \(idToken)",
-                payload: payload,
-                model: model,
-                session: session
-            )
-        }
+        return try await performNarrativeRequest(
+            endpointURL: endpointURL,
+            authorizationHeader: "Bearer \(idToken)",
+            payload: payload,
+            model: model,
+            session: session
+        )
     }
 
     func translateNarrative(_ narrative: DailyInsightNarrative, to language: AppLanguage) async throws -> DailyInsightNarrative.LocalizedText {
@@ -1543,7 +1562,11 @@ private func performNarrativeRequest(
         throw parseNarrativeRequestError(statusCode: statusCode, data: data)
     }
 
-    return try parseNarrative(from: data)
+    var narrative = try parseNarrative(from: data)
+    narrative.generatedAt = .now
+    narrative.scoringVersion = DailyInsightNarrative.currentScoringVersion
+    narrative.sampleCount = 1
+    return narrative
 }
 
 private func performTranslationRequest(
@@ -1756,7 +1779,9 @@ private func makeRequestBody(from payload: DailyInsightPayload, model: String) t
         """,
         input: payloadString,
         store: false,
+        reasoning: OpenAIResponsesRequestBody.ReasoningConfiguration(effort: "low"),
         text: OpenAIResponsesRequestBody.TextConfiguration(
+            verbosity: "low",
             format: OpenAIResponsesRequestBody.SchemaConfiguration(
                 name: "daily_insight_narrative",
                 schema: makeNarrativeSchema()
@@ -1792,82 +1817,15 @@ private func makeTranslationRequestBody(
             encoding: .utf8
         ) ?? "{}",
         store: false,
+        reasoning: OpenAIResponsesRequestBody.ReasoningConfiguration(effort: "low"),
         text: OpenAIResponsesRequestBody.TextConfiguration(
+            verbosity: "low",
             format: OpenAIResponsesRequestBody.SchemaConfiguration(
                 name: "daily_insight_translation",
                 schema: makeLocalizedNarrativeSchema()
             )
         )
     )
-}
-
-private func generateAveragedNarrative(
-    sampleCount: Int,
-    generate: @escaping @Sendable () async throws -> DailyInsightNarrative
-) async throws -> DailyInsightNarrative {
-    var samples: [DailyInsightNarrative] = []
-    samples.reserveCapacity(sampleCount)
-
-    for _ in 0..<sampleCount {
-        samples.append(try await generate())
-    }
-
-    guard let representative = representativeNarrative(from: samples) else {
-        throw AIInsightServiceError.emptyResponse
-    }
-
-    let averagedOverall = Int(
-        (Double(samples.compactMap(\.overallScore).reduce(0, +)) / Double(max(samples.compactMap(\.overallScore).count, 1)))
-            .rounded()
-    )
-
-    let keys = Set(samples.flatMap { Array(($0.components ?? [:]).keys) })
-    let averagedComponents: [String: DailyInsightNarrative.ComponentScoreOverride] = Dictionary(uniqueKeysWithValues: keys.map { key in
-        let overrides = samples.compactMap { $0.components?[key] }
-        let includedCount = overrides.filter { $0.included ?? true }.count
-        let included = includedCount * 2 >= overrides.count
-        let averagedScore = Int(
-            (Double(overrides.compactMap(\.score).reduce(0, +)) / Double(max(overrides.compactMap(\.score).count, 1)))
-                .rounded()
-        )
-        let averagedMax = Int(
-            (Double(overrides.compactMap(\.maxScore).reduce(0, +)) / Double(max(overrides.compactMap(\.maxScore).count, 1)))
-                .rounded()
-        )
-        let representativeDetail = overrides
-            .compactMap(\.detail)
-            .first(where: { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty })
-
-        return (
-            key,
-            DailyInsightNarrative.ComponentScoreOverride(
-                score: included ? averagedScore : 0,
-                maxScore: max(1, averagedMax),
-                detail: representativeDetail,
-                included: included
-            )
-        )
-    })
-
-    return DailyInsightNarrative(
-        headline: representative.headline,
-        summary: representative.summary,
-        bullets: representative.bullets,
-        overallScore: averagedOverall,
-        components: averagedComponents,
-        generatedAt: .now,
-        scoringVersion: DailyInsightNarrative.currentScoringVersion,
-        sampleCount: sampleCount,
-        payloadSignature: representative.payloadSignature
-    )
-}
-
-private func representativeNarrative(from samples: [DailyInsightNarrative]) -> DailyInsightNarrative? {
-    guard !samples.isEmpty else { return nil }
-    let overallAverage = Double(samples.compactMap(\.overallScore).reduce(0, +)) / Double(max(samples.compactMap(\.overallScore).count, 1))
-    return samples.min { lhs, rhs in
-        abs(Double(lhs.overallScore ?? 0) - overallAverage) < abs(Double(rhs.overallScore ?? 0) - overallAverage)
-    }
 }
 
 private func makeNarrativeSchema() -> JSONValue {
@@ -1990,7 +1948,12 @@ private func extractJSONObject(from text: String) -> String {
 }
 
 private struct OpenAIResponsesRequestBody: Encodable {
+    struct ReasoningConfiguration: Encodable {
+        var effort: String
+    }
+
     struct TextConfiguration: Encodable {
+        var verbosity: String
         var format: SchemaConfiguration
     }
 
@@ -2005,6 +1968,7 @@ private struct OpenAIResponsesRequestBody: Encodable {
     var instructions: String
     var input: String
     var store: Bool
+    var reasoning: ReasoningConfiguration
     var text: TextConfiguration
 }
 
