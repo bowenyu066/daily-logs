@@ -1510,10 +1510,40 @@ struct DailyLogsTests {
     }
 
     @Test
-    func openAIResponsesInsightServiceUsesFastCurrentModelConfiguration() async throws {
+    func openAIResponsesInsightServiceUsesQualityFocusedScoringConfiguration() async throws {
         let payload = sampleInsightPayload()
         let narrative = sampleAINarrative(headline: "快速配置", overallScore: 89)
         let data = try JSONEncoder().encode(narrative)
+        let session = makeMockSession(responseData: data) { request in
+            guard let requestData = try requestBodyData(from: request),
+                  let body = try JSONSerialization.jsonObject(with: requestData) as? [String: Any],
+                  body["model"] as? String == "gpt-5.6-luna",
+                  let reasoning = body["reasoning"] as? [String: Any],
+                  reasoning["effort"] as? String == "high",
+                  let text = body["text"] as? [String: Any],
+                  text["verbosity"] as? String == "medium" else {
+                throw MockRequestValidationError.invalidAIConfiguration
+            }
+        }
+        let service = OpenAIResponsesInsightService(
+            keyStore: MockOpenAIKeyStore(key: "test-key"),
+            session: session
+        )
+
+        let resolved = try await service.generateNarrative(from: payload)
+
+        #expect(resolved.sampleCount == 1)
+    }
+
+    @Test
+    func openAIResponsesInsightServiceKeepsTranslationConfigurationLightweight() async throws {
+        let narrative = sampleAINarrative(headline: "中文标题", overallScore: 89)
+        let translated = DailyInsightNarrative.LocalizedText(
+            headline: "English headline",
+            summary: "English summary",
+            bullets: ["English bullet 1", "English bullet 2"]
+        )
+        let data = try JSONEncoder().encode(translated)
         let session = makeMockSession(responseData: data) { request in
             guard let requestData = try requestBodyData(from: request),
                   let body = try JSONSerialization.jsonObject(with: requestData) as? [String: Any],
@@ -1530,9 +1560,9 @@ struct DailyLogsTests {
             session: session
         )
 
-        let resolved = try await service.generateNarrative(from: payload)
+        let resolved = try await service.translateNarrative(narrative, to: .en)
 
-        #expect(resolved.sampleCount == 1)
+        #expect(resolved == translated)
     }
 
     @Test

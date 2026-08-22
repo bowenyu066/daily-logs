@@ -1779,9 +1779,9 @@ private func makeRequestBody(from payload: DailyInsightPayload, model: String) t
         """,
         input: payloadString,
         store: false,
-        reasoning: OpenAIResponsesRequestBody.ReasoningConfiguration(effort: "low"),
+        reasoning: OpenAIResponsesRequestBody.ReasoningConfiguration(effort: "high"),
         text: OpenAIResponsesRequestBody.TextConfiguration(
-            verbosity: "low",
+            verbosity: "medium",
             format: OpenAIResponsesRequestBody.SchemaConfiguration(
                 name: "daily_insight_narrative",
                 schema: makeNarrativeSchema()
