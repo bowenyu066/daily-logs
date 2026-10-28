@@ -4730,3 +4730,150 @@ private final class RecordingCloudSyncService: CloudSyncService, @unchecked Send
         await state.deletedPhotoReferences()
     }
 }
+
+@MainActor
+struct LocalStorePersistenceTests {
+    private func databaseURL(for filename: String) -> URL {
+        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+            .appendingPathComponent("DailyLogs", isDirectory: true)
+            .appendingPathComponent(filename)
+    }
+
+    private func decodeDatabase(at url: URL) throws -> LocalJSONStore.Database {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return try decoder.decode(LocalJSONStore.Database.self, from: Data(contentsOf: url))
+    }
+
+    @Test
+    func savedRecordsReachDiskAndMatchTheCachedCopy() throws {
+        let filename = "store-test-\(UUID().uuidString).json"
+        let url = databaseURL(for: filename)
+        defer { try? FileManager.default.removeItem(at: url) }
+        let store = LocalJSONStore(filename: filename)
+        let repository = LocalDailyRecordRepository(store: store)
+        let day = Date().startOfDay.adding(days: -2)
+        var record = DailyRecord.empty(for: day, preferences: UserPreferences())
+        record.showers = [ShowerEntry(time: day.settingTime(hour: 21, minute: 15), timeZoneIdentifier: TimeZone.current.identifier)]
+        record.modifiedAt = Date(timeIntervalSince1970: 1_800_000_000.75)
+
+        try repository.saveRecord(record, preferences: UserPreferences(), userID: "store-user")
+        store.flush()
+
+        let onDisk = try #require(try decodeDatabase(at: url).recordsByUser["store-user"]?[day.storageKey()])
+        let cached = try repository.loadRecord(for: day, preferences: UserPreferences(), userID: "store-user")
+        #expect(onDisk.showers.count == 1)
+        #expect(cached == onDisk)
+        #expect(cached.modifiedAt == Date(timeIntervalSince1970: 1_800_000_000))
+    }
+
+    @Test
+    func recordIsStoredUnderTheDayItsEntriesBelongTo() throws {
+        let filename = "store-test-\(UUID().uuidString).json"
+        defer { try? FileManager.default.removeItem(at: databaseURL(for: filename)) }
+        let store = LocalJSONStore(filename: filename)
+        let repository = LocalDailyRecordRepository(store: store)
+        let day = Date().startOfDay.adding(days: -5)
+        let nextDay = day.adding(days: 1)
+        let timeZone = TimeZone.current.identifier
+        var record = DailyRecord.empty(for: day, preferences: UserPreferences())
+        record.sleepRecord.wakeTimeCurrentDay = nextDay.settingTime(hour: 7, minute: 0)
+        record.sleepRecord.timeZoneIdentifier = timeZone
+        record.showers = [ShowerEntry(time: nextDay.settingTime(hour: 9, minute: 0), timeZoneIdentifier: timeZone)]
+
+        try repository.saveRecord(record, preferences: UserPreferences(), userID: "store-user")
+
+        let all = try repository.loadAllRecords(userID: "store-user", preferences: UserPreferences())
+        #expect(all.count == 1)
+        #expect(all.first?.date.storageKey() == nextDay.storageKey())
+        #expect(repository.storageKey(for: record, preferences: UserPreferences()) == nextDay.storageKey())
+        #expect(try repository.loadRecord(for: nextDay, preferences: UserPreferences(), userID: "store-user").showers.count == 1)
+    }
+
+    @Test
+    func storesSharingAFileSeeEachOthersWrites() throws {
+        let filename = "store-test-\(UUID().uuidString).json"
+        defer { try? FileManager.default.removeItem(at: databaseURL(for: filename)) }
+        let day = Date().startOfDay.adding(days: -1)
+        let writer = LocalDailyRecordRepository(store: LocalJSONStore(filename: filename))
+        let reader = LocalDailyRecordRepository(store: LocalJSONStore(filename: filename))
+        var record = DailyRecord.empty(for: day, preferences: UserPreferences())
+        record.sleepRecord.note = "shared"
+
+        _ = try reader.loadAllRecords(userID: "store-user", preferences: UserPreferences())
+        try writer.saveRecord(record, preferences: UserPreferences(), userID: "store-user")
+
+        #expect(try reader.loadRecord(for: day, preferences: UserPreferences(), userID: "store-user").sleepRecord.note == "shared")
+    }
+
+    @Test
+    func unreadableDatabaseIsNeverOverwritten() throws {
+        let filename = "store-test-\(UUID().uuidString).json"
+        let url = databaseURL(for: filename)
+        defer { try? FileManager.default.removeItem(at: url) }
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        let garbage = Data("{ not json".utf8)
+        try garbage.write(to: url)
+        let store = LocalJSONStore(filename: filename)
+
+        #expect(throws: (any Error).self) {
+            try store.load()
+        }
+        #expect(throws: (any Error).self) {
+            try LocalDailyRecordRepository(store: store).saveRecord(
+                DailyRecord.empty(for: .now, preferences: UserPreferences()),
+                preferences: UserPreferences(),
+                userID: "store-user"
+            )
+        }
+        store.flush()
+        #expect(try Data(contentsOf: url) == garbage)
+    }
+
+    @Test
+    func uploadedMediaReferencesReplaceLocalPaths() {
+        let day = Date().startOfDay
+        var record = DailyRecord.empty(for: day, preferences: UserPreferences())
+        record.meals[0].photoURLs = ["A1.jpg", "https://example.com/remote.jpg", "B2.jpg"]
+        record.dailyVideo = DailyVideoEntry(videoURL: "V.mp4", duration: 3, createdAt: day)
+
+        let replaced = record.replacingUploadedMediaReferences([
+            "A1.jpg": "dailylogs-secure-photo:bucket|a",
+            "V.mp4": "dailylogs-secure-media:bucket|v"
+        ])
+
+        #expect(replaced.meals[0].photoURLs == ["dailylogs-secure-photo:bucket|a", "https://example.com/remote.jpg", "B2.jpg"])
+        #expect(replaced.dailyVideo?.videoURL == "dailylogs-secure-media:bucket|v")
+    }
+
+    @Test
+    func cloudReconciliationIgnoresAlreadyUploadedLocalPhotos() throws {
+        let day = Date().startOfDay
+        let photoStorage = LocalPhotoStorageService()
+        let image = UIGraphicsImageRenderer(size: CGSize(width: 2, height: 2)).image { context in
+            UIColor.orange.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 2, height: 2))
+        }
+        let localPhoto = try photoStorage.savePhoto(image)
+        defer { try? photoStorage.deletePhoto(at: localPhoto) }
+        let secureReference = SecureCloudPhotoReference.make(bucket: "bucket", path: "users/u/secure-meal-photos/m-A1.bin")
+        var localRecord = DailyRecord.empty(for: day, preferences: UserPreferences()).anchoredToStorageKey(day.storageKey())
+        localRecord.meals[0].status = .logged
+        localRecord.meals[0].photoURLs = [localPhoto]
+        localRecord.modifiedAt = day.settingTime(hour: 12, minute: 0)
+        var remoteRecord = localRecord
+        remoteRecord.meals[0].photoURLs = [secureReference]
+
+        let withoutMap = AppViewModel.reconcileCloudRecord(localRecord: localRecord, remoteRecord: remoteRecord)
+        let withMap = AppViewModel.reconcileCloudRecord(
+            localRecord: localRecord,
+            remoteRecord: remoteRecord,
+            uploadedMediaReferences: [localPhoto: secureReference]
+        )
+
+        #expect(withoutMap.shouldPushRecord)
+        #expect(withMap.shouldPushRecord == false)
+        #expect(withMap.discardedRemotePhotoReferences.isEmpty)
+        #expect(withMap.record.meals[0].photoURLs == [localPhoto])
+    }
+}

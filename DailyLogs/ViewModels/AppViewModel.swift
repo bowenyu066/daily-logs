@@ -15,6 +15,8 @@ struct CloudRecordReconciliationResult: Equatable {
 @MainActor
 final class AppViewModel: ObservableObject {
     private static let minimumAnalyticsRecordStreak = 7
+    /// Covers the longest comparison window used by `DailyInsightAnalyzer` (two 30-day windows).
+    private static let insightHistoryLookbackDays = 62
     private static let didMigrateTimeDisplayModeDefaultKey = "dailylogs.didMigrateTimeDisplayModeDefault"
 
     enum CloudEncryptionState: Equatable {
@@ -26,10 +28,24 @@ final class AppViewModel: ObservableObject {
 
     @Published private(set) var user: UserAccount?
     @Published var selectedDate: Date
-    @Published private(set) var dailyRecord: DailyRecord
-    @Published private(set) var allRecords: [DailyRecord] = []
+    @Published private(set) var dailyRecord: DailyRecord {
+        didSet { derivedData.dailyRecordDidChange(from: oldValue.date, to: dailyRecord.date) }
+    }
+    @Published private(set) var allRecords: [DailyRecord] = [] {
+        didSet {
+            if !isApplyingSingleRecordChange {
+                derivedData.removeAll()
+            }
+        }
+    }
     @Published private(set) var travelPlans: [TravelPlan] = []
-    @Published private(set) var preferences: UserPreferences
+    @Published private(set) var preferences: UserPreferences {
+        didSet {
+            if preferences != oldValue {
+                derivedData.removeAll()
+            }
+        }
+    }
     @Published var analyticsRange: AnalyticsRange = .week
     @Published var analyticsCustomDateRange: ClosedRange<Date> = Date().startOfDay.adding(days: -29)...Date().startOfDay
     @Published private(set) var isBootstrapped = false
@@ -65,9 +81,18 @@ final class AppViewModel: ObservableObject {
     private let aiInsightNarrativeService: AIInsightNarrativeGenerating
     private let openAIKeyStore: OpenAIKeyStoring
     private var cancellables = Set<AnyCancellable>()
+    private var derivedData = DerivedDataCache()
+    private var isApplyingSingleRecordChange = false
+    private var lastAppliedLanguage: AppLanguage?
+    private var pendingCloudRecordPushes: [String: DailyRecord] = [:]
+    private var cloudRecordPushResults: [String: Bool] = [:]
+    private var lastCloudPushErrorReportedAt: Date?
+    private var cloudRecordPushChain: Task<Void, Never>?
+    private var remoteMediaCacheRefreshTask: Task<Void, Never>?
 
     static func live() -> AppViewModel {
         let store = LocalJSONStore()
+        store.preloadInBackground()
         let preferences = UserPreferences()
         let openAIKeyStore = OpenAIKeychainStore()
         let cloudAIService = CloudAIInsightService()
@@ -127,6 +152,7 @@ final class AppViewModel: ObservableObject {
             : selectedDate.startOfDay
         self.dailyRecord = dailyRecord
         self.preferences = preferences
+        self.lastAppliedLanguage = Self.persistedProcessLanguage()
         bindLocationService()
     }
 
@@ -145,10 +171,19 @@ final class AppViewModel: ObservableObject {
     var availableStartDate: Date {
         [
             user?.createdAt.startOfDay,
-            allRecords.map(\.date.startOfDay).min()
+            earliestRecordDate
         ]
         .compactMap { $0 }
         .min() ?? logicalToday
+    }
+
+    private var earliestRecordDate: Date? {
+        if let cached = derivedData.earliestRecordDate {
+            return cached
+        }
+        let earliest = allRecords.map(\.date.startOfDay).min()
+        derivedData.earliestRecordDate = .some(earliest)
+        return earliest
     }
 
     var availableDateRange: ClosedRange<Date> {
@@ -174,14 +209,26 @@ final class AppViewModel: ObservableObject {
         return availableStartDate...upperBound
     }
 
+    /// Cached because the analytics screen reads it dozens of times per render.
     var analyticsSummary: AnalyticsSummary {
-        AnalyticsCalculator.build(
-            records: allRecords,
+        let key = AnalyticsSummaryKey(
             range: analyticsRange,
             customRange: analyticsRange == .custom ? analyticsCustomDateRange : nil,
             defaultMealSlots: preferences.defaultMealSlots,
             today: logicalToday
         )
+        if let cached = derivedData.analyticsSummary(for: key) {
+            return cached
+        }
+        let summary = AnalyticsCalculator.build(
+            records: allRecords,
+            range: key.range,
+            customRange: key.customRange,
+            defaultMealSlots: key.defaultMealSlots,
+            today: key.today
+        )
+        derivedData.storeAnalyticsSummary(summary, for: key)
+        return summary
     }
 
     var canDisplayAnalytics: Bool {
@@ -189,7 +236,12 @@ final class AppViewModel: ObservableObject {
     }
 
     var longestAnalyticsRecordStreak: Int {
-        Self.longestRecordStreak(in: allRecords)
+        if let cached = derivedData.longestRecordStreak {
+            return cached
+        }
+        let streak = Self.longestRecordStreak(in: allRecords)
+        derivedData.longestRecordStreak = streak
+        return streak
     }
 
     var preferredColorScheme: ColorScheme? {
@@ -246,13 +298,19 @@ final class AppViewModel: ObservableObject {
     }
 
     func insightReport(for date: Date) -> DailyInsightReport? {
+        let dateKey = date.startOfDay.storageKey()
+        if let cached = derivedData.insightReport(forDateKey: dateKey) {
+            return cached
+        }
         let locale = preferences.appLanguage.locale ?? Locale.autoupdatingCurrent
         let resolvedRecord = record(for: date) ?? DailyRecord.empty(for: date, preferences: preferences)
-        return DailyInsightAnalyzer.buildReport(
+        let report = DailyInsightAnalyzer.buildReport(
             for: mergedRecord(resolvedRecord, with: preferences),
             preferences: preferences,
             locale: locale
         )
+        derivedData.storeInsightReport(report, forDateKey: dateKey)
+        return report
     }
 
     func displayedDailyInsightReport(for date: Date) -> DailyInsightReport? {
@@ -481,6 +539,8 @@ final class AppViewModel: ObservableObject {
             refreshOpenAIConfigurationState()
             allRecords = []
             travelPlans = []
+            pendingCloudRecordPushes.removeAll()
+            cloudRecordPushResults.removeAll()
             selectedDate = logicalToday
             dailyRecord = DailyRecord.empty(for: selectedDate, preferences: preferences)
             cloudEncryptionState = .unavailable
@@ -787,10 +847,14 @@ final class AppViewModel: ObservableObject {
         return AppLanguage(rawValue: raw)
     }
 
+    /// Rebuilding the view tree (via `languageRefreshID`) resets navigation, tabs and sheets, so it
+    /// only happens when the language actually changed, not on every preference reload.
     private func applyCurrentLanguage(refreshUI: Bool = true) {
         Self.applyProcessLocale(preferences.appLanguage)
         Bundle.configureLanguageOverride(for: preferences.appLanguage)
-        if refreshUI {
+        let languageChanged = lastAppliedLanguage != preferences.appLanguage
+        lastAppliedLanguage = preferences.appLanguage
+        if refreshUI && languageChanged {
             languageRefreshID = UUID()
         }
     }
@@ -1411,8 +1475,55 @@ final class AppViewModel: ObservableObject {
     private func loadAllRecords(for userID: String) throws {
         let records = try repository.loadAllRecords(userID: userID, preferences: preferences)
             .filter { $0.date >= availableStartDate }
-        allRecords = try migrateRecordedTimeZonesIfNeeded(in: records, userID: userID)
-        Task { await refreshRemotePhotoCache() }
+        setAllRecords(try migrateRecordedTimeZonesIfNeeded(in: records, userID: userID))
+        scheduleRemoteMediaCacheRefresh()
+    }
+
+    /// Re-reads the single record stored under `key` into `allRecords` after a write, instead of
+    /// reloading and re-migrating every record.
+    private func refreshStoredRecord(forStorageKey key: String, userID: String) throws {
+        let lowerBound = availableStartDate
+        var records = allRecords
+        records.removeAll { $0.date.storageKey() == key }
+        if let storedRecord = try repository.loadStoredRecord(forStorageKey: key, preferences: preferences, userID: userID),
+           storedRecord.date >= lowerBound,
+           let migratedRecord = try migrateRecordedTimeZonesIfNeeded(in: [storedRecord], userID: userID).first {
+            let insertionIndex = records.firstIndex { $0.date > migratedRecord.date } ?? records.endIndex
+            records.insert(migratedRecord, at: insertionIndex)
+        }
+        guard records != allRecords else { return }
+        isApplyingSingleRecordChange = true
+        allRecords = records
+        isApplyingSingleRecordChange = false
+        if let changedDay = Date.fromStorageKey(key) {
+            derivedData.recordDidChange(on: changedDay, insightLookbackDays: Self.insightHistoryLookbackDays)
+        } else {
+            derivedData.removeAll()
+        }
+        scheduleRemoteMediaCacheRefresh()
+    }
+
+    private func saveRecordAndRefresh(_ record: DailyRecord, userID: String) throws {
+        try repository.saveRecord(record, preferences: preferences, userID: userID)
+        try refreshStoredRecord(
+            forStorageKey: repository.storageKey(for: record, preferences: preferences),
+            userID: userID
+        )
+    }
+
+    /// Publishing `allRecords` re-renders every tab, so unchanged results are not republished.
+    private func setAllRecords(_ records: [DailyRecord]) {
+        guard records != allRecords else { return }
+        allRecords = records
+    }
+
+    private func scheduleRemoteMediaCacheRefresh() {
+        remoteMediaCacheRefreshTask?.cancel()
+        remoteMediaCacheRefreshTask = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(600))
+            guard !Task.isCancelled, let self else { return }
+            await self.refreshRemotePhotoCache()
+        }
     }
 
     private func loadTravelPlans(for userID: String) throws {
@@ -1428,8 +1539,7 @@ final class AppViewModel: ObservableObject {
             dailyRecord = mergedRecord(dailyRecord, with: preferences)
             dailyRecord.aiInsightNarrative = nil
             dailyRecord.modifiedAt = .now
-            try repository.saveRecord(dailyRecord, preferences: preferences, userID: user.userID)
-            try loadAllRecords(for: user.userID)
+            try saveRecordAndRefresh(dailyRecord, userID: user.userID)
             invalidateDailyInsightNarrative()
             scheduleAutomaticInsightIfNeeded(for: dailyRecord.date)
         } catch {
@@ -1445,8 +1555,7 @@ final class AppViewModel: ObservableObject {
         updated = mergedRecord(updated, with: preferences)
         updated.aiInsightNarrative = nil
         updated.modifiedAt = .now
-        try repository.saveRecord(updated, preferences: preferences, userID: user.userID)
-        try loadAllRecords(for: user.userID)
+        try saveRecordAndRefresh(updated, userID: user.userID)
         if updated.date.startOfDay == selectedDate.startOfDay {
             dailyRecord = mergedRecord(updated, with: preferences)
             restoreEnvironmentSnapshot()
@@ -1612,7 +1721,7 @@ final class AppViewModel: ObservableObject {
             preferences: preferences,
             language: .zhHans,
             locale: Locale(identifier: "zh-Hans"),
-            history: allRecords.map { mergedRecord($0, with: preferences) }
+            history: insightHistory(before: date)
         )
     }
 
@@ -1624,16 +1733,47 @@ final class AppViewModel: ObservableObject {
             preferences: preferences,
             language: preferences.appLanguage,
             locale: locale,
-            history: allRecords.map { mergedRecord($0, with: preferences) }
+            history: insightHistory(before: date)
         )
+    }
+
+    private var mergedInsightHistory: [DailyRecord] {
+        if let cached = derivedData.mergedInsightHistory {
+            return cached
+        }
+        let history = allRecords.map { mergedRecord($0, with: preferences) }
+        derivedData.mergedInsightHistory = history
+        return history
+    }
+
+    /// The insight payload only compares against the 30 days before `date` and the 30 days before
+    /// those, so it gets that slice instead of the whole history (the resulting payload is identical).
+    private func insightHistory(before date: Date) -> [DailyRecord] {
+        let endDate = date.startOfDay
+        let startDate = endDate.adding(days: -Self.insightHistoryLookbackDays)
+        return mergedInsightHistory.filter {
+            let day = $0.date.startOfDay
+            return day >= startDate && day < endDate
+        }
+    }
+
+    /// Signature of the canonical insight payload for `date`, cached per day because validating a
+    /// stored narrative otherwise rebuilds and hashes the whole payload on every view update.
+    private func canonicalInsightSignature(for date: Date) -> String? {
+        let dateKey = date.startOfDay.storageKey()
+        if let cached = derivedData.insightSignature(forDateKey: dateKey) {
+            return cached
+        }
+        let signature = canonicalInsightPayload(for: date).flatMap { try? $0.stableSignature() }
+        derivedData.storeInsightSignature(signature, forDateKey: dateKey)
+        return signature
     }
 
     private func validatedNarrative(for date: Date) -> DailyInsightNarrative? {
         guard let narrative = currentNarrative(for: date),
               narrative.hasAIScoring,
               narrative.scoringVersion >= DailyInsightNarrative.currentScoringVersion,
-              let payload = canonicalInsightPayload(for: date),
-              let signature = try? payload.stableSignature(),
+              let signature = canonicalInsightSignature(for: date),
               narrative.payloadSignature == signature else {
             return nil
         }
@@ -1667,10 +1807,18 @@ final class AppViewModel: ObservableObject {
     }
 
     private func record(for date: Date) -> DailyRecord? {
-        if dailyRecord.date.startOfDay == date.startOfDay {
+        let day = date.startOfDay
+        if dailyRecord.date.startOfDay == day {
             return dailyRecord
         }
-        return allRecords.first(where: { $0.date.startOfDay == date.startOfDay })
+        if derivedData.recordIndexByDay == nil {
+            var index: [Date: Int] = [:]
+            for (offset, record) in allRecords.enumerated() where index[record.date.startOfDay] == nil {
+                index[record.date.startOfDay] = offset
+            }
+            derivedData.recordIndexByDay = index
+        }
+        return derivedData.recordIndexByDay?[day].map { allRecords[$0] }
     }
 
     private func persistDailyInsightNarrative(_ narrative: DailyInsightNarrative, for date: Date) throws {
@@ -1686,8 +1834,7 @@ final class AppViewModel: ObservableObject {
         storedRecord.aiInsightNarrative = narrative
         storedRecord.modifiedAt = .now
 
-        try repository.saveRecord(storedRecord, preferences: preferences, userID: user.userID)
-        try loadAllRecords(for: user.userID)
+        try saveRecordAndRefresh(storedRecord, userID: user.userID)
 
         if selectedDate.startOfDay == date.startOfDay {
             try loadSelectedRecord()
@@ -1807,8 +1954,7 @@ final class AppViewModel: ObservableObject {
         guard isViewingLogicalToday, let user else { return }
         do {
             dailyRecord.modifiedAt = .now
-            try repository.saveRecord(dailyRecord, preferences: preferences, userID: user.userID)
-            try loadAllRecords(for: user.userID)
+            try saveRecordAndRefresh(dailyRecord, userID: user.userID)
         } catch {
             // Keep live environment refresh best-effort.
         }
@@ -1831,16 +1977,23 @@ final class AppViewModel: ObservableObject {
             }
 
             if let remotePreferences = payload.preferences {
-                preferences = hydratedPreferences(from: remotePreferences)
+                let hydratedRemotePreferences = hydratedPreferences(from: remotePreferences)
+                if hydratedRemotePreferences != preferences {
+                    preferences = hydratedRemotePreferences
+                }
                 applyCurrentLanguage()
                 try preferencesStore.savePreferences(preferences, userID: user.userID)
             }
 
+            // Awaited before the local records are read: nothing may suspend between reading and
+            // replacing them, or an edit made in between would be overwritten.
+            let uploadedMediaReferences = payload.records.isEmpty
+                ? [:]
+                : await cloudSyncService.uploadedMediaReferences(for: user)
             let registrationCutoffKey = user.createdAt.storageKey()
-            let store = LocalJSONStore()
-            var database = try store.load()
+            let storedRecordMap = try repository.loadStoredRecordMap(userID: user.userID)
             let prunedLocalRecordMap = Self.recordsByStorageKey(
-                (database.recordsByUser[user.userID] ?? [:]).compactMap { entry in
+                storedRecordMap.compactMap { entry in
                     guard entry.key >= registrationCutoffKey else { return nil }
                     return entry.value.anchoredToStorageKey(entry.key)
                 },
@@ -1848,16 +2001,13 @@ final class AppViewModel: ObservableObject {
             )
 
             if payload.records.isEmpty {
-                if database.recordsByUser[user.userID] != prunedLocalRecordMap {
-                    database.recordsByUser[user.userID] = prunedLocalRecordMap
-                    try store.save(database)
+                if storedRecordMap != prunedLocalRecordMap {
+                    try repository.replaceAllRecords(prunedLocalRecordMap, userID: user.userID)
                 }
-                allRecords = prunedLocalRecordMap.values.sorted { $0.date < $1.date }
+                setAllRecords(prunedLocalRecordMap.values.sorted { $0.date < $1.date })
                 let normalizedRecords = try normalizeStoredTravelRecordTimeZonesIfNeeded(for: user.userID)
-                for record in deduplicatedPendingUploads(normalizedRecords) {
-                    try await cloudSyncService.pushRecord(record, user: user)
-                }
-                await refreshRemotePhotoCache()
+                scheduleRemoteMediaCacheRefresh()
+                scheduleCloudUploads(deduplicatedPendingUploads(normalizedRecords), thenDeleting: [], user: user)
             }
 
             if !payload.records.isEmpty {
@@ -1872,31 +2022,41 @@ final class AppViewModel: ObservableObject {
                         recordsToPush.append(localRecord)
                         continue
                     }
-                    let reconciliation = Self.reconcileCloudRecord(localRecord: localRecord, remoteRecord: remoteRecord)
+                    let reconciliation = Self.reconcileCloudRecord(
+                        localRecord: localRecord,
+                        remoteRecord: remoteRecord,
+                        uploadedMediaReferences: uploadedMediaReferences
+                    )
                     merged[key] = reconciliation.record.backfillingRecordedTimeZones(TimeZone.autoupdatingCurrent.identifier)
                     discardedRemotePhotoReferences.formUnion(reconciliation.discardedRemotePhotoReferences)
                     if reconciliation.shouldPushRecord {
                         recordsToPush.append(reconciliation.record)
                     }
                 }
-                database.recordsByUser[user.userID] = merged
+                let mergedRecordMap = merged
                     .filter { $0.key >= registrationCutoffKey }
                     .mapValues {
-                    $0.backfillingRecordedTimeZones(TimeZone.autoupdatingCurrent.identifier)
+                        $0.backfillingRecordedTimeZones(TimeZone.autoupdatingCurrent.identifier)
+                    }
+                if mergedRecordMap != storedRecordMap {
+                    try repository.replaceAllRecords(mergedRecordMap, userID: user.userID)
                 }
-                try store.save(database)
-                allRecords = database.recordsByUser[user.userID]?
-                    .values
-                    .filter { $0.date >= user.createdAt.startOfDay }
-                    .sorted { $0.date < $1.date } ?? []
+                setAllRecords(
+                    mergedRecordMap.values
+                        .filter { $0.date >= user.createdAt.startOfDay }
+                        .sorted { $0.date < $1.date }
+                )
                 let normalizedRecords = try normalizeStoredTravelRecordTimeZonesIfNeeded(for: user.userID)
-                await refreshRemotePhotoCache()
+                scheduleRemoteMediaCacheRefresh()
 
-                await deleteCloudPhotoReferencesIfPossible(Array(discardedRemotePhotoReferences))
-
-                for record in deduplicatedPendingUploads(recordsToPush + normalizedRecords) {
-                    try await cloudSyncService.pushRecord(record, user: user)
-                }
+                // Uploads run in the background so refreshing finishes as soon as the merged data
+                // is visible. Replaced cloud photos are removed only after the records that stop
+                // referencing them were pushed successfully.
+                scheduleCloudUploads(
+                    deduplicatedPendingUploads(recordsToPush + normalizedRecords),
+                    thenDeleting: Array(discardedRemotePhotoReferences),
+                    user: user
+                )
             }
         } catch {
             if isConnectivityError(error) {
@@ -1912,7 +2072,14 @@ final class AppViewModel: ObservableObject {
         }
     }
 
-    static func reconcileCloudRecord(localRecord: DailyRecord, remoteRecord: DailyRecord) -> CloudRecordReconciliationResult {
+    /// `uploadedMediaReferences` maps local media files to the cloud references they were already
+    /// uploaded as, so a record whose only difference from the cloud copy is local-vs-uploaded media
+    /// paths is not pushed (and its photos re-uploaded) again.
+    static func reconcileCloudRecord(
+        localRecord: DailyRecord,
+        remoteRecord: DailyRecord,
+        uploadedMediaReferences: [String: String] = [:]
+    ) -> CloudRecordReconciliationResult {
         let localRecordIsPreferred = DailyRecord.preferredRecord(between: localRecord, and: remoteRecord) == localRecord
         var mergedRecord = localRecord.mergedPreservingSupplementalContent(
             with: remoteRecord,
@@ -1923,9 +2090,10 @@ final class AppViewModel: ObservableObject {
         if localRecordIsPreferred {
             restoreRemoteMediaForMissingLocalReferences(in: &mergedRecord, from: remoteRecord)
         }
-        let shouldPushRecord = mergedRecord != remoteRecord
+        let cloudReadyRecord = mergedRecord.replacingUploadedMediaReferences(uploadedMediaReferences)
+        let shouldPushRecord = cloudReadyRecord != remoteRecord
         if shouldPushRecord {
-            discardedRemotePhotoReferences = remotePhotoReferences(in: remoteRecord, excluding: mergedRecord)
+            discardedRemotePhotoReferences = remotePhotoReferences(in: remoteRecord, excluding: cloudReadyRecord)
         }
 
         return CloudRecordReconciliationResult(
@@ -1978,31 +2146,69 @@ final class AppViewModel: ObservableObject {
     }
 
     private func syncCurrentRecordToCloudIfNeeded() async {
-        guard let user, !user.isGuest, cloudSyncService.isAvailable else { return }
-        do {
-            try await cloudSyncService.pushRecord(dailyRecord, user: user)
-        } catch {
-            if isConnectivityError(error) {
-                return
-            }
-            if let securityError = error as? CloudSyncSecurityError,
-               securityError == .encryptedSyncLocked {
-                cloudEncryptionState = .locked
-                errorMessage = securityError.localizedDescription
-            } else {
-                errorMessage = NSLocalizedString("云端记录同步失败：", comment: "") + error.localizedDescription
-            }
-        }
+        await syncRecordToCloudIfNeeded(dailyRecord)
     }
 
     private func syncRecordToCloudIfNeeded(_ record: DailyRecord) async {
         guard let user, !user.isGuest, cloudSyncService.isAvailable else { return }
+        _ = await enqueueCloudRecordPush(record, user: user).value
+    }
+
+    /// Record pushes run one at a time so an older version can never land in the cloud after a newer
+    /// one. Requests for a record that is still waiting are coalesced and only its latest version is
+    /// uploaded.
+    @discardableResult
+    private func enqueueCloudRecordPush(_ record: DailyRecord, user: UserAccount) -> Task<Bool, Never> {
+        let key = user.userID + "|" + record.canonicalStorageKey(fallback: record.date.storageKey())
+        pendingCloudRecordPushes[key] = record
+        let previousPush = cloudRecordPushChain
+        let push = Task { [weak self] () -> Bool in
+            await previousPush?.value
+            guard let self else { return false }
+            guard let latestRecord = self.pendingCloudRecordPushes.removeValue(forKey: key) else {
+                // An earlier queued push already uploaded this version; report its outcome.
+                return self.cloudRecordPushResults[key] ?? false
+            }
+            let succeeded = await self.pushRecordToCloud(latestRecord, user: user)
+            self.cloudRecordPushResults[key] = succeeded
+            return succeeded
+        }
+        cloudRecordPushChain = Task { _ = await push.value }
+        return push
+    }
+
+    private func scheduleCloudUploads(_ records: [DailyRecord], thenDeleting photoReferences: [String], user: UserAccount) {
+        guard !records.isEmpty || !photoReferences.isEmpty else { return }
+        let pushes = records.map { enqueueCloudRecordPush($0, user: user) }
+        Task { [weak self] in
+            var allPushesSucceeded = true
+            for push in pushes {
+                if await push.value == false {
+                    allPushesSucceeded = false
+                }
+            }
+            guard allPushesSucceeded, let self, !photoReferences.isEmpty else { return }
+            let uploadedMediaReferences = await self.cloudSyncService.uploadedMediaReferences(for: user)
+            let stillReferenced = Set(self.allRecords.flatMap { record in
+                record.replacingUploadedMediaReferences(uploadedMediaReferences).meals.flatMap(\.photoURLs)
+            })
+            await self.deleteCloudPhotoReferencesIfPossible(photoReferences.filter { !stillReferenced.contains($0) })
+        }
+    }
+
+    private func pushRecordToCloud(_ record: DailyRecord, user: UserAccount) async -> Bool {
         do {
             try await cloudSyncService.pushRecord(record, user: user)
+            return true
         } catch {
             if isConnectivityError(error) {
-                return
+                return false
             }
+            // A batch of queued pushes usually fails for one shared reason; report it once.
+            if let lastReport = lastCloudPushErrorReportedAt, Date().timeIntervalSince(lastReport) < 30 {
+                return false
+            }
+            lastCloudPushErrorReportedAt = Date()
             if let securityError = error as? CloudSyncSecurityError,
                securityError == .encryptedSyncLocked {
                 cloudEncryptionState = .locked
@@ -2010,6 +2216,7 @@ final class AppViewModel: ObservableObject {
             } else {
                 errorMessage = NSLocalizedString("云端记录同步失败：", comment: "") + error.localizedDescription
             }
+            return false
         }
     }
 
@@ -2040,6 +2247,9 @@ final class AppViewModel: ObservableObject {
     private func ensureAutomaticCloudEncryptionIfNeeded() async {
         guard let user, !user.isGuest, cloudSyncService.isAvailable else { return }
         guard !isCloudMigrationInProgress else { return }
+        // Pushes queued by the refresh may still upload in plaintext; let them land before the
+        // migration removes plaintext data.
+        await cloudRecordPushChain?.value
 
         do {
             let snapshot = try await cloudSyncService.protectionSnapshot(for: user)
@@ -2063,10 +2273,7 @@ final class AppViewModel: ObservableObject {
 
     private func rekeyAllRecords(for userID: String) throws {
         let rekeyed = Self.recordsByStorageKey(allRecords, preferences: preferences)
-        let store = LocalJSONStore()
-        var database = try store.load()
-        database.recordsByUser[userID] = rekeyed
-        try store.save(database)
+        try repository.replaceAllRecords(rekeyed, userID: userID)
         try loadAllRecords(for: userID)
     }
 
@@ -2237,7 +2444,7 @@ final class AppViewModel: ObservableObject {
         let records = try repository.loadAllRecords(userID: userID, preferences: preferences)
             .filter { $0.date >= availableStartDate }
         let migration = try migrateRecordedTimeZones(in: records, userID: userID)
-        allRecords = migration.records
+        setAllRecords(migration.records)
         return migration.changedRecords
     }
 
@@ -2557,6 +2764,11 @@ final class AppViewModel: ObservableObject {
                 await deleteCloudPhotoReferenceIfPossible(photoURL)
             } else {
                 try deletePhotoIfLocal(at: photoURL)
+                // Removes the copy uploaded for this local photo, if there is one. Not awaited:
+                // callers keep using indexes into the current record after this returns.
+                Task { [weak self] in
+                    await self?.deleteCloudPhotoReferenceIfPossible(photoURL)
+                }
             }
         }
     }
@@ -3027,5 +3239,97 @@ final class AppViewModel: ObservableObject {
 
         let message = nsError.localizedDescription.lowercased()
         return message.contains("offline") || message.contains("network") || message.contains("internet")
+    }
+}
+
+private struct AnalyticsSummaryKey: Equatable {
+    var range: AnalyticsRange
+    var customRange: ClosedRange<Date>?
+    var defaultMealSlots: [MealSlot]
+    var today: Date
+}
+
+/// Values derived from records and preferences that views read repeatedly. Cleared whenever their
+/// inputs change; entries also expire after a short interval because some results (meal status,
+/// for example) depend on the current time.
+private struct DerivedDataCache {
+    private static let lifetime: TimeInterval = 60
+
+    private struct Entry<Value> {
+        var value: Value
+        var createdAt: Date
+        /// Values for past days don't depend on the current time; values for today and later do.
+        var dependsOnCurrentTime = true
+
+        var isFresh: Bool {
+            !dependsOnCurrentTime || Date().timeIntervalSince(createdAt) < DerivedDataCache.lifetime
+        }
+    }
+
+    private static func dependsOnCurrentTime(dateKey: String) -> Bool {
+        dateKey >= Date().adding(days: -1).storageKey()
+    }
+
+    var earliestRecordDate: Date??
+    var longestRecordStreak: Int?
+    var mergedInsightHistory: [DailyRecord]?
+    /// Position in `allRecords` of the first record for each day.
+    var recordIndexByDay: [Date: Int]?
+    private var analytics: (key: AnalyticsSummaryKey, entry: Entry<AnalyticsSummary>)?
+    private var insightReports: [String: Entry<DailyInsightReport?>] = [:]
+    private var insightSignatures: [String: Entry<String?>] = [:]
+
+    mutating func removeAll() {
+        self = DerivedDataCache()
+    }
+
+    /// One stored day changed: aggregate values are recomputed, and per-day insight values only for
+    /// that day and the days whose comparison history includes it.
+    mutating func recordDidChange(on day: Date, insightLookbackDays: Int) {
+        earliestRecordDate = nil
+        longestRecordStreak = nil
+        mergedInsightHistory = nil
+        recordIndexByDay = nil
+        analytics = nil
+        let changedDay = day.startOfDay
+        insightReports[changedDay.storageKey()] = nil
+        for offset in 0...insightLookbackDays {
+            insightSignatures[changedDay.adding(days: offset).storageKey()] = nil
+        }
+    }
+
+    /// Per-day insight values for the old and new day of the selected record depend on it directly.
+    mutating func dailyRecordDidChange(from oldDate: Date, to newDate: Date) {
+        for dateKey in Set([oldDate.startOfDay.storageKey(), newDate.startOfDay.storageKey()]) {
+            insightReports[dateKey] = nil
+            insightSignatures[dateKey] = nil
+        }
+    }
+
+    func analyticsSummary(for key: AnalyticsSummaryKey) -> AnalyticsSummary? {
+        guard let analytics, analytics.key == key, analytics.entry.isFresh else { return nil }
+        return analytics.entry.value
+    }
+
+    mutating func storeAnalyticsSummary(_ summary: AnalyticsSummary, for key: AnalyticsSummaryKey) {
+        analytics = (key, Entry(value: summary, createdAt: Date()))
+    }
+
+    func insightReport(forDateKey dateKey: String) -> DailyInsightReport?? {
+        guard let entry = insightReports[dateKey], entry.isFresh else { return nil }
+        return .some(entry.value)
+    }
+
+    mutating func storeInsightReport(_ report: DailyInsightReport?, forDateKey dateKey: String) {
+        insightReports[dateKey] = Entry(value: report, createdAt: Date(), dependsOnCurrentTime: Self.dependsOnCurrentTime(dateKey: dateKey))
+    }
+
+    func insightSignature(forDateKey dateKey: String) -> String?? {
+        guard let entry = insightSignatures[dateKey], entry.isFresh else { return nil }
+        return .some(entry.value)
+    }
+
+    mutating func storeInsightSignature(_ signature: String?, forDateKey dateKey: String) {
+        insightSignatures[dateKey] = Entry(value: signature, createdAt: Date(), dependsOnCurrentTime: Self.dependsOnCurrentTime(dateKey: dateKey))
     }
 }

@@ -20,6 +20,33 @@ protocol DailyRecordRepository {
     func loadRecord(for date: Date, preferences: UserPreferences, userID: String) throws -> DailyRecord
     func saveRecord(_ record: DailyRecord, preferences: UserPreferences, userID: String) throws
     func loadAllRecords(userID: String, preferences: UserPreferences) throws -> [DailyRecord]
+    /// The key `saveRecord` stores `record` under.
+    func storageKey(for record: DailyRecord, preferences: UserPreferences) -> String
+    func loadStoredRecord(forStorageKey key: String, preferences: UserPreferences, userID: String) throws -> DailyRecord?
+    /// Raw stored records keyed as they are on disk, without canonicalization.
+    func loadStoredRecordMap(userID: String) throws -> [String: DailyRecord]
+    func replaceAllRecords(_ records: [String: DailyRecord], userID: String) throws
+}
+
+extension DailyRecordRepository {
+    func storageKey(for record: DailyRecord, preferences: UserPreferences) -> String {
+        record.date.storageKey()
+    }
+
+    func loadStoredRecord(forStorageKey key: String, preferences: UserPreferences, userID: String) throws -> DailyRecord? {
+        try loadAllRecords(userID: userID, preferences: preferences).first { $0.date.storageKey() == key }
+    }
+
+    func loadStoredRecordMap(userID: String) throws -> [String: DailyRecord] {
+        let records = try loadAllRecords(userID: userID, preferences: UserPreferences())
+        return Dictionary(records.map { ($0.date.storageKey(), $0) }, uniquingKeysWith: { _, latest in latest })
+    }
+
+    func replaceAllRecords(_ records: [String: DailyRecord], userID: String) throws {
+        for record in records.values {
+            try saveRecord(record, preferences: UserPreferences(), userID: userID)
+        }
+    }
 }
 
 protocol TravelPlanRepository {
@@ -255,14 +282,12 @@ final class LocalAuthService: AuthService {
 
     private func refreshUser(_ session: UserAccount) -> UserAccount? {
         do {
-            var database = try store.load()
-            if let profile = database.profilesByUser[session.userID] {
+            if let profile = try store.load().profilesByUser[session.userID] {
                 let authoritativeCreatedAt = max(profile.createdAt.startOfDay, session.createdAt.startOfDay)
                 if profile.createdAt.startOfDay != authoritativeCreatedAt {
                     var updatedProfile = profile
                     updatedProfile.createdAt = authoritativeCreatedAt
-                    database.profilesByUser[session.userID] = updatedProfile
-                    try store.save(database)
+                    try store.update { $0.profilesByUser[session.userID] = updatedProfile }
                 }
                 return UserAccount(
                     userID: session.userID,
@@ -274,14 +299,14 @@ final class LocalAuthService: AuthService {
             }
 
             let authoritativeCreatedAt = session.createdAt.startOfDay
-            database.profilesByUser[session.userID] = UserProfile(
+            let profile = UserProfile(
                 userID: session.userID,
                 displayName: session.displayName,
                 email: session.email,
                 authMode: session.authMode,
                 createdAt: authoritativeCreatedAt
             )
-            try store.save(database)
+            try store.update { $0.profilesByUser[session.userID] = profile }
             return UserAccount(
                 userID: session.userID,
                 displayName: session.displayName,
@@ -295,18 +320,17 @@ final class LocalAuthService: AuthService {
     }
 
     private func saveProfile(for user: UserAccount) throws -> UserAccount {
-        var database = try store.load()
-        let existingProfile = database.profilesByUser[user.userID]
+        let existingProfile = try store.load().profilesByUser[user.userID]
         let authoritativeCreatedAt = max(existingProfile?.createdAt.startOfDay ?? user.createdAt.startOfDay, user.createdAt.startOfDay)
         let mergedDisplayName = resolvedDisplayName(for: user, profile: existingProfile)
-        database.profilesByUser[user.userID] = UserProfile(
+        let profile = UserProfile(
             userID: user.userID,
             displayName: mergedDisplayName,
             email: user.email ?? existingProfile?.email,
             authMode: user.authMode,
             createdAt: authoritativeCreatedAt
         )
-        try store.save(database)
+        try store.update { $0.profilesByUser[user.userID] = profile }
         return UserAccount(
             userID: user.userID,
             displayName: mergedDisplayName,
@@ -465,6 +489,12 @@ final class LocalAuthService: AuthService {
     }
 }
 
+/// Local persistence for every account on the device.
+///
+/// The whole database is decoded once and kept in memory; reads never touch the disk and writes
+/// update the in-memory copy immediately, then reach the file through a coalesced background write.
+/// Pending writes are flushed when the app moves to the background or terminates. The on-disk format
+/// is unchanged, so existing installs keep their data.
 final class LocalJSONStore {
     struct Database: Codable {
         var recordsByUser: [String: [String: DailyRecord]] = [:]
@@ -490,29 +520,248 @@ final class LocalJSONStore {
         }
     }
 
-    private let fileURL: URL
-    private let encoder = JSONEncoder()
-    private let decoder = JSONDecoder()
+    private let state: FileState
 
     init(filename: String = "dailylogs-database.json") {
         let supportURL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
         let directory = supportURL.appendingPathComponent("DailyLogs", isDirectory: true)
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        self.fileURL = directory.appendingPathComponent(filename)
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        encoder.dateEncodingStrategy = .iso8601
-        decoder.dateDecodingStrategy = .iso8601
+        state = FileState.shared(for: directory.appendingPathComponent(filename))
     }
 
     func load() throws -> Database {
-        guard FileManager.default.fileExists(atPath: fileURL.path) else { return Database() }
-        let data = try Data(contentsOf: fileURL)
-        return try decoder.decode(Database.self, from: data)
+        try state.withDatabase { $0 }
     }
 
+    /// Replaces the whole database. Prefer `update(_:)` for targeted changes.
     func save(_ database: Database) throws {
-        let data = try encoder.encode(database)
-        try data.write(to: fileURL, options: .atomic)
+        state.replace(with: database)
+    }
+
+    /// Mutates the in-memory database in place and schedules a background write.
+    @discardableResult
+    func update<Result>(_ body: (inout Database) throws -> Result) throws -> Result {
+        try state.update(body)
+    }
+
+    /// Synchronously writes any pending changes to disk.
+    func flush() {
+        state.flush()
+    }
+
+    /// Starts decoding the database on a background thread so the first read on the main thread
+    /// (usually during launch) finds it ready or only waits for the remainder.
+    func preloadInBackground() {
+        let state = state
+        DispatchQueue.global(qos: .userInitiated).async {
+            _ = try? state.withDatabase { _ in () }
+        }
+    }
+
+    /// Returns `value` exactly as it reads back after a write/load cycle (for example dates lose
+    /// sub-second precision), so cached values match what a fresh launch would see.
+    func storedRepresentation<Value: Codable>(of value: Value) throws -> Value {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return try decoder.decode(Value.self, from: Self.makeEncoder().encode(value))
+    }
+
+    fileprivate func canonicalRecordStamp(for userID: String) -> AnyHashable? {
+        state.canonicalRecordStamp(for: userID)
+    }
+
+    fileprivate func setCanonicalRecordStamp(_ stamp: AnyHashable, for userID: String) {
+        state.setCanonicalRecordStamp(stamp, for: userID)
+    }
+
+    fileprivate func clearCanonicalRecordStamp(for userID: String) {
+        state.setCanonicalRecordStamp(nil, for: userID)
+    }
+
+    fileprivate static func makeEncoder() -> JSONEncoder {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        return encoder
+    }
+
+    /// Cache shared by every store instance that points at the same file.
+    private final class FileState: @unchecked Sendable {
+        private static let registryLock = NSLock()
+        nonisolated(unsafe) private static var registry: [URL: FileState] = [:]
+        private static let writeDelay: DispatchTimeInterval = .milliseconds(250)
+
+        private let fileURL: URL
+        private let lock = NSRecursiveLock()
+        private let writeQueue: DispatchQueue
+        private var database: Database?
+        private var revision = 0
+        private var persistedRevision = 0
+        private var isWriteScheduled = false
+        private var canonicalRecordStamps: [String: AnyHashable] = [:]
+        private var lifecycleObservers: [NSObjectProtocol] = []
+
+        static func shared(for fileURL: URL) -> FileState {
+            registryLock.lock()
+            defer { registryLock.unlock() }
+            if let existing = registry[fileURL] {
+                return existing
+            }
+            let state = FileState(fileURL: fileURL)
+            registry[fileURL] = state
+            return state
+        }
+
+        private init(fileURL: URL) {
+            self.fileURL = fileURL
+            writeQueue = DispatchQueue(label: "dailylogs.localstore.\(fileURL.lastPathComponent)", qos: .utility)
+            let center = NotificationCenter.default
+            let lifecycleEvents = [
+                Notification.Name("UIApplicationDidEnterBackgroundNotification"),
+                Notification.Name("UIApplicationWillTerminateNotification")
+            ]
+            for name in lifecycleEvents {
+                lifecycleObservers.append(center.addObserver(forName: name, object: nil, queue: nil) { [weak self] _ in
+                    self?.flushForLifecycleEvent()
+                })
+            }
+        }
+
+        func withDatabase<Result>(_ body: (Database) throws -> Result) throws -> Result {
+            lock.lock()
+            defer { lock.unlock() }
+            try loadIfNeeded()
+            return try body(database ?? Database())
+        }
+
+        func update<Result>(_ body: (inout Database) throws -> Result) throws -> Result {
+            lock.lock()
+            defer { lock.unlock() }
+            try loadIfNeeded()
+            if database == nil {
+                database = Database()
+            }
+            defer { markDirty() }
+            return try body(&database!)
+        }
+
+        func replace(with newDatabase: Database) {
+            lock.lock()
+            defer { lock.unlock() }
+            database = newDatabase
+            canonicalRecordStamps.removeAll()
+            markDirty()
+        }
+
+        func canonicalRecordStamp(for userID: String) -> AnyHashable? {
+            lock.lock()
+            defer { lock.unlock() }
+            return canonicalRecordStamps[userID]
+        }
+
+        func setCanonicalRecordStamp(_ stamp: AnyHashable?, for userID: String) {
+            lock.lock()
+            defer { lock.unlock() }
+            canonicalRecordStamps[userID] = stamp
+        }
+
+        func flush() {
+            writeQueue.sync {
+                writePendingChanges()
+            }
+        }
+
+        private func loadIfNeeded() throws {
+            guard database == nil else { return }
+            guard FileManager.default.fileExists(atPath: fileURL.path) else {
+                database = Database()
+                return
+            }
+            let data = try Data(contentsOf: fileURL)
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .iso8601
+            // A decoding failure is rethrown and nothing is cached, so a damaged file is never
+            // replaced by an empty database.
+            database = try decoder.decode(Database.self, from: data)
+        }
+
+        private func markDirty() {
+            revision += 1
+            guard !isWriteScheduled else { return }
+            isWriteScheduled = true
+            writeQueue.asyncAfter(deadline: .now() + Self.writeDelay) { [self] in
+                writePendingChanges()
+            }
+        }
+
+        /// Runs on `writeQueue`.
+        private func writePendingChanges() {
+            lock.lock()
+            isWriteScheduled = false
+            guard let snapshot = database, revision != persistedRevision else {
+                lock.unlock()
+                return
+            }
+            let snapshotRevision = revision
+            lock.unlock()
+
+            do {
+                let data = try LocalJSONStore.makeEncoder().encode(snapshot)
+                try data.write(to: fileURL, options: .atomic)
+                lock.lock()
+                persistedRevision = max(persistedRevision, snapshotRevision)
+                lock.unlock()
+            } catch {
+                #if DEBUG
+                print("LocalJSONStore: failed to write \(fileURL.lastPathComponent): \(error)")
+                #endif
+                // Keep retrying until the in-memory changes reach the disk.
+                lock.lock()
+                if !isWriteScheduled {
+                    isWriteScheduled = true
+                    writeQueue.asyncAfter(deadline: .now() + .seconds(2)) { [self] in
+                        writePendingChanges()
+                    }
+                }
+                lock.unlock()
+            }
+        }
+
+        private func flushForLifecycleEvent() {
+            lock.lock()
+            let hasPendingChanges = revision != persistedRevision
+            lock.unlock()
+            guard hasPendingChanges else { return }
+
+            if Thread.isMainThread {
+                MainActor.assumeIsolated {
+                    let taskID = UIApplication.shared.beginBackgroundTask(withName: "DailyLogs.LocalJSONStore.flush")
+                    flush()
+                    if taskID != .invalid {
+                        UIApplication.shared.endBackgroundTask(taskID)
+                    }
+                }
+            } else {
+                flush()
+            }
+        }
+    }
+}
+
+/// Identifies the settings a canonical record map was computed with. Storage keys depend on
+/// midnight mode, the current calendar and the device time zone.
+private struct CanonicalRecordStamp: Hashable {
+    var midnightModeEnabled: Bool
+    var midnightModeCutoffHour: Int
+    var midnightModeEffectiveFrom: Date?
+    var calendarIdentifier: Calendar.Identifier
+    var timeZoneIdentifier: String
+
+    init(preferences: UserPreferences) {
+        midnightModeEnabled = preferences.midnightMode.isEnabled
+        midnightModeCutoffHour = preferences.midnightMode.cutoffHour
+        midnightModeEffectiveFrom = preferences.midnightMode.effectiveFrom
+        calendarIdentifier = Calendar.current.identifier
+        timeZoneIdentifier = TimeZone.autoupdatingCurrent.identifier
     }
 }
 
@@ -524,36 +773,67 @@ final class LocalDailyRecordRepository: DailyRecordRepository {
     }
 
     func loadRecord(for date: Date, preferences: UserPreferences, userID: String) throws -> DailyRecord {
-        let key = date.storageKey()
-        var database = try store.load()
-        let canonicalRecords = canonicalizedRecordMap(database.recordsByUser[userID] ?? [:], preferences: preferences)
-        if canonicalRecords != (database.recordsByUser[userID] ?? [:]) {
-            database.recordsByUser[userID] = canonicalRecords
-            try store.save(database)
-        }
-        if let record = canonicalRecords[key] {
+        let records = try canonicalRecordMap(userID: userID, preferences: preferences)
+        if let record = records[date.storageKey()] {
             return record
         }
         return DailyRecord.empty(for: date, preferences: preferences)
     }
 
     func saveRecord(_ record: DailyRecord, preferences: UserPreferences, userID: String) throws {
-        var database = try store.load()
-        var records = canonicalizedRecordMap(database.recordsByUser[userID] ?? [:], preferences: preferences)
-        let key = record.canonicalStorageKey(using: preferences, fallback: record.date.storageKey())
-        records[key] = record.anchoredToStorageKey(key)
-        database.recordsByUser[userID] = canonicalizedRecordMap(records, preferences: preferences)
-        try store.save(database)
+        _ = try canonicalRecordMap(userID: userID, preferences: preferences)
+        let key = storageKey(for: record, preferences: preferences)
+        let storedRecord = try store.storedRepresentation(of: record.anchoredToStorageKey(key))
+        try store.update { database in
+            database.recordsByUser[userID, default: [:]][key] = storedRecord
+        }
     }
 
     func loadAllRecords(userID: String, preferences: UserPreferences) throws -> [DailyRecord] {
-        var database = try store.load()
-        let canonicalRecords = canonicalizedRecordMap(database.recordsByUser[userID] ?? [:], preferences: preferences)
-        if canonicalRecords != (database.recordsByUser[userID] ?? [:]) {
-            database.recordsByUser[userID] = canonicalRecords
-            try store.save(database)
+        try canonicalRecordMap(userID: userID, preferences: preferences)
+            .values
+            .sorted { $0.date < $1.date }
+    }
+
+    func storageKey(for record: DailyRecord, preferences: UserPreferences) -> String {
+        record.canonicalStorageKey(using: preferences, fallback: record.date.storageKey())
+    }
+
+    func loadStoredRecord(forStorageKey key: String, preferences: UserPreferences, userID: String) throws -> DailyRecord? {
+        try canonicalRecordMap(userID: userID, preferences: preferences)[key]
+    }
+
+    func loadStoredRecordMap(userID: String) throws -> [String: DailyRecord] {
+        try store.load().recordsByUser[userID] ?? [:]
+    }
+
+    /// `records` must already be in stored form (loaded from this store or decoded from the cloud);
+    /// re-encoding the whole map here would stall the main thread.
+    func replaceAllRecords(_ records: [String: DailyRecord], userID: String) throws {
+        try store.update { database in
+            database.recordsByUser[userID] = records
         }
-        return canonicalRecords.values.sorted { $0.date < $1.date }
+        store.clearCanonicalRecordStamp(for: userID)
+    }
+
+    /// Returns the user's records keyed by canonical storage key. The map is canonicalized (and the
+    /// result persisted) only when the settings that affect storage keys change, instead of on every
+    /// read and write.
+    private func canonicalRecordMap(userID: String, preferences: UserPreferences) throws -> [String: DailyRecord] {
+        let stamp = CanonicalRecordStamp(preferences: preferences)
+        let storedRecords = try store.load().recordsByUser[userID] ?? [:]
+        if store.canonicalRecordStamp(for: userID) == AnyHashable(stamp) {
+            return storedRecords
+        }
+
+        let canonicalRecords = canonicalizedRecordMap(storedRecords, preferences: preferences)
+        if canonicalRecords != storedRecords {
+            try store.update { database in
+                database.recordsByUser[userID] = canonicalRecords
+            }
+        }
+        store.setCanonicalRecordStamp(stamp, for: userID)
+        return canonicalRecords
     }
 
     private func canonicalizedRecordMap(_ records: [String: DailyRecord], preferences: UserPreferences) -> [String: DailyRecord] {
@@ -580,12 +860,12 @@ final class LocalTravelPlanRepository: TravelPlanRepository {
     }
 
     func loadTravelPlans(userID: String) throws -> [TravelPlan] {
-        var database = try store.load()
-        let storedPlans = database.travelPlansByUser[userID] ?? []
+        let storedPlans = try store.load().travelPlansByUser[userID] ?? []
         let normalizedPlans = storedPlans.map { $0.normalizedForChronology() }
         if normalizedPlans != storedPlans {
-            database.travelPlansByUser[userID] = normalizedPlans
-            try store.save(database)
+            try store.update { database in
+                database.travelPlansByUser[userID] = normalizedPlans
+            }
         }
         return normalizedPlans
             .sorted { lhs, rhs in
@@ -594,26 +874,26 @@ final class LocalTravelPlanRepository: TravelPlanRepository {
     }
 
     func saveTravelPlan(_ plan: TravelPlan, userID: String) throws {
-        var database = try store.load()
-        var plans = database.travelPlansByUser[userID] ?? []
-        let normalizedPlan = plan.normalizedForChronology()
-        if let index = plans.firstIndex(where: { $0.id == plan.id }) {
-            plans[index] = normalizedPlan
-        } else {
-            plans.append(normalizedPlan)
+        let normalizedPlan = try store.storedRepresentation(of: plan.normalizedForChronology())
+        try store.update { database in
+            var plans = database.travelPlansByUser[userID] ?? []
+            if let index = plans.firstIndex(where: { $0.id == plan.id }) {
+                plans[index] = normalizedPlan
+            } else {
+                plans.append(normalizedPlan)
+            }
+            database.travelPlansByUser[userID] = plans.sorted {
+                ($0.earliestCalendarDate ?? .distantFuture) < ($1.earliestCalendarDate ?? .distantFuture)
+            }
         }
-        database.travelPlansByUser[userID] = plans.sorted {
-            ($0.earliestCalendarDate ?? .distantFuture) < ($1.earliestCalendarDate ?? .distantFuture)
-        }
-        try store.save(database)
     }
 
     func deleteTravelPlan(_ plan: TravelPlan, userID: String) throws {
-        var database = try store.load()
-        var plans = database.travelPlansByUser[userID] ?? []
-        plans.removeAll { $0.id == plan.id }
-        database.travelPlansByUser[userID] = plans
-        try store.save(database)
+        try store.update { database in
+            var plans = database.travelPlansByUser[userID] ?? []
+            plans.removeAll { $0.id == plan.id }
+            database.travelPlansByUser[userID] = plans
+        }
     }
 }
 
@@ -626,14 +906,16 @@ final class LocalPreferencesStore: PreferencesStore {
     }
 
     func loadPreferences(userID: String?) throws -> UserPreferences {
-        let database = try store.load()
-        return database.preferencesByUser[userID ?? anonymousKey] ?? UserPreferences()
+        try store.load().preferencesByUser[userID ?? anonymousKey] ?? UserPreferences()
     }
 
     func savePreferences(_ preferences: UserPreferences, userID: String?) throws {
-        var database = try store.load()
-        database.preferencesByUser[userID ?? anonymousKey] = preferences
-        try store.save(database)
+        let key = userID ?? anonymousKey
+        let storedPreferences = try store.storedRepresentation(of: preferences)
+        try store.update { database in
+            guard database.preferencesByUser[key] != storedPreferences else { return }
+            database.preferencesByUser[key] = storedPreferences
+        }
     }
 }
 

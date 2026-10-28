@@ -24,6 +24,34 @@ protocol CloudSyncService: Sendable {
         localRecords: [DailyRecord],
         progress: @escaping @Sendable (CloudMigrationProgress) async -> Void
     ) async throws
+    /// Local media file names mapped to the cloud references they were uploaded as.
+    func uploadedMediaReferences(for user: UserAccount) async -> [String: String]
+}
+
+extension CloudSyncService {
+    func uploadedMediaReferences(for user: UserAccount) async -> [String: String] {
+        [:]
+    }
+}
+
+extension DailyRecord {
+    /// The record as it looks once pushed: local photo and video paths that were already uploaded
+    /// are replaced by their cloud references.
+    func replacingUploadedMediaReferences(_ uploadedReferences: [String: String]) -> DailyRecord {
+        guard !uploadedReferences.isEmpty else { return self }
+        var updated = self
+        for index in updated.meals.indices {
+            updated.meals[index].photoURLs = updated.meals[index].photoURLs.map {
+                CloudMediaReferenceMap.localKey(for: $0).flatMap { uploadedReferences[$0] } ?? $0
+            }
+        }
+        if var dailyVideo = updated.dailyVideo,
+           let uploadedVideoReference = CloudMediaReferenceMap.localKey(for: dailyVideo.videoURL).flatMap({ uploadedReferences[$0] }) {
+            dailyVideo.videoURL = uploadedVideoReference
+            updated.dailyVideo = dailyVideo
+        }
+        return updated
+    }
 }
 
 struct NoopCloudSyncService: CloudSyncService {
@@ -56,6 +84,8 @@ struct NoopCloudSyncService: CloudSyncService {
 final class FirebaseCloudSyncService: CloudSyncService, Sendable {
     private let crypto = CloudCryptoService()
     private let keychain = CloudKeychainStore()
+    private let session = CloudSessionCache()
+    private let mediaReferences = CloudMediaReferenceMap()
 
     private var db: Firestore? {
         FirebaseBootstrap.configureIfPossible()
@@ -115,6 +145,8 @@ final class FirebaseCloudSyncService: CloudSyncService, Sendable {
             return CloudBootstrapPayload(profile: nil, preferences: nil, records: [])
         }
 
+        // A refresh re-validates the encryption state; routine pushes reuse what it established.
+        session.invalidate(userID: user.userID)
         let encryptionMetadata = try await fetchEncryptionMetadata(for: user)
         let hasLegacyPlaintext = try await hasLegacyPlaintextData(for: user)
         guard encryptionMetadata != nil || hasLegacyPlaintext else {
@@ -130,14 +162,16 @@ final class FirebaseCloudSyncService: CloudSyncService, Sendable {
             }
 
             let userRef = db.collection("users").document(user.userID)
-            let profileSnapshot = try await userRef.collection("secureProfile").document("current").getDocument()
-            let prefsSnapshot = try await userRef.collection("securePreferences").document("current").getDocument()
+            async let profileSnapshot = userRef.collection("secureProfile").document("current").getDocument()
+            async let prefsSnapshot = userRef.collection("securePreferences").document("current").getDocument()
+            async let encryptedRecords = loadEncryptedRecords(user: user, key: key, registrationDate: user.createdAt)
 
-            let remoteProfile = try decryptDocument(UserProfile.self, from: profileSnapshot.data(), key: key)
-            let remotePreferences = try decryptDocument(UserPreferences.self, from: prefsSnapshot.data(), key: key)
-            let remoteRecords = try await loadEncryptedRecords(user: user, key: key, registrationDate: user.createdAt)
+            let remoteProfile = try decryptDocument(UserProfile.self, from: try await profileSnapshot.data(), key: key)
+            let prefsDocument = try await prefsSnapshot
+            let remotePreferences = try decryptDocument(UserPreferences.self, from: prefsDocument.data(), key: key)
+            let remoteRecords = try await encryptedRecords
 
-            if prefsSnapshot.exists == false {
+            if prefsDocument.exists == false {
                 try await pushEncryptedPreferences(localPreferences, user: user, key: key)
             }
 
@@ -155,14 +189,16 @@ final class FirebaseCloudSyncService: CloudSyncService, Sendable {
         }
 
         let userRef = db.collection("users").document(user.userID)
-        let profileSnapshot = try await userRef.getDocument()
-        let prefsSnapshot = try await userRef.collection("preferences").document("current").getDocument()
+        async let profileSnapshot = userRef.getDocument()
+        async let prefsSnapshot = userRef.collection("preferences").document("current").getDocument()
+        async let plaintextRecords = loadPlaintextRecords(user: user, registrationDate: user.createdAt)
 
-        let remoteProfile = try profileSnapshot.data().flatMap { try decode(UserProfile.self, from: $0) }
-        let remotePreferences = try prefsSnapshot.data().flatMap { try decode(UserPreferences.self, from: $0) }
-        let remoteRecords = try await loadPlaintextRecords(user: user, registrationDate: user.createdAt)
+        let remoteProfile = try await profileSnapshot.data().flatMap { try decode(UserProfile.self, from: $0) }
+        let prefsDocument = try await prefsSnapshot
+        let remotePreferences = try prefsDocument.data().flatMap { try decode(UserPreferences.self, from: $0) }
+        let remoteRecords = try await plaintextRecords
 
-        if prefsSnapshot.exists == false {
+        if prefsDocument.exists == false {
             try await pushPreferences(localPreferences, user: user)
         }
 
@@ -224,8 +260,18 @@ final class FirebaseCloudSyncService: CloudSyncService, Sendable {
         try await upsertProfile(user, encrypted: false)
     }
 
-    func deletePhotoReference(_ photoReference: String, user _: UserAccount) async throws {
+    func deletePhotoReference(_ photoReference: String, user: UserAccount) async throws {
         guard !storages.isEmpty else { return }
+
+        if let localKey = CloudMediaReferenceMap.localKey(for: photoReference) {
+            for uploadedReference in await mediaReferences.removeReferences(forLocalKey: localKey, userID: user.userID) {
+                try? await deletePhotoReference(uploadedReference, user: user)
+            }
+            return
+        }
+
+        // A local file mapped to this object must be uploaded again the next time it is pushed.
+        await mediaReferences.forgetUploadedReference(photoReference, userID: user.userID)
 
         if SecureCloudPhotoReference.isSecureReference(photoReference) {
             try await deleteSecurePhoto(at: photoReference)
@@ -272,6 +318,8 @@ final class FirebaseCloudSyncService: CloudSyncService, Sendable {
         }
         await progress(CloudMigrationProgress(fractionCompleted: 0.88, message: NSLocalizedString("正在切换加密存储…", comment: "")))
         try await writeEncryptionMetadata(metadata, for: user)
+        session.storeMetadata(metadata, for: user.userID)
+        session.storeKey(key, for: user.userID)
         try await upsertProfile(user, encrypted: true)
         await progress(CloudMigrationProgress(fractionCompleted: 0.95, message: NSLocalizedString("正在清理旧数据…", comment: "")))
         try await deleteLegacyPlaintextCloudData(for: user)
@@ -280,6 +328,11 @@ final class FirebaseCloudSyncService: CloudSyncService, Sendable {
 
     private func upsertProfile(_ user: UserAccount, encrypted: Bool) async throws {
         guard let db else { return }
+        let profileSignature = [user.userID, user.authMode.rawValue, user.createdAt.displayISO8601, String(encrypted), user.displayName, user.email ?? ""]
+            .joined(separator: "|")
+        // The profile document only changes when one of these fields does; rewriting it on every
+        // record push just refreshed `updatedAt`.
+        guard session.shouldUpsertProfile(signature: profileSignature, userID: user.userID) else { return }
         let payload: [String: Any] = [
             "userID": user.userID,
             "authMode": user.authMode.rawValue,
@@ -296,6 +349,7 @@ final class FirebaseCloudSyncService: CloudSyncService, Sendable {
             plaintextPayload["email"] = user.email as Any
             try await db.collection("users").document(user.userID).setData(plaintextPayload, merge: true)
         }
+        session.recordProfileUpsert(signature: profileSignature, userID: user.userID)
     }
 
     private func preparedPlaintextRecord(_ record: DailyRecord, userID: String) async throws -> DailyRecord {
@@ -313,12 +367,18 @@ final class FirebaseCloudSyncService: CloudSyncService, Sendable {
                     uploadedPhotoURLs.append(photoURL)
                     continue
                 }
+                let localKey = CloudMediaReferenceMap.localKey(for: photoURL)
+                if let localKey,
+                   let uploadedPhotoURL = await mediaReferences.reference(forLocalKey: localKey, userID: userID, mode: .plaintext) {
+                    uploadedPhotoURLs.append(uploadedPhotoURL)
+                    continue
+                }
                 guard let localPhotoURL = LocalPhotoStorageService.resolvedURL(for: photoURL) else {
                     continue
                 }
                 do {
                     let data = try Data(contentsOf: localPhotoURL)
-                    let filename = "\(updated.meals[index].id.uuidString)-\(photoIndex).jpg"
+                    let filename = "\(updated.meals[index].id.uuidString)-\(Self.uploadNameComponent(for: localKey, fallbackIndex: photoIndex)).jpg"
                     let path = "users/\(userID)/meal-photos/\(filename)"
                     let meta = StorageMetadata()
                     meta.contentType = "image/jpeg"
@@ -328,6 +388,9 @@ final class FirebaseCloudSyncService: CloudSyncService, Sendable {
                         metadata: meta
                     )
                     uploadedPhotoURLs.append(uploadedPhotoURL)
+                    if let localKey {
+                        await mediaReferences.store(uploadedPhotoURL, forLocalKey: localKey, userID: userID, mode: .plaintext)
+                    }
                 } catch {
                     #if DEBUG
                     print(
@@ -340,10 +403,16 @@ final class FirebaseCloudSyncService: CloudSyncService, Sendable {
             updated.meals[index].photoURLs = uploadedPhotoURLs
         }
         if var dailyVideo = updated.dailyVideo,
+           let localKey = CloudMediaReferenceMap.localKey(for: dailyVideo.videoURL),
+           let uploadedVideoURL = await mediaReferences.reference(forLocalKey: localKey, userID: userID, mode: .plaintext) {
+            dailyVideo.videoURL = uploadedVideoURL
+            updated.dailyVideo = dailyVideo
+        } else if var dailyVideo = updated.dailyVideo,
            !dailyVideo.videoURL.hasPrefix("http://"),
            !dailyVideo.videoURL.hasPrefix("https://"),
            !SecureCloudMediaReference.isSecureReference(dailyVideo.videoURL),
            let localVideoURL = LocalVideoStorageService.resolvedURL(for: dailyVideo.videoURL) {
+            let localKey = CloudMediaReferenceMap.localKey(for: dailyVideo.videoURL)
             do {
                 let data = try Data(contentsOf: localVideoURL)
                 let path = "users/\(userID)/daily-videos/\(recordKey).mp4"
@@ -355,6 +424,9 @@ final class FirebaseCloudSyncService: CloudSyncService, Sendable {
                     metadata: meta
                 )
                 updated.dailyVideo = dailyVideo
+                if let localKey {
+                    await mediaReferences.store(dailyVideo.videoURL, forLocalKey: localKey, userID: userID, mode: .plaintext)
+                }
             } catch {
                 #if DEBUG
                 print("CloudSync: video upload failed for record \(recordKey): \(error)")
@@ -405,12 +477,18 @@ final class FirebaseCloudSyncService: CloudSyncService, Sendable {
                     encryptedPhotoReferences.append(photoReference)
                     continue
                 }
+                let localKey = CloudMediaReferenceMap.localKey(for: photoReference)
+                if let localKey,
+                   let uploadedReference = await mediaReferences.reference(forLocalKey: localKey, userID: userID, mode: .encrypted) {
+                    encryptedPhotoReferences.append(uploadedReference)
+                    continue
+                }
                 guard let data = try await loadPhotoData(for: photoReference) else {
                     continue
                 }
 
                 do {
-                    let filename = "\(updated.meals[index].id.uuidString)-\(photoIndex).bin"
+                    let filename = "\(updated.meals[index].id.uuidString)-\(Self.uploadNameComponent(for: localKey, fallbackIndex: photoIndex)).bin"
                     let path = "users/\(userID)/secure-meal-photos/\(filename)"
                     let encryptedReference = try await uploadEncryptedPhoto(
                         data: data,
@@ -418,6 +496,9 @@ final class FirebaseCloudSyncService: CloudSyncService, Sendable {
                         key: key
                     )
                     encryptedPhotoReferences.append(encryptedReference)
+                    if let localKey {
+                        await mediaReferences.store(encryptedReference, forLocalKey: localKey, userID: userID, mode: .encrypted)
+                    }
                     if photoReference.hasPrefix("http://") || photoReference.hasPrefix("https://") {
                         try? await deleteLegacyPhoto(at: photoReference)
                     }
@@ -430,8 +511,14 @@ final class FirebaseCloudSyncService: CloudSyncService, Sendable {
             updated.meals[index].photoURLs = encryptedPhotoReferences
         }
         if var dailyVideo = updated.dailyVideo,
+           let localKey = CloudMediaReferenceMap.localKey(for: dailyVideo.videoURL),
+           let uploadedReference = await mediaReferences.reference(forLocalKey: localKey, userID: userID, mode: .encrypted) {
+            dailyVideo.videoURL = uploadedReference
+            updated.dailyVideo = dailyVideo
+        } else if var dailyVideo = updated.dailyVideo,
            !SecureCloudMediaReference.isSecureReference(dailyVideo.videoURL),
            let data = try await loadVideoData(for: dailyVideo.videoURL) {
+            let localKey = CloudMediaReferenceMap.localKey(for: dailyVideo.videoURL)
             do {
                 let path = "users/\(userID)/secure-daily-videos/\(recordKey).bin"
                 dailyVideo.videoURL = try await uploadEncryptedVideo(
@@ -440,6 +527,9 @@ final class FirebaseCloudSyncService: CloudSyncService, Sendable {
                     key: key
                 )
                 updated.dailyVideo = dailyVideo
+                if let localKey {
+                    await mediaReferences.store(dailyVideo.videoURL, forLocalKey: localKey, userID: userID, mode: .encrypted)
+                }
             } catch {
                 #if DEBUG
                 print("CloudSync: encrypted video upload failed for record \(recordKey): \(error)")
@@ -706,9 +796,13 @@ final class FirebaseCloudSyncService: CloudSyncService, Sendable {
 
     private func fetchEncryptionMetadata(for user: UserAccount) async throws -> CloudEncryptionMetadata? {
         guard let db else { return nil }
+        if let cached = session.metadata(for: user.userID) {
+            return cached
+        }
         let snapshot = try await db.collection("users").document(user.userID).collection("secureMeta").document("current").getDocument()
-        guard let data = snapshot.data() else { return nil }
-        return try decode(CloudEncryptionMetadata.self, from: data)
+        let metadata = try snapshot.data().map { try decode(CloudEncryptionMetadata.self, from: $0) }
+        session.storeMetadata(metadata, for: user.userID)
+        return metadata
     }
 
     private func writeEncryptionMetadata(_ metadata: CloudEncryptionMetadata, for user: UserAccount) async throws {
@@ -724,6 +818,9 @@ final class FirebaseCloudSyncService: CloudSyncService, Sendable {
 
     private func usableKey(for user: UserAccount, metadata: CloudEncryptionMetadata?) async throws -> SymmetricKey? {
         guard let metadata else { return nil }
+        if let cachedKey = session.key(for: user.userID) {
+            return cachedKey
+        }
 
         let candidates: [SymmetricKey]
         switch metadata.keyProvider {
@@ -738,11 +835,27 @@ final class FirebaseCloudSyncService: CloudSyncService, Sendable {
 
         for candidate in candidates {
             if try await canDecryptCloudData(using: candidate, for: user) {
+                session.storeKey(candidate, for: user.userID)
                 return candidate
             }
         }
 
         return nil
+    }
+
+    /// Uploaded media gets a name derived from the local file so a later upload for another photo
+    /// of the same meal can never overwrite it.
+    private static func uploadNameComponent(for localKey: String?, fallbackIndex: Int) -> String {
+        guard let localKey else { return String(fallbackIndex) }
+        let stem = (localKey as NSString).deletingPathExtension
+        let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-_"))
+        let sanitized = String(stem.unicodeScalars.filter { allowed.contains($0) })
+        return sanitized.isEmpty ? String(fallbackIndex) : sanitized
+    }
+
+    func uploadedMediaReferences(for user: UserAccount) async -> [String: String] {
+        let mode: CloudMediaReferenceMap.Mode = session.metadata(for: user.userID).map { $0 == nil ? .plaintext : .encrypted } ?? .encrypted
+        return await mediaReferences.references(userID: user.userID, mode: mode)
     }
 
     private func canDecryptCloudData(using key: SymmetricKey, for user: UserAccount) async throws -> Bool {
@@ -847,6 +960,180 @@ final class FirebaseCloudSyncService: CloudSyncService, Sendable {
         decoder.dateDecodingStrategy = .iso8601
         let data = try JSONSerialization.data(withJSONObject: dictionary)
         return try decoder.decode(type, from: data)
+    }
+}
+
+/// Encryption state and profile writes remembered for the current app session, so routine pushes
+/// don't re-download the encryption metadata and re-verify the key with several Firestore reads.
+/// A validated key is trusted for a limited time; refreshing from the cloud re-validates it.
+private final class CloudSessionCache: @unchecked Sendable {
+    private static let keyLifetime: TimeInterval = 10 * 60
+    private static let disabledMetadataLifetime: TimeInterval = 2 * 60
+    private static let profileUpsertLifetime: TimeInterval = 30 * 60
+
+    private struct Timestamped<Value> {
+        var value: Value
+        var storedAt: Date
+
+        func isFresh(within lifetime: TimeInterval) -> Bool {
+            Date().timeIntervalSince(storedAt) < lifetime
+        }
+    }
+
+    private let lock = NSLock()
+    private var metadataByUser: [String: Timestamped<CloudEncryptionMetadata?>] = [:]
+    private var keysByUser: [String: Timestamped<SymmetricKey>] = [:]
+    private var profileUpsertsByUser: [String: Timestamped<String>] = [:]
+
+    /// `nil` when nothing is cached; `.some(nil)` when encryption is known to be disabled.
+    func metadata(for userID: String) -> CloudEncryptionMetadata?? {
+        lock.withLock {
+            guard let entry = metadataByUser[userID] else { return nil }
+            // Encryption can be switched on from another device, so "disabled" is rechecked regularly.
+            if entry.value == nil, !entry.isFresh(within: Self.disabledMetadataLifetime) {
+                return nil
+            }
+            return .some(entry.value)
+        }
+    }
+
+    func storeMetadata(_ metadata: CloudEncryptionMetadata?, for userID: String) {
+        lock.withLock {
+            metadataByUser[userID] = Timestamped(value: metadata, storedAt: Date())
+        }
+    }
+
+    func key(for userID: String) -> SymmetricKey? {
+        lock.withLock {
+            guard let entry = keysByUser[userID], entry.isFresh(within: Self.keyLifetime) else { return nil }
+            return entry.value
+        }
+    }
+
+    func storeKey(_ key: SymmetricKey, for userID: String) {
+        lock.withLock {
+            keysByUser[userID] = Timestamped(value: key, storedAt: Date())
+        }
+    }
+
+    func shouldUpsertProfile(signature: String, userID: String) -> Bool {
+        lock.withLock {
+            guard let entry = profileUpsertsByUser[userID] else { return true }
+            return entry.value != signature || !entry.isFresh(within: Self.profileUpsertLifetime)
+        }
+    }
+
+    func recordProfileUpsert(signature: String, userID: String) {
+        lock.withLock {
+            profileUpsertsByUser[userID] = Timestamped(value: signature, storedAt: Date())
+        }
+    }
+
+    func invalidate(userID: String) {
+        lock.withLock {
+            metadataByUser[userID] = nil
+            keysByUser[userID] = nil
+            profileUpsertsByUser[userID] = nil
+        }
+    }
+}
+
+/// Remembers which cloud reference each local photo or video was uploaded as. Without it every push
+/// re-uploaded all media of the record, and every cloud refresh treated local-vs-cloud paths as a
+/// difference and pushed the record (with all of its media) again.
+actor CloudMediaReferenceMap {
+    enum Mode: String, Codable {
+        case encrypted
+        case plaintext
+    }
+
+    private typealias Storage = [String: [String: [String: String]]]
+
+    private let fileURL: URL
+    private var storage: Storage?
+
+    init(filename: String = "cloud-media-references.json") {
+        let supportURL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        let directory = supportURL.appendingPathComponent("DailyLogs", isDirectory: true)
+        fileURL = directory.appendingPathComponent(filename)
+    }
+
+    /// Key identifying a local media reference (its file name), or `nil` for cloud references.
+    nonisolated static func localKey(for reference: String) -> String? {
+        let trimmed = reference.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty,
+              !trimmed.hasPrefix("http://"),
+              !trimmed.hasPrefix("https://"),
+              !SecureCloudPhotoReference.isSecureReference(trimmed),
+              !SecureCloudMediaReference.isSecureReference(trimmed) else {
+            return nil
+        }
+        if let url = URL(string: trimmed), url.isFileURL {
+            return url.lastPathComponent
+        }
+        let lastComponent = URL(fileURLWithPath: trimmed).lastPathComponent
+        return lastComponent.isEmpty ? nil : lastComponent
+    }
+
+    func reference(forLocalKey localKey: String, userID: String, mode: Mode) -> String? {
+        loadedStorage()[userID]?[mode.rawValue]?[localKey]
+    }
+
+    func references(userID: String, mode: Mode) -> [String: String] {
+        loadedStorage()[userID]?[mode.rawValue] ?? [:]
+    }
+
+    func store(_ reference: String, forLocalKey localKey: String, userID: String, mode: Mode) {
+        var updated = loadedStorage()
+        updated[userID, default: [:]][mode.rawValue, default: [:]][localKey] = reference
+        storage = updated
+        persist(updated)
+    }
+
+    /// Forgets `localKey` and returns the cloud references it was uploaded as.
+    func removeReferences(forLocalKey localKey: String, userID: String) -> [String] {
+        var updated = loadedStorage()
+        var removed: [String] = []
+        for mode in [Mode.encrypted, .plaintext] {
+            if let reference = updated[userID]?[mode.rawValue]?.removeValue(forKey: localKey) {
+                removed.append(reference)
+            }
+        }
+        guard !removed.isEmpty else { return [] }
+        storage = updated
+        persist(updated)
+        return removed
+    }
+
+    func forgetUploadedReference(_ reference: String, userID: String) {
+        guard var userReferences = loadedStorage()[userID] else { return }
+        var changed = false
+        for (mode, references) in userReferences {
+            let remaining = references.filter { $0.value != reference }
+            if remaining.count != references.count {
+                userReferences[mode] = remaining
+                changed = true
+            }
+        }
+        guard changed else { return }
+        var updated = loadedStorage()
+        updated[userID] = userReferences
+        storage = updated
+        persist(updated)
+    }
+
+    private func loadedStorage() -> Storage {
+        if let storage {
+            return storage
+        }
+        let loaded = (try? Data(contentsOf: fileURL)).flatMap { try? JSONDecoder().decode(Storage.self, from: $0) } ?? [:]
+        storage = loaded
+        return loaded
+    }
+
+    private func persist(_ storage: Storage) {
+        guard let data = try? JSONEncoder().encode(storage) else { return }
+        try? data.write(to: fileURL, options: .atomic)
     }
 }
 
