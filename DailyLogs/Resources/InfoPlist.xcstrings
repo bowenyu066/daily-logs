@@ -42,13 +42,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Used to automatically sync your sleep data, replacing manual input."
+            "value" : "Used to sync your sleep data automatically and to read activity data such as steps, exercise and heart rate for more accurate AI insights."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "用于自动同步你的睡眠数据，替代手动输入。"
+            "value" : "用于自动同步你的睡眠数据，并读取步数、运动和心率等活动数据，让 AI 洞察更准确。"
           }
         }
       }

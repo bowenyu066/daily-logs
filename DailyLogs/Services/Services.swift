@@ -14,6 +14,17 @@ protocol AuthService {
     func continueAsGuest() throws -> UserAccount
     func updateDisplayName(_ name: String, for user: UserAccount) throws -> UserAccount
     func signOut() throws
+    /// True when `restoreSession` found a saved account whose cloud sign-in is gone, for example
+    /// after the app's data moved to a new phone, so the user has to sign in again.
+    var didExpireSession: Bool { get }
+    /// Whether cloud requests are made with `user`'s own sign-in.
+    func hasCloudSession(for user: UserAccount) -> Bool
+}
+
+extension AuthService {
+    var didExpireSession: Bool { false }
+
+    func hasCloudSession(for user: UserAccount) -> Bool { true }
 }
 
 protocol DailyRecordRepository {
@@ -88,6 +99,13 @@ protocol WeatherService: Sendable {
 protocol HealthSyncAdapter {
     func requestAuthorization() async throws
     func fetchSleepData(for date: Date, after registrationDate: Date) async throws -> SleepRecord?
+    func fetchDailyActivity(for date: Date) async throws -> DailyHealthSummary?
+}
+
+extension HealthSyncAdapter {
+    func fetchDailyActivity(for date: Date) async throws -> DailyHealthSummary? {
+        nil
+    }
 }
 
 final class LocalAuthService: AuthService {
@@ -103,6 +121,7 @@ final class LocalAuthService: AuthService {
     private let guestID = "guest.local"
     private let store: LocalJSONStore
     private var currentNonce: String?
+    private(set) var didExpireSession = false
 
     init(store: LocalJSONStore) {
         self.store = store
@@ -129,12 +148,19 @@ final class LocalAuthService: AuthService {
         }
 
         FirebaseBootstrap.configureIfPossible()
-        guard FirebaseBootstrap.isConfigured, let firebaseUser = Auth.auth().currentUser else {
+        guard FirebaseBootstrap.isConfigured else {
             if let session = persistedSession, !session.isGuest {
                 let refreshed = refreshUser(session) ?? session
                 persistSession(refreshed)
                 return refreshed
             }
+            return nil
+        }
+        guard let firebaseUser = Auth.auth().currentUser else {
+            // The Firebase sign-in is kept only on the device that made it, so a saved account that
+            // moved with a backup or Quick Start has none and every cloud request would be rejected.
+            // The user signs in again; local records stay under the same account ID.
+            didExpireSession = persistedSession.map { !$0.isGuest } ?? false
             return nil
         }
 
@@ -234,6 +260,11 @@ final class LocalAuthService: AuthService {
         persistSession(updated)
         _ = try saveProfile(for: updated)
         return updated
+    }
+
+    func hasCloudSession(for user: UserAccount) -> Bool {
+        guard !user.isGuest else { return true }
+        return FirebaseBootstrap.isConfigured && Auth.auth().currentUser?.uid == user.userID
     }
 
     func signOut() throws {

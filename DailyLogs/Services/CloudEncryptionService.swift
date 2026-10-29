@@ -16,6 +16,7 @@ struct CloudProtectionSnapshot: Equatable {
     var mode: Mode
     var localKeyAvailable: Bool
     var hasLegacyPlaintextData: Bool = false
+    var hasRecoveryCode: Bool = false
 
     var isLocked: Bool {
         mode == .enabled && !localKeyAvailable
@@ -36,6 +37,8 @@ enum CloudSyncSecurityError: LocalizedError, Equatable {
     case invalidEncryptedPayload
     case firebaseUnavailable
     case keychainSyncUnavailable
+    case invalidRecoveryCode
+    case recoveryCodeNotSet
 
     var errorDescription: String? {
         switch self {
@@ -49,6 +52,10 @@ enum CloudSyncSecurityError: LocalizedError, Equatable {
             return NSLocalizedString("Firebase 还没有正确初始化。", comment: "")
         case .keychainSyncUnavailable:
             return NSLocalizedString("iCloud 钥匙串暂时不可用，稍后再试。", comment: "")
+        case .invalidRecoveryCode:
+            return NSLocalizedString("应急恢复密钥不正确，请检查后再试。", comment: "")
+        case .recoveryCodeNotSet:
+            return NSLocalizedString("这个账号还没有设置应急恢复密钥。", comment: "")
         }
     }
 }
@@ -74,6 +81,19 @@ struct CloudEncryptionMetadata: Codable, Equatable {
 struct CloudEncryptedEnvelope: Codable, Equatable {
     var version: Int = CloudEncryptionMetadata.currentVersion
     var combinedBase64: String
+}
+
+/// The data key encrypted with a key derived from the user's recovery code. Stored in the cloud so
+/// a device without the key can unlock with the code; the server never sees the code or the key.
+struct CloudRecoveryEnvelope: Codable, Equatable {
+    static let currentVersion = 1
+    static let currentIterations = 100_000
+
+    var version: Int = Self.currentVersion
+    var saltBase64: String
+    var iterations: Int = Self.currentIterations
+    var wrappedKeyBase64: String
+    var createdAt: Date = .now
 }
 
 struct CloudMigrationProgress: Equatable, Sendable {
@@ -152,16 +172,79 @@ struct CloudCryptoService {
     }
 
     func deriveKey(passphrase: String, metadata: CloudEncryptionMetadata) throws -> SymmetricKey {
-        guard let saltBase64 = metadata.saltBase64,
+        try deriveKey(
+            secret: passphrase,
+            saltBase64: metadata.saltBase64,
+            iterations: metadata.iterations ?? CloudEncryptionMetadata.currentIterations
+        )
+    }
+
+    /// 24 characters of Crockford base32 (120 random bits) in groups of four.
+    func makeRecoveryCode() -> String {
+        let alphabet = Array(Self.recoveryCodeAlphabet)
+        // 256 is a multiple of 32, so taking each byte modulo 32 keeps every character equally likely.
+        let characters = randomData(length: 24).map { alphabet[Int($0) % alphabet.count] }
+        return stride(from: 0, to: characters.count, by: 4)
+            .map { String(characters[$0..<min($0 + 4, characters.count)]) }
+            .joined(separator: "-")
+    }
+
+    /// Ignores case, dashes and spaces, and reads the letters people mistake for digits as those digits.
+    static func normalizedRecoveryCode(_ code: String) -> String {
+        String(code.uppercased().compactMap { character -> Character? in
+            switch character {
+            case "O":
+                return "0"
+            case "I", "L":
+                return "1"
+            default:
+                return recoveryCodeAlphabet.contains(character) ? character : nil
+            }
+        })
+    }
+
+    func wrapKey(_ key: SymmetricKey, recoveryCode: String) throws -> CloudRecoveryEnvelope {
+        let saltBase64 = randomData(length: 16).base64EncodedString()
+        let wrappingKey = try deriveKey(
+            secret: Self.normalizedRecoveryCode(recoveryCode),
+            saltBase64: saltBase64,
+            iterations: CloudRecoveryEnvelope.currentIterations
+        )
+        let rawKey = key.withUnsafeBytes { Data($0) }
+        return CloudRecoveryEnvelope(
+            saltBase64: saltBase64,
+            wrappedKeyBase64: try encrypt(data: rawKey, key: wrappingKey).base64EncodedString()
+        )
+    }
+
+    func unwrapKey(from envelope: CloudRecoveryEnvelope, recoveryCode: String) throws -> SymmetricKey {
+        guard let wrappedKey = Data(base64Encoded: envelope.wrappedKeyBase64) else {
+            throw CloudSyncSecurityError.invalidEncryptedPayload
+        }
+        let wrappingKey = try deriveKey(
+            secret: Self.normalizedRecoveryCode(recoveryCode),
+            saltBase64: envelope.saltBase64,
+            iterations: envelope.iterations
+        )
+        do {
+            return SymmetricKey(data: try decrypt(data: wrappedKey, key: wrappingKey))
+        } catch {
+            throw CloudSyncSecurityError.invalidRecoveryCode
+        }
+    }
+
+    private static let recoveryCodeAlphabet = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
+
+    private func deriveKey(secret: String, saltBase64: String?, iterations: Int) throws -> SymmetricKey {
+        guard let saltBase64,
               let salt = Data(base64Encoded: saltBase64) else {
             throw CloudSyncSecurityError.invalidEncryptedPayload
         }
 
-        let passphraseData = Data(passphrase.utf8)
         let keyData = try pbkdf2SHA256(
-            password: passphraseData,
+            password: Data(secret.utf8),
             salt: salt,
-            rounds: metadata.iterations ?? CloudEncryptionMetadata.currentIterations,
+            rounds: iterations,
             keyByteCount: 32
         )
         return SymmetricKey(data: keyData)

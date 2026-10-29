@@ -1532,6 +1532,9 @@ struct UserPreferences: Codable, Equatable {
     var visibleHomeSections: [HomeSectionKind] = HomeSectionKind.defaultVisible
     var showMasturbationOption: Bool = false
     var homeSectionSchemaVersion: Int = 0
+    var aiGoals: String = ""
+    var aiIncludesMealPhotos: Bool = false
+    var aiMemory: AIInsightMemory = .empty
 
     enum CodingKeys: String, CodingKey {
         case defaultMealSlots
@@ -1548,6 +1551,9 @@ struct UserPreferences: Codable, Equatable {
         case visibleHomeSections
         case showMasturbationOption
         case homeSectionSchemaVersion
+        case aiGoals
+        case aiIncludesMealPhotos
+        case aiMemory
     }
 
     init(
@@ -1563,7 +1569,10 @@ struct UserPreferences: Codable, Equatable {
         midnightMode: MidnightModeSettings = .default,
         visibleHomeSections: [HomeSectionKind] = HomeSectionKind.defaultVisible,
         showMasturbationOption: Bool = false,
-        homeSectionSchemaVersion: Int = UserPreferences.currentHomeSectionSchemaVersion
+        homeSectionSchemaVersion: Int = UserPreferences.currentHomeSectionSchemaVersion,
+        aiGoals: String = "",
+        aiIncludesMealPhotos: Bool = false,
+        aiMemory: AIInsightMemory = .empty
     ) {
         self.defaultMealSlots = defaultMealSlots
         self.bedtimeSchedule = bedtimeSchedule
@@ -1578,6 +1587,9 @@ struct UserPreferences: Codable, Equatable {
         self.visibleHomeSections = visibleHomeSections
         self.showMasturbationOption = showMasturbationOption
         self.homeSectionSchemaVersion = homeSectionSchemaVersion
+        self.aiGoals = aiGoals
+        self.aiIncludesMealPhotos = aiIncludesMealPhotos
+        self.aiMemory = aiMemory
     }
 
     init(from decoder: any Decoder) throws {
@@ -1594,6 +1606,9 @@ struct UserPreferences: Codable, Equatable {
         visibleHomeSections = try container.decodeIfPresent([HomeSectionKind].self, forKey: .visibleHomeSections) ?? HomeSectionKind.defaultVisible
         showMasturbationOption = try container.decodeIfPresent(Bool.self, forKey: .showMasturbationOption) ?? false
         homeSectionSchemaVersion = try container.decodeIfPresent(Int.self, forKey: .homeSectionSchemaVersion) ?? 0
+        aiGoals = try container.decodeIfPresent(String.self, forKey: .aiGoals) ?? ""
+        aiIncludesMealPhotos = try container.decodeIfPresent(Bool.self, forKey: .aiIncludesMealPhotos) ?? false
+        aiMemory = try container.decodeIfPresent(AIInsightMemory.self, forKey: .aiMemory) ?? .empty
         if let bedtimeSchedule = try container.decodeIfPresent(BedtimeSchedule.self, forKey: .bedtimeSchedule) {
             self.bedtimeSchedule = bedtimeSchedule
         } else {
@@ -1617,7 +1632,19 @@ struct UserPreferences: Codable, Equatable {
         try container.encode(visibleHomeSections, forKey: .visibleHomeSections)
         try container.encode(showMasturbationOption, forKey: .showMasturbationOption)
         try container.encode(homeSectionSchemaVersion, forKey: .homeSectionSchemaVersion)
+        try container.encode(aiGoals, forKey: .aiGoals)
+        try container.encode(aiIncludesMealPhotos, forKey: .aiIncludesMealPhotos)
+        try container.encode(aiMemory, forKey: .aiMemory)
     }
+}
+
+/// What AI insights have learned about the user across days, rewritten by each newer analysis.
+struct AIInsightMemory: Codable, Equatable {
+    var notes: [String] = []
+    /// Storage key of the latest day whose analysis updated the notes; older days never overwrite them.
+    var updatedThroughDateKey: String?
+
+    static let empty = AIInsightMemory()
 }
 
 struct MidnightModeSettings: Codable, Equatable {

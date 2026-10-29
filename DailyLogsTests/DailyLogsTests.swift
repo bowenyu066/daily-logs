@@ -849,13 +849,15 @@ struct DailyLogsTests {
 
         #expect(payload.meals.map(\.status) == ["logged_with_time", "logged_without_time", "skipped", "unrecorded"])
         #expect(payload.timeline.count == 6)
-        #expect(payload.scoringRubric.sampleCount == 1)
         #expect(payload.showerEnabled == false)
         #expect(payload.bowelMovementEnabled == false)
         #expect(payload.comparisonContext.trailing7Days.recordedDays == 0)
-        #expect(payloadJSON.contains("\"overallScore\"") == false)
-        #expect(payloadJSON.contains("\"scoreBreakdown\"") == false)
-        #expect(payloadJSON.contains("\"localSummary\"") == false)
+        let localReport = DailyInsightAnalyzer.buildReport(for: record, preferences: preferences, locale: Locale(identifier: "en_US"))
+        #expect(payload.appScores.total == localReport.overallScore)
+        #expect(payload.appScores.sections.map(\.key) == ["sleep", "meals", "shower", "bowelMovement"])
+        #expect(payload.appScores.sections.first { $0.key == "shower" }?.included == false)
+        #expect(payload.dayContext.weekday == "Friday")
+        #expect(payloadJSON.contains("\"scoringRubric\"") == false)
     }
 
     @Test
@@ -1493,8 +1495,7 @@ struct DailyLogsTests {
     @Test
     func openAIResponsesInsightServiceParsesDirectJSONResponse() async throws {
         let payload = sampleInsightPayload()
-        let narrative = sampleAINarrative(headline: "直接 JSON", overallScore: 88)
-        let data = try JSONEncoder().encode(narrative)
+        let data = try JSONEncoder().encode(SampleInsightResponse.make(headline: "直接 JSON"))
         let session = makeMockSession(responseData: data)
         let service = OpenAIResponsesInsightService(
             keyStore: MockOpenAIKeyStore(key: "test-key"),
@@ -1502,26 +1503,81 @@ struct DailyLogsTests {
             model: "gpt-5.6-luna"
         )
 
-        let resolved = try await service.generateNarrative(from: payload)
+        let resolved = try await service.generateInsight(from: payload, context: .empty)
 
-        #expect(resolved.headline == "直接 JSON")
-        #expect(resolved.overallScore == 88)
-        #expect(resolved.sampleCount == 1)
+        #expect(resolved.narrative.headline == "直接 JSON")
+        #expect(resolved.narrative.overallScore == nil)
+        #expect(resolved.narrative.scoreAdjustments == ["sleep": .init(delta: -4, reason: "比你平时晚睡 1 小时")])
+        #expect(resolved.narrative.localized(for: .en).scoreAdjustments?["sleep"]?.reason == "An hour later than your usual bedtime")
+        #expect(resolved.narrative.findings?.first?.title == "晚饭越晚，睡得越晚")
+        #expect(resolved.narrative.suggestion == "明天 19:30 前吃完晚饭")
+        #expect(resolved.narrative.hasAIContent)
+        #expect(resolved.narrative.localized(for: .en).headline == "English headline")
+        #expect(resolved.narrative.localized(for: .en).suggestion == "Finish dinner by 19:30 tomorrow")
+        #expect(resolved.memory == ["工作日通常 23:30 前入睡"])
+        #expect(resolved.narrative.sampleCount == 1)
     }
 
     @Test
-    func openAIResponsesInsightServiceUsesQualityFocusedScoringConfiguration() async throws {
+    func openAIResponsesInsightServiceSendsContextAndPhotos() async throws {
         let payload = sampleInsightPayload()
-        let narrative = sampleAINarrative(headline: "快速配置", overallScore: 89)
-        let data = try JSONEncoder().encode(narrative)
+        let data = try JSONEncoder().encode(SampleInsightResponse.make(headline: "带上下文"))
+        let photoData = try #require(
+            UIGraphicsImageRenderer(size: CGSize(width: 4, height: 4)).image { context in
+                UIColor.green.setFill()
+                context.fill(CGRect(x: 0, y: 0, width: 4, height: 4))
+            }.jpegData(compressionQuality: 0.5)
+        )
+        let session = makeMockSession(responseData: data) { request in
+            guard let requestData = try requestBodyData(from: request),
+                  let body = try JSONSerialization.jsonObject(with: requestData) as? [String: Any],
+                  let input = body["input"] as? [[String: Any]],
+                  input.first?["role"] as? String == "user",
+                  let content = input.first?["content"] as? [[String: Any]],
+                  let promptText = content.first?["text"] as? String,
+                  promptText.contains("12 点前睡"),
+                  promptText.contains("晚饭后散步 20 分钟"),
+                  promptText.contains("周末会晚睡"),
+                  promptText.contains("\"steps\" : 8421"),
+                  promptText.contains("\"appScores\""),
+                  let image = content.first(where: { $0["type"] as? String == "input_image" }),
+                  (image["image_url"] as? String)?.hasPrefix("data:image/jpeg;base64,") == true,
+                  image["detail"] as? String == "low" else {
+                throw MockRequestValidationError.invalidAIConfiguration
+            }
+        }
+        let service = OpenAIResponsesInsightService(
+            keyStore: MockOpenAIKeyStore(key: "test-key"),
+            session: session
+        )
+        var context = DailyInsightContext()
+        context.goals = "12 点前睡"
+        context.memory = ["周末会晚睡"]
+        context.previousSuggestion = "晚饭后散步 20 分钟"
+        context.health = DailyHealthSummary(steps: 8421)
+        context.photos = [DailyInsightContext.Photo(mealTitle: "午餐", timeLocal: "12:30", jpegData: photoData)]
+
+        let resolved = try await service.generateInsight(from: payload, context: context)
+
+        #expect(resolved.narrative.headline == "带上下文")
+    }
+
+    @Test
+    func openAIResponsesInsightServiceUsesInsightRequestConfiguration() async throws {
+        let payload = sampleInsightPayload()
+        let data = try JSONEncoder().encode(SampleInsightResponse.make(headline: "配置"))
         let session = makeMockSession(responseData: data) { request in
             guard let requestData = try requestBodyData(from: request),
                   let body = try JSONSerialization.jsonObject(with: requestData) as? [String: Any],
                   body["model"] as? String == "gpt-5.6-luna",
+                  body["store"] as? Bool == false,
                   let reasoning = body["reasoning"] as? [String: Any],
-                  reasoning["effort"] as? String == "high",
+                  reasoning["effort"] as? String == "medium",
                   let text = body["text"] as? [String: Any],
-                  text["verbosity"] as? String == "medium" else {
+                  text["verbosity"] as? String == "medium",
+                  let format = text["format"] as? [String: Any],
+                  format["name"] as? String == "daily_insight",
+                  format["strict"] as? Bool == true else {
                 throw MockRequestValidationError.invalidAIConfiguration
             }
         }
@@ -1568,11 +1624,10 @@ struct DailyLogsTests {
     @Test
     func openAIResponsesInsightServiceParsesStructuredParsedContent() async throws {
         let payload = sampleInsightPayload()
-        let narrative = sampleAINarrative(headline: "结构化 parsed", overallScore: 91)
         let envelope = ParsedNarrativeEnvelope(
             output: [
                 .init(content: [
-                    .init(type: "output_text", text: nil, parsed: narrative)
+                    .init(type: "output_text", text: nil, parsed: SampleInsightResponse.make(headline: "结构化 parsed"))
                 ])
             ]
         )
@@ -1587,8 +1642,371 @@ struct DailyLogsTests {
         let resolved = try await service.generateNarrative(from: payload)
 
         #expect(resolved.headline == "结构化 parsed")
-        #expect(resolved.overallScore == 91)
+        #expect(resolved.overallScore == nil)
         #expect(resolved.sampleCount == 1)
+    }
+
+    @Test
+    func openAIResponsesInsightServiceParsesJSONTextOutput() async throws {
+        let payload = sampleInsightPayload()
+        let insightJSON = String(decoding: try JSONEncoder().encode(SampleInsightResponse.make(headline: "文本 JSON")), as: UTF8.self)
+        let data = try JSONSerialization.data(withJSONObject: [
+            "output": [["content": [["type": "output_text", "text": insightJSON]]]]
+        ])
+        let session = makeMockSession(responseData: data)
+        let service = OpenAIResponsesInsightService(
+            keyStore: MockOpenAIKeyStore(key: "test-key"),
+            session: session
+        )
+
+        let resolved = try await service.generateInsight(from: payload, context: .empty)
+
+        #expect(resolved.narrative.headline == "文本 JSON")
+        #expect(resolved.memory?.count == 1)
+    }
+
+    @Test @MainActor
+    func aiInsightAdjustsScoresAndRemembersWhatItLearned() async throws {
+        let today = Date().startOfDay
+        let yesterday = today.adding(days: -1)
+        let dayBefore = yesterday.adding(days: -1)
+        var preferences = UserPreferences(
+            healthKitSyncEnabled: false,
+            visibleHomeSections: [.sleep, .meals, .showers]
+        )
+        preferences.aiGoals = "12 点前睡"
+        preferences.aiMemory = AIInsightMemory(notes: ["旧的规律"], updatedThroughDateKey: dayBefore.storageKey())
+        let user = UserAccount(
+            userID: "ai-context-user",
+            displayName: "Tester",
+            email: nil,
+            authMode: .guest,
+            createdAt: today.adding(days: -30)
+        )
+        let yesterdayRecord = DailyRecord(
+            date: yesterday,
+            sleepRecord: SleepRecord(
+                bedtimePreviousNight: dayBefore.settingTime(hour: 23, minute: 50),
+                wakeTimeCurrentDay: yesterday.settingTime(hour: 7, minute: 15),
+                source: .manual
+            ),
+            meals: [MealEntry(mealKind: .breakfast, status: .logged, time: yesterday.settingTime(hour: 8, minute: 15))],
+            showers: []
+        )
+        let dayBeforeRecord = DailyRecord(
+            date: dayBefore,
+            sleepRecord: SleepRecord(),
+            meals: [MealEntry(mealKind: .breakfast, status: .logged)],
+            showers: [],
+            aiInsightNarrative: DailyInsightNarrative(
+                headline: "前一天",
+                summary: "前一天",
+                bullets: [],
+                findings: [.init(title: "前一天", evidence: "前一天")],
+                suggestion: "晚饭后散步 20 分钟"
+            )
+        )
+        let generated = SampleInsightResponse.make(headline: "新的解读")
+        let aiService = CapturingInsightService(
+            generation: DailyInsightGeneration(
+                narrative: DailyInsightNarrative(
+                    headline: generated.zh.headline,
+                    summary: generated.zh.summary,
+                    bullets: [],
+                    findings: generated.zh.findings,
+                    suggestion: generated.zh.suggestion,
+                    followUp: generated.zh.followUp,
+                    scoreAdjustments: [
+                        "sleep": .init(delta: -50, reason: "比平时晚睡"),
+                        "shower": .init(delta: 2, reason: "洗了澡")
+                    ]
+                ),
+                memory: nil
+            )
+        )
+        let viewModel = AppViewModel(
+            authService: MockAuthService(user: user),
+            repository: InMemoryDailyRecordRepository(records: [
+                yesterday.storageKey(): yesterdayRecord,
+                dayBefore.storageKey(): dayBeforeRecord
+            ]),
+            preferencesStore: MockPreferencesStore(preferences: preferences),
+            photoStorageService: MockPhotoStorageService(),
+            videoStorageService: MockVideoStorageService(),
+            sunTimesService: MockSunTimesService(),
+            weatherService: MockWeatherService(),
+            healthSyncAdapter: MockHealthSyncAdapter(sleepRecord: nil),
+            cloudSyncService: NoopCloudSyncService(),
+            aiInsightNarrativeService: aiService,
+            openAIKeyStore: MockOpenAIKeyStore(key: "test-key"),
+            locationService: LocationService(),
+            selectedDate: yesterday,
+            dailyRecord: DailyRecord.empty(for: yesterday, preferences: preferences),
+            preferences: preferences
+        )
+
+        await viewModel.bootstrap()
+
+        // Only yesterday is scored automatically.
+        let context = try #require(aiService.contexts.first)
+        #expect(aiService.contexts.count == 1)
+        #expect(context.goals == "12 点前睡")
+        #expect(context.memory == ["旧的规律"])
+        #expect(context.previousSuggestion == "晚饭后散步 20 分钟")
+        #expect(context.photos.isEmpty)
+
+        #expect(viewModel.activeDailyInsightNarrative?.headline == "新的解读")
+        #expect(viewModel.isDisplayingAIScoredInsight)
+        let ruleReport = try #require(viewModel.dailyInsightReport)
+        let aiReport = try #require(viewModel.displayedDailyInsightReport)
+        let ruleSleep = try #require(ruleReport.components.first { $0.kind == .sleep })
+        let aiSleep = try #require(aiReport.components.first { $0.kind == .sleep })
+        // The adjustment is clamped to 20% of the section's maximum.
+        #expect(aiSleep.ruleScore == ruleSleep.score)
+        #expect(aiSleep.score == max(0, ruleSleep.score - DailyInsightComponent.maxAIAdjustment(for: .sleep, maxScore: ruleSleep.maxScore)))
+        #expect(aiSleep.aiReason == "比平时晚睡")
+        // Shower is a minor section the AI cannot adjust.
+        let aiShower = try #require(aiReport.components.first { $0.kind == .shower })
+        #expect(aiShower.ruleScore == nil)
+        #expect(aiShower.score == ruleReport.components.first { $0.kind == .shower }?.score)
+        #expect(aiReport.ruleScore == ruleReport.overallScore)
+        #expect(aiReport.overallScore < ruleReport.overallScore)
+        #expect(viewModel.preferences.aiMemory.notes == ["规律 1"])
+        #expect(viewModel.preferences.aiMemory.updatedThroughDateKey == yesterday.storageKey())
+
+        // Nothing is left to score, and regenerating an older day does not roll the memory back.
+        await viewModel.handleAppBecomingActive()
+        #expect(aiService.contexts.count == 1)
+        await viewModel.refreshDailyInsightNarrative(for: dayBefore, force: true)
+        #expect(aiService.contexts.count == 2)
+        #expect(viewModel.preferences.aiMemory.notes == ["规律 1"])
+    }
+
+    @Test
+    func showerAndBowelMovementScoreFullMarksAtTheUsualTime() {
+        let day = Date().startOfDay
+        let timeZone = TimeZone.current.identifier
+        let preferences = UserPreferences(visibleHomeSections: [.sleep, .meals, .showers, .bowelMovements])
+        let history = (1...5).map { offset -> DailyRecord in
+            let historyDay = day.adding(days: -offset)
+            var record = DailyRecord.empty(for: historyDay, preferences: preferences)
+            record.showers = [ShowerEntry(time: historyDay.settingTime(hour: 21, minute: 0), timeZoneIdentifier: timeZone)]
+            return record
+        }
+        func scores(showerHour: Int?, bowelCount: Int) -> (shower: Int?, bowel: Int?) {
+            var record = DailyRecord.empty(for: day, preferences: preferences)
+            if let showerHour {
+                record.showers = [ShowerEntry(time: day.settingTime(hour: showerHour, minute: 30), timeZoneIdentifier: timeZone)]
+            }
+            record.bowelMovements = (0..<bowelCount).map {
+                BowelMovementEntry(time: day.settingTime(hour: 8 + $0 * 6, minute: 0), timeZoneIdentifier: timeZone)
+            }
+            let report = DailyInsightAnalyzer.buildReport(
+                for: record,
+                preferences: preferences,
+                locale: Locale(identifier: "zh-Hans"),
+                history: history
+            )
+            return (
+                report.components.first { $0.kind == .shower }?.score,
+                report.components.first { $0.kind == .bowelMovement }?.score
+            )
+        }
+
+        #expect(scores(showerHour: 21, bowelCount: 1).shower == 10)
+        #expect(scores(showerHour: 9, bowelCount: 1).shower == 8)
+        #expect(scores(showerHour: nil, bowelCount: 0).shower == 4)
+        // No bowel movement history: any entry earns full marks, and a second one adds nothing.
+        #expect(scores(showerHour: 21, bowelCount: 1).bowel == 10)
+        #expect(scores(showerHour: 21, bowelCount: 2).bowel == 10)
+    }
+
+    @Test
+    func recoveryCodeUnwrapsTheKeyAndToleratesTypingVariations() throws {
+        let crypto = CloudCryptoService()
+        let code = crypto.makeRecoveryCode()
+        #expect(code.count == 29)
+        #expect(code.split(separator: "-").count == 6)
+        let key = crypto.makeRandomKey()
+        let envelope = try crypto.wrapKey(key, recoveryCode: code)
+
+        let typed = code.lowercased()
+            .replacingOccurrences(of: "-", with: " ")
+            .replacingOccurrences(of: "0", with: "o")
+            .replacingOccurrences(of: "1", with: "l")
+        let unwrapped = try crypto.unwrapKey(from: envelope, recoveryCode: typed)
+        #expect(unwrapped.withUnsafeBytes { Data($0) } == key.withUnsafeBytes { Data($0) })
+        #expect(throws: CloudSyncSecurityError.invalidRecoveryCode) {
+            try crypto.unwrapKey(from: envelope, recoveryCode: crypto.makeRecoveryCode())
+        }
+    }
+
+    @MainActor
+    private func makeCloudViewModel(auth: MockAuthService, cloud: CloudSyncService) -> AppViewModel {
+        let today = Date().startOfDay
+        let preferences = UserPreferences(healthKitSyncEnabled: false)
+        return AppViewModel(
+            authService: auth,
+            repository: InMemoryDailyRecordRepository(),
+            preferencesStore: MockPreferencesStore(preferences: preferences),
+            photoStorageService: MockPhotoStorageService(),
+            videoStorageService: MockVideoStorageService(),
+            sunTimesService: MockSunTimesService(),
+            weatherService: MockWeatherService(),
+            healthSyncAdapter: MockHealthSyncAdapter(sleepRecord: nil),
+            cloudSyncService: cloud,
+            aiInsightNarrativeService: NoopAIInsightNarrativeService(),
+            openAIKeyStore: MockOpenAIKeyStore(key: nil),
+            locationService: LocationService(),
+            selectedDate: today,
+            dailyRecord: DailyRecord.empty(for: today, preferences: preferences),
+            preferences: preferences
+        )
+    }
+
+    private func makeCloudUser() -> UserAccount {
+        UserAccount(
+            userID: "cloud-user-" + UUID().uuidString,
+            displayName: "Tester",
+            email: nil,
+            authMode: .apple,
+            createdAt: Date().startOfDay.adding(days: -10)
+        )
+    }
+
+    @Test @MainActor
+    func lockedCloudSyncShowsANoticeAndUnlocksWithRecoveryCode() async throws {
+        let cloud = ScriptedCloudSyncService(isLocked: true)
+        cloud.acceptedRecoveryCode = "ABCD-EFGH"
+        let viewModel = makeCloudViewModel(auth: MockAuthService(user: makeCloudUser()), cloud: cloud)
+
+        await viewModel.bootstrap()
+
+        #expect(viewModel.errorMessage == nil)
+        #expect(viewModel.cloudSyncIssue == .locked)
+        #expect(viewModel.cloudEncryptionState == .locked)
+
+        await #expect(throws: CloudSyncSecurityError.invalidRecoveryCode) {
+            try await viewModel.unlockCloudSync(withRecoveryCode: "WRONG")
+        }
+        #expect(viewModel.cloudSyncIssue == .locked)
+
+        try await viewModel.unlockCloudSync(withRecoveryCode: "ABCD-EFGH")
+        #expect(viewModel.cloudSyncIssue == nil)
+        #expect(viewModel.cloudEncryptionState == .unlocked)
+        #expect(viewModel.shouldRemindToCreateRecoveryCode)
+
+        _ = try await viewModel.createCloudRecoveryCode()
+        #expect(viewModel.hasCloudRecoveryCode)
+        #expect(!viewModel.shouldRemindToCreateRecoveryCode)
+    }
+
+    @Test @MainActor
+    func rejectedCloudRequestsWithoutASignInReturnToTheSignInScreen() async {
+        let cloud = ScriptedCloudSyncService(isLocked: false)
+        cloud.bootstrapError = NSError(domain: "FIRFirestoreErrorDomain", code: 7)
+        let auth = MockAuthService(user: makeCloudUser())
+        auth.cloudSessionIsValid = false
+        let viewModel = makeCloudViewModel(auth: auth, cloud: cloud)
+
+        await viewModel.bootstrap()
+
+        #expect(viewModel.user == nil)
+        #expect(viewModel.authNotice != nil)
+        #expect(viewModel.errorMessage == nil)
+    }
+
+    @Test @MainActor
+    func otherCloudFailuresShowARetryableNotice() async {
+        let cloud = ScriptedCloudSyncService(isLocked: false)
+        cloud.bootstrapError = NSError(domain: "FIRFirestoreErrorDomain", code: 7)
+        let viewModel = makeCloudViewModel(auth: MockAuthService(user: makeCloudUser()), cloud: cloud)
+
+        await viewModel.bootstrap()
+
+        #expect(viewModel.user != nil)
+        #expect(viewModel.errorMessage == nil)
+        guard case .failed = viewModel.cloudSyncIssue else {
+            Issue.record("Expected a failed sync notice.")
+            return
+        }
+
+        cloud.bootstrapError = nil
+        await viewModel.retryCloudSync()
+        #expect(viewModel.cloudSyncIssue == nil)
+    }
+
+    @Test @MainActor
+    func expiredSavedSignInShowsTheSignInScreenWithANotice() async {
+        let auth = MockAuthService(user: nil)
+        auth.expiredSession = true
+        let viewModel = makeCloudViewModel(auth: auth, cloud: ScriptedCloudSyncService(isLocked: false))
+
+        await viewModel.bootstrap()
+
+        #expect(viewModel.user == nil)
+        #expect(viewModel.authNotice != nil)
+    }
+
+    @Test @MainActor
+    func automaticAIScoresOnlyYesterday() async throws {
+        let today = Date().startOfDay
+        let preferences = UserPreferences(healthKitSyncEnabled: false, visibleHomeSections: [.sleep, .meals])
+        let user = UserAccount(
+            userID: "ai-backfill-user",
+            displayName: "Tester",
+            email: nil,
+            authMode: .guest,
+            createdAt: today.adding(days: -40)
+        )
+        var records: [String: DailyRecord] = [:]
+        for offset in 1...20 {
+            let day = today.adding(days: -offset)
+            records[day.storageKey()] = DailyRecord(
+                date: day,
+                sleepRecord: SleepRecord(),
+                meals: [MealEntry(mealKind: .breakfast, status: .logged, time: day.settingTime(hour: 8, minute: 0))],
+                showers: []
+            )
+        }
+        let aiService = CapturingInsightService(
+            generation: DailyInsightGeneration(
+                narrative: DailyInsightNarrative(
+                    headline: "补分",
+                    summary: "补分",
+                    bullets: [],
+                    findings: [.init(title: "补分", evidence: "补分")],
+                    scoreAdjustments: ["meals": .init(delta: 2, reason: "早餐准时")]
+                ),
+                memory: nil
+            )
+        )
+        let viewModel = AppViewModel(
+            authService: MockAuthService(user: user),
+            repository: InMemoryDailyRecordRepository(records: records),
+            preferencesStore: MockPreferencesStore(preferences: preferences),
+            photoStorageService: MockPhotoStorageService(),
+            videoStorageService: MockVideoStorageService(),
+            sunTimesService: MockSunTimesService(),
+            weatherService: MockWeatherService(),
+            healthSyncAdapter: MockHealthSyncAdapter(sleepRecord: nil),
+            cloudSyncService: NoopCloudSyncService(),
+            aiInsightNarrativeService: aiService,
+            openAIKeyStore: MockOpenAIKeyStore(key: "test-key"),
+            locationService: LocationService(),
+            selectedDate: today,
+            dailyRecord: DailyRecord.empty(for: today, preferences: preferences),
+            preferences: preferences
+        )
+
+        await viewModel.bootstrap()
+
+        #expect(aiService.contexts.count == 1)
+        #expect(viewModel.isDisplayingAIScoredInsight(for: today.adding(days: -1)))
+        #expect(!viewModel.isDisplayingAIScoredInsight(for: today.adding(days: -2)))
+
+        await viewModel.handleAppBecomingActive()
+        #expect(aiService.contexts.count == 1)
     }
 
     @Test
@@ -4176,10 +4594,16 @@ struct DailyLogsTests {
 @MainActor
 private final class MockAuthService: AuthService {
     var currentUser: UserAccount?
+    var expiredSession = false
+    var cloudSessionIsValid = true
 
     init(user: UserAccount?) {
         self.currentUser = user
     }
+
+    var didExpireSession: Bool { expiredSession }
+
+    func hasCloudSession(for user: UserAccount) -> Bool { cloudSessionIsValid }
 
     func restoreSession() -> UserAccount? {
         currentUser
@@ -4199,7 +4623,75 @@ private final class MockAuthService: AuthService {
         user
     }
 
-    func signOut() throws {}
+    func signOut() throws {
+        currentUser = nil
+    }
+}
+
+/// A cloud whose encrypted data is locked on this device until the accepted recovery code is entered.
+private final class ScriptedCloudSyncService: CloudSyncService, @unchecked Sendable {
+    var isLocked: Bool
+    var bootstrapError: Error?
+    var hasRecoveryCode = false
+    var acceptedRecoveryCode: String?
+
+    init(isLocked: Bool) {
+        self.isLocked = isLocked
+    }
+
+    var isAvailable: Bool { true }
+
+    func bootstrap(user: UserAccount, localPreferences: UserPreferences, localRecords: [DailyRecord]) async throws -> CloudBootstrapPayload {
+        if let bootstrapError {
+            throw bootstrapError
+        }
+        if isLocked {
+            throw CloudSyncSecurityError.encryptedSyncLocked
+        }
+        return CloudBootstrapPayload(profile: nil, preferences: nil, records: [])
+    }
+
+    func pushPreferences(_ preferences: UserPreferences, user: UserAccount) async throws {
+        if isLocked {
+            throw CloudSyncSecurityError.encryptedSyncLocked
+        }
+    }
+
+    func pushRecord(_ record: DailyRecord, user: UserAccount) async throws {
+        if isLocked {
+            throw CloudSyncSecurityError.encryptedSyncLocked
+        }
+    }
+
+    func pushProfile(_ user: UserAccount) async throws {}
+
+    func deletePhotoReference(_ photoReference: String, user: UserAccount) async throws {}
+
+    func protectionSnapshot(for user: UserAccount) async throws -> CloudProtectionSnapshot {
+        CloudProtectionSnapshot(mode: .enabled, localKeyAvailable: !isLocked, hasRecoveryCode: hasRecoveryCode)
+    }
+
+    func enableAutomaticEndToEndEncryption(
+        user: UserAccount,
+        localPreferences: UserPreferences,
+        localRecords: [DailyRecord],
+        progress: @escaping @Sendable (CloudMigrationProgress) async -> Void
+    ) async throws {}
+
+    func createRecoveryCode(for user: UserAccount) async throws -> String {
+        if isLocked {
+            throw CloudSyncSecurityError.encryptedSyncLocked
+        }
+        hasRecoveryCode = true
+        return "ABCD-EFGH-JKMN-PQRS-TVWX-YZ01"
+    }
+
+    func unlock(withRecoveryCode code: String, user: UserAccount) async throws {
+        guard code == acceptedRecoveryCode else {
+            throw CloudSyncSecurityError.invalidRecoveryCode
+        }
+        isLocked = false
+    }
 }
 
 private final class InMemoryDailyRecordRepository: DailyRecordRepository {
@@ -4386,13 +4878,95 @@ private struct ParsedNarrativeEnvelope: Encodable {
         struct ContentItem: Encodable {
             let type: String
             let text: String?
-            let parsed: DailyInsightNarrative?
+            let parsed: SampleInsightResponse?
         }
 
         let content: [ContentItem]
     }
 
     let output: [OutputItem]
+}
+
+/// Mirrors the structured output the insight schema asks the model for.
+private struct SampleInsightResponse: Encodable {
+    struct ScoreAdjustment: Encodable {
+        var section: String
+        var delta: Int
+        var reasonZh: String
+        var reasonEn: String
+    }
+
+    struct Text: Encodable {
+        var headline: String
+        var summary: String
+        var findings: [DailyInsightNarrative.Finding]
+        var suggestion: String
+        var followUp: String
+    }
+
+    var scoreAdjustments: [ScoreAdjustment]
+    var zh: Text
+    var en: Text
+    var memory: [String]
+
+    static func make(headline: String) -> SampleInsightResponse {
+        SampleInsightResponse(
+            scoreAdjustments: [
+                .init(section: "sleep", delta: -4, reasonZh: "比你平时晚睡 1 小时", reasonEn: "An hour later than your usual bedtime"),
+                .init(section: "unknown", delta: 3, reasonZh: "未知", reasonEn: "Unknown")
+            ],
+            zh: Text(
+                headline: headline,
+                summary: "晚饭吃得晚的那几天，入睡也跟着推迟。",
+                findings: [.init(title: "晚饭越晚，睡得越晚", evidence: "最近 3 次 21:00 后吃晚饭，入睡都晚于 00:30。")],
+                suggestion: "明天 19:30 前吃完晚饭",
+                followUp: ""
+            ),
+            en: Text(
+                headline: "English headline",
+                summary: "Late dinners pushed bedtime back.",
+                findings: [.init(title: "Later dinner, later bedtime", evidence: "The last 3 dinners after 21:00 were followed by bedtimes after 00:30.")],
+                suggestion: "Finish dinner by 19:30 tomorrow",
+                followUp: ""
+            ),
+            memory: ["工作日通常 23:30 前入睡"]
+        )
+    }
+}
+
+private final class CapturingInsightService: AIInsightNarrativeGenerating, @unchecked Sendable {
+    private let lock = NSLock()
+    private let generation: DailyInsightGeneration
+    private var storedContexts: [DailyInsightContext] = []
+
+    init(generation: DailyInsightGeneration) {
+        self.generation = generation
+    }
+
+    var contexts: [DailyInsightContext] {
+        lock.withLock { storedContexts }
+    }
+
+    var isConfigured: Bool { true }
+
+    func generateNarrative(from payload: DailyInsightPayload) async throws -> DailyInsightNarrative {
+        generation.narrative
+    }
+
+    /// The memory it returns names the call, so tests can tell which analysis wrote it.
+    func generateInsight(from payload: DailyInsightPayload, context: DailyInsightContext) async throws -> DailyInsightGeneration {
+        let callNumber = lock.withLock {
+            storedContexts.append(context)
+            return storedContexts.count
+        }
+        var result = generation
+        result.memory = ["规律 \(callNumber)"]
+        return result
+    }
+
+    func translateNarrative(_ narrative: DailyInsightNarrative, to language: AppLanguage) async throws -> DailyInsightNarrative.LocalizedText {
+        DailyInsightNarrative.LocalizedText(headline: narrative.headline, summary: narrative.summary, bullets: narrative.bullets)
+    }
 }
 
 private final class MockURLProtocol: URLProtocol, @unchecked Sendable {

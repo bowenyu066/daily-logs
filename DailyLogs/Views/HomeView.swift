@@ -36,6 +36,7 @@ struct HomeView: View {
                 ScrollView(.vertical, showsIndicators: false) {
                     VStack(alignment: .leading, spacing: 24) {
                         headerSection
+                        cloudSyncNotice
                         let selectedTravelPlans = appViewModel.travelPlans(on: appViewModel.selectedDate)
                         if !selectedTravelPlans.isEmpty {
                             Divider()
@@ -423,6 +424,101 @@ struct HomeView: View {
 
     private var homeBackground: Color {
         isTravelModeActive ? AppTheme.travelBackground : AppTheme.background
+    }
+
+    /// Background sync problems and the recovery code reminder, shown in place instead of alerts.
+    @ViewBuilder
+    private var cloudSyncNotice: some View {
+        switch appViewModel.cloudSyncIssue {
+        case .locked:
+            syncNoticeCard(
+                systemImage: "lock.fill",
+                tint: AppTheme.warning,
+                title: NSLocalizedString("云端数据暂时无法同步", comment: ""),
+                message: NSLocalizedString("输入应急恢复密钥即可恢复同步。", comment: ""),
+                actionTitle: NSLocalizedString("输入应急恢复密钥", comment: ""),
+                action: { appViewModel.activeCloudRecoverySheet = .unlock },
+                dismiss: { appViewModel.dismissCloudSyncIssue() }
+            )
+        case .failed(let message):
+            syncNoticeCard(
+                systemImage: "exclamationmark.icloud",
+                tint: AppTheme.warning,
+                title: NSLocalizedString("云端同步暂时失败", comment: ""),
+                message: message,
+                actionTitle: NSLocalizedString("重试", comment: ""),
+                action: { Task { await appViewModel.retryCloudSync() } },
+                dismiss: { appViewModel.dismissCloudSyncIssue() }
+            )
+        case nil:
+            if appViewModel.shouldRemindToCreateRecoveryCode {
+                syncNoticeCard(
+                    systemImage: "key.fill",
+                    tint: AppTheme.accent,
+                    title: NSLocalizedString("设置应急恢复密钥", comment: ""),
+                    message: NSLocalizedString("应急恢复密钥可帮助您在云端数据无法正常同步时重置密钥。", comment: ""),
+                    actionTitle: NSLocalizedString("设置应急恢复密钥", comment: ""),
+                    action: { appViewModel.activeCloudRecoverySheet = .create },
+                    dismiss: { appViewModel.dismissRecoveryCodeReminder() }
+                )
+            }
+        }
+    }
+
+    private func syncNoticeCard(
+        systemImage: String,
+        tint: Color,
+        title: String,
+        message: String,
+        actionTitle: String,
+        action: @escaping () -> Void,
+        dismiss: @escaping () -> Void
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top, spacing: 10) {
+                Image(systemName: systemImage)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(tint)
+                    .padding(.top, 1)
+
+                Text(title)
+                    .font(.system(size: 16, weight: .bold, design: .rounded))
+                    .foregroundStyle(AppTheme.primaryText)
+
+                Spacer(minLength: 8)
+
+                Button(action: dismiss) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(AppTheme.secondaryText)
+                        .frame(width: 28, height: 28)
+                        .background(AppTheme.mutedFill)
+                        .clipShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(NSLocalizedString("关闭", comment: ""))
+            }
+
+            Text(message)
+                .font(.system(size: 14, weight: .medium, design: .rounded))
+                .foregroundStyle(AppTheme.secondaryText)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Button(action: action) {
+                Text(actionTitle)
+                    .font(.system(size: 14, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 9)
+                    .background(tint)
+                    .clipShape(Capsule())
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(tint.opacity(0.10))
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 
     private var headerSection: some View {

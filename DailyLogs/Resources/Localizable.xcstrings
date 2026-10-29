@@ -101,6 +101,22 @@
         }
       }
     },
+    "%@-%@ 旅程" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@-%2$@ trip"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@-%2$@ 旅程"
+          }
+        }
+      }
+    },
     "%@/%@" : {
       "localizations" : {
         "en" : {
@@ -156,6 +172,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%1$@ was clearly logged, earning steady points."
+          }
+        }
+      }
+    },
+    "%@的时间和平时不太一样，这部分小扣了一点。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ was at an unusual time, so this section lost a little."
           }
         }
       }
@@ -272,6 +298,7 @@
       }
     },
     "7-9 小时且入睡时间接近目标，记录完整时可拿高分。" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -349,6 +376,80 @@
         }
       }
     },
+    "AI 会优先围绕这些目标给出观察和建议。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI focuses its observations and suggestions on these goals."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI 会优先围绕这些目标给出观察和建议。"
+          }
+        }
+      }
+    },
+    "AI 会参考你在设置里写的目标、它从过去记录中总结的规律，以及 Apple 健康里的活动数据；餐食照片只有在你开启后才会发送。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI also uses the goals you set in Settings, patterns it has learned from your past logs, and activity data from Apple Health. Meal photos are sent only if you turn that on."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI 会参考你在设置里写的目标、它从过去记录中总结的规律，以及 Apple 健康里的活动数据；餐食照片只有在你开启后才会发送。"
+          }
+        }
+      }
+    },
+    "AI 会忘掉它总结的规律，之后从新的记录重新学习。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI will forget the patterns it has learned and start again from new logs."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI 会忘掉它总结的规律，之后从新的记录重新学习。"
+          }
+        }
+      }
+    },
+    "AI 在规则分的基础上调整了睡眠和餐食，并给出观察和建议。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The AI adjusted the rule-based sleep and meal scores and wrote the observations and suggestion."
+          }
+        }
+      }
+    },
+    "AI 对你的了解" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "What AI knows about you"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI 对你的了解"
+          }
+        }
+      }
+    },
     "AI 服务当前比较繁忙，请稍后再试。" : {
       "localizations" : {
         "en" : {
@@ -369,6 +470,16 @@
         }
       }
     },
+    "AI 正在分析其他日期…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI is analyzing another day…"
+          }
+        }
+      }
+    },
     "AI 洞察" : {
       "localizations" : {
         "en" : {
@@ -385,12 +496,32 @@
         }
       }
     },
+    "AI 维持规则分" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI kept the rule score"
+          }
+        }
+      }
+    },
     "AI 解读生成失败：" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "AI interpretation failed: "
+          }
+        }
+      }
+    },
+    "AI 评分" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI score"
           }
         }
       }
@@ -438,7 +569,18 @@
         }
       }
     },
+    "AI 调整 %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI adjusted %@"
+          }
+        }
+      }
+    },
     "AI 返回了文案，但没有返回分数。" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -527,6 +669,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Apple identity token format is invalid."
+          }
+        }
+      }
+    },
+    "BOS-PKX 旅程" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "BOS-PKX trip"
           }
         }
       }
@@ -688,6 +840,7 @@
       }
     },
     "三餐记录完整、时间清楚、时间线合理时可拿高分。" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -713,6 +866,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Previous stage"
+          }
+        }
+      }
+    },
+    "上午茶" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Morning tea"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "上午茶"
+          }
+        }
+      }
+    },
+    "上次的建议" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Last suggestion"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "上次的建议"
           }
         }
       }
@@ -769,6 +954,52 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "下一程第 %1$d / 共 %2$d 段 · %3$@"
+          }
+        }
+      }
+    },
+    "下午茶" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Afternoon tea"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下午茶"
+          }
+        }
+      }
+    },
+    "下雨" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rain"
+          }
+        }
+      }
+    },
+    "下雪" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Snow"
+          }
+        }
+      }
+    },
+    "中文" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chinese"
           }
         }
       }
@@ -1007,6 +1238,26 @@
         }
       }
     },
+    "云端同步暂时失败" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cloud sync failed for now"
+          }
+        }
+      }
+    },
+    "云端数据暂时无法同步" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cloud data can't sync right now"
+          }
+        }
+      }
+    },
     "云端记录同步失败：" : {
       "localizations" : {
         "en" : {
@@ -1093,6 +1344,7 @@
       }
     },
     "仅记录有无但没写时间，仍算完成，只扣少量完整度分。" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1240,6 +1492,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "e.g. NH938 (optional)"
+          }
+        }
+      }
+    },
+    "例如：12 点前睡觉，少吃夜宵" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "e.g. In bed before midnight, fewer late-night snacks"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "例如：12 点前睡觉，少吃夜宵"
           }
         }
       }
@@ -1487,6 +1755,16 @@
         }
       }
     },
+    "假想旅行" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hypothetical trip"
+          }
+        }
+      }
+    },
     "偏好" : {
       "localizations" : {
         "en" : {
@@ -1708,6 +1986,26 @@
         }
       }
     },
+    "冻毛毛雨" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Freezing drizzle"
+          }
+        }
+      }
+    },
+    "冻雨" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Freezing rain"
+          }
+        }
+      }
+    },
     "凌晨截止前的记录会被算到前一天。" : {
       "localizations" : {
         "en" : {
@@ -1760,6 +2058,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Pre-departure meal"
+          }
+        }
+      }
+    },
+    "分数按固定规则计算，观察和建议由 AI 给出。" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scores come from fixed rules; the observations and suggestion come from AI."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "分数按固定规则计算，观察和建议由 AI 给出。"
           }
         }
       }
@@ -2202,6 +2517,22 @@
         }
       }
     },
+    "午间加餐" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Midday snack"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "午间加餐"
+          }
+        }
+      }
+    },
     "午餐" : {
       "localizations" : {
         "en" : {
@@ -2408,6 +2739,26 @@
         }
       }
     },
+    "启动假想旅行（现在）" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Start hypothetical trip (now)"
+          }
+        }
+      }
+    },
+    "启动假想旅行失败：" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Failed to start hypothetical trip: "
+          }
+        }
+      }
+    },
     "启用加密同步失败：" : {
       "localizations" : {
         "en" : {
@@ -2435,11 +2786,22 @@
       }
     },
     "启用该项目且有明确记录时，可给 8-10 分。" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "An enabled section with a clear record can earn 8–10 points."
+          }
+        }
+      }
+    },
+    "周" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Week"
           }
         }
       }
@@ -2573,6 +2935,7 @@
       }
     },
     "四个部分按固定满分评分后，按总分折算到 0-100。" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2683,6 +3046,27 @@
         }
       }
     },
+    "复制密钥" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copy Key"
+          }
+        }
+      }
+    },
+    "复制恢复码" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copy Recovery Code"
+          }
+        }
+      }
+    },
     "外观" : {
       "localizations" : {
         "en" : {
@@ -2715,7 +3099,28 @@
         }
       }
     },
+    "大部晴朗" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mostly clear"
+          }
+        }
+      }
+    },
+    "天气" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Weather"
+          }
+        }
+      }
+    },
     "如果该项目未启用，必须 excluded，不得纳入总分。" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2768,6 +3173,16 @@
         }
       }
     },
+    "局部多云" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Partly cloudy"
+          }
+        }
+      }
+    },
     "展示页使用绝对时间" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2806,6 +3221,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Arrived"
+          }
+        }
+      }
+    },
+    "已复制" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copied"
           }
         }
       }
@@ -2890,6 +3315,37 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "已记录 %1$d/%2$d 个餐次"
+          }
+        }
+      }
+    },
+    "已设置应急恢复密钥。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Emergency recovery key is set."
+          }
+        }
+      }
+    },
+    "已设置恢复码。换手机时如果密钥没有同步过来，可以用它解锁。" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recovery code set. If the key doesn't sync to a new phone, you can unlock with it."
+          }
+        }
+      }
+    },
+    "平均" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Average"
           }
         }
       }
@@ -3038,6 +3494,46 @@
         }
       }
     },
+    "应急恢复密钥" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Emergency Recovery Key"
+          }
+        }
+      }
+    },
+    "应急恢复密钥不正确，请检查后再试。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "That emergency recovery key is not correct. Check it and try again."
+          }
+        }
+      }
+    },
+    "应急恢复密钥可帮助您在云端数据无法正常同步时重置密钥。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "An emergency recovery key helps you reset the key when your cloud data can't sync normally."
+          }
+        }
+      }
+    },
+    "开启" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "On"
+          }
+        }
+      }
+    },
     "开启加密后，所有数据将完全以加密方式安全存储在云端。" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -3067,6 +3563,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "开启后，数据会先在设备加密，再上传云端。"
+          }
+        }
+      }
+    },
+    "开启后，生成解读时会把当天最多 6 张餐食照片缩小后随请求发给 AI 服务，用来识别吃了什么。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "When on, up to 6 of the day's meal photos are downscaled and sent to the AI service with each request so it can see what you ate."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开启后，生成解读时会把当天最多 6 张餐食照片缩小后随请求发给 AI 服务，用来识别吃了什么。"
           }
         }
       }
@@ -3109,6 +3621,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Start this leg"
+          }
+        }
+      }
+    },
+    "强雷暴" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Severe thunderstorm"
           }
         }
       }
@@ -3372,6 +3894,7 @@
       }
     },
     "必须结合起床时间和整天时间线判断，不能凭空批评用户没吃早餐。若起床已接近中午，跳过早餐只能算轻微影响或合理。" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -3423,6 +3946,28 @@
         }
       }
     },
+    "恢复码" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recovery Code"
+          }
+        }
+      }
+    },
+    "恢复码不正确，请检查后再试。" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "That recovery code is not correct. Check it and try again."
+          }
+        }
+      }
+    },
     "我" : {
       "localizations" : {
         "en" : {
@@ -3435,6 +3980,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "我"
+          }
+        }
+      }
+    },
+    "我的目标" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "My goals"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "我的目标"
           }
         }
       }
@@ -3508,6 +4069,39 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Converts times to your current timezone."
+          }
+        }
+      }
+    },
+    "换了手机？输入恢复码即可解锁。打开 iCloud 钥匙串后稍等片刻，也可能会自动解锁。" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New phone? Enter your recovery code to unlock. If iCloud Keychain is on, it may also unlock on its own after a while."
+          }
+        }
+      }
+    },
+    "换手机时，如果 iCloud 钥匙串没有把密钥同步过来，可以输入恢复码解密你的云端数据。恢复码只保存在你手里，服务器上只有用它加密过的密钥。" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If iCloud Keychain doesn't bring your key to a new phone, you can enter the recovery code to decrypt your cloud data. Only you have the code; the server stores only the key encrypted with it."
+          }
+        }
+      }
+    },
+    "换手机时如果 iCloud 钥匙串没有同步过来，需要恢复码才能解密你的云端数据。" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If iCloud Keychain doesn't come along when you switch phones, you'll need a recovery code to decrypt your cloud data."
           }
         }
       }
@@ -3728,6 +4322,16 @@
         }
       }
     },
+    "旅行测试面板" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Travel test panel"
+          }
+        }
+      }
+    },
     "旅行睡眠" : {
       "localizations" : {
         "en" : {
@@ -3872,6 +4476,32 @@
         }
       }
     },
+    "日期" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Date"
+          }
+        }
+      }
+    },
+    "早咖啡" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Morning coffee"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "早咖啡"
+          }
+        }
+      }
+    },
     "早餐" : {
       "localizations" : {
         "en" : {
@@ -3888,6 +4518,16 @@
         }
       }
     },
+    "时刻" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Time"
+          }
+        }
+      }
+    },
     "时长" : {
       "localizations" : {
         "en" : {
@@ -3899,6 +4539,7 @@
       }
     },
     "时长明显不足、严重偏离目标或记录残缺时，才给低分。" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -3909,6 +4550,7 @@
       }
     },
     "时长稍短/稍长，或作息与目标相差 30-120 分钟，拿中间分。" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -3972,6 +4614,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "时间范围"
+          }
+        }
+      }
+    },
+    "明天试试" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Try tomorrow"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "明天试试"
           }
         }
       }
@@ -4173,6 +4831,22 @@
         }
       }
     },
+    "晚间加餐" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Evening snack"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "晚间加餐"
+          }
+        }
+      }
+    },
     "晚餐" : {
       "localizations" : {
         "en" : {
@@ -4185,6 +4859,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "晚餐"
+          }
+        }
+      }
+    },
+    "晴朗" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clear"
           }
         }
       }
@@ -4301,6 +4985,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "If there is a connection or another flight, keep adding the next leg."
+          }
+        }
+      }
+    },
+    "有雾" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Foggy"
           }
         }
       }
@@ -4448,6 +5142,16 @@
         }
       }
     },
+    "次数" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Count"
+          }
+        }
+      }
+    },
     "正在保存片段…" : {
       "localizations" : {
         "en" : {
@@ -4560,7 +5264,24 @@
         }
       }
     },
+    "正在生成 AI 解读…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Generating AI insight…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在生成 AI 解读…"
+          }
+        }
+      }
+    },
     "正在生成 AI 评分…" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -4746,6 +5467,16 @@
         }
       }
     },
+    "毛毛雨" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drizzle"
+          }
+        }
+      }
+    },
     "没有了，完成行程" : {
       "localizations" : {
         "en" : {
@@ -4757,6 +5488,7 @@
       }
     },
     "没有记录时给保守中低分，不做重罚。" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -5057,6 +5789,74 @@
         }
       }
     },
+    "清除" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clear"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "清除"
+          }
+        }
+      }
+    },
+    "清除 AI 记忆" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clear AI memory"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "清除 AI 记忆"
+          }
+        }
+      }
+    },
+    "清除 AI 记忆？" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clear AI memory?"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "清除 AI 记忆？"
+          }
+        }
+      }
+    },
+    "清除假想旅行" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clear hypothetical trip"
+          }
+        }
+      }
+    },
+    "清除假想旅行失败：" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Failed to clear hypothetical trip: "
+          }
+        }
+      }
+    },
     "清除记录" : {
       "localizations" : {
         "en" : {
@@ -5258,6 +6058,38 @@
         }
       }
     },
+    "生成失败：" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't create it: "
+          }
+        }
+      }
+    },
+    "生成恢复码" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Create Recovery Code"
+          }
+        }
+      }
+    },
+    "用恢复码解锁" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unlock with Recovery Code"
+          }
+        }
+      }
+    },
     "登录后自动使用云端 AI。" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -5357,6 +6189,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Sign-in failed: Sign-in request expired, please tap Apple Sign In again."
+          }
+        }
+      }
+    },
+    "登录状态已失效，请重新登录。这台手机上的记录都还在，用同一个 Apple ID 登录后会继续同步。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your sign-in has expired. Please sign in again. Your records on this phone are still here and will keep syncing once you sign in with the same Apple ID."
           }
         }
       }
@@ -5914,6 +6756,16 @@
         }
       }
     },
+    "规则分 %d" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rules %d"
+          }
+        }
+      }
+    },
     "规律不是为了控制你，而是为了更轻松地生活。" : {
       "localizations" : {
         "en" : {
@@ -5926,6 +6778,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "规律不是为了控制你，而是为了更轻松地生活。"
+          }
+        }
+      }
+    },
+    "解锁" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unlock"
           }
         }
       }
@@ -5966,12 +6829,48 @@
         }
       }
     },
+    "让 AI 看餐食照片" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Let AI see meal photos"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "让 AI 看餐食照片"
+          }
+        }
+      }
+    },
     "记录了 %d 次" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Recorded %d times"
+          }
+        }
+      }
+    },
+    "记录了 %d 次，时间和平时不太一样" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Logged %d times, at an unusual time"
+          }
+        }
+      }
+    },
+    "记录了 %d 次，时间和平时差不多" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Logged %d times, around your usual time"
           }
         }
       }
@@ -6051,6 +6950,27 @@
         }
       }
     },
+    "设置应急恢复密钥" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Set Up Emergency Recovery Key"
+          }
+        }
+      }
+    },
+    "设置恢复码" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Set Up a Recovery Code"
+          }
+        }
+      }
+    },
     "语言" : {
       "localizations" : {
         "en" : {
@@ -6083,7 +7003,29 @@
         }
       }
     },
+    "请妥善保存这串密钥，它只会显示这一次。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keep this key somewhere safe. It's shown only once."
+          }
+        }
+      }
+    },
+    "请把这串恢复码保存到密码管理器或其他安全的地方。它只显示这一次，我们也无法帮你找回。" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save this recovery code in a password manager or another safe place. It's shown only once, and we can't recover it for you."
+          }
+        }
+      }
+    },
     "请检查同一 Apple ID 和 iCloud 钥匙串。" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -6095,6 +7037,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "请检查同一 Apple ID 和 iCloud 钥匙串。"
+          }
+        }
+      }
+    },
+    "请输入您之前保存的应急恢复密钥。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enter the emergency recovery key you saved."
           }
         }
       }
@@ -6359,6 +7311,17 @@
         }
       }
     },
+    "输入之前在其他设备上生成的恢复码，例如 ABCD-EFGH-…。" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enter the recovery code you created on another device, like ABCD-EFGH-…."
+          }
+        }
+      }
+    },
     "输入你想使用的昵称" : {
       "localizations" : {
         "en" : {
@@ -6371,6 +7334,48 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "输入你想使用的昵称"
+          }
+        }
+      }
+    },
+    "输入应急恢复密钥" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enter Emergency Recovery Key"
+          }
+        }
+      }
+    },
+    "输入应急恢复密钥即可恢复同步。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enter your emergency recovery key to restore sync."
+          }
+        }
+      }
+    },
+    "输入恢复码" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enter Recovery Code"
+          }
+        }
+      }
+    },
+    "输入恢复码即可解锁；也可以检查是否登录同一 Apple ID 并打开了 iCloud 钥匙串。" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enter your recovery code to unlock, or check that you're signed in to the same Apple ID with iCloud Keychain on."
           }
         }
       }
@@ -6433,6 +7438,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Another leg"
+          }
+        }
+      }
+    },
+    "还没有内容。每次生成解读后，AI 会在这里记下它从你的记录里发现的规律。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nothing yet. After each insight, AI notes the patterns it finds in your logs here."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "还没有内容。每次生成解读后，AI 会在这里记下它从你的记录里发现的规律。"
           }
         }
       }
@@ -6533,6 +7554,27 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "No flight segments yet"
+          }
+        }
+      }
+    },
+    "还没有设置应急恢复密钥。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No emergency recovery key yet."
+          }
+        }
+      }
+    },
+    "还没有设置恢复码。换手机时如果 iCloud 钥匙串没有同步过来，数据将无法解密。" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No recovery code yet. If iCloud Keychain doesn't sync to a new phone, your data can't be decrypted."
           }
         }
       }
@@ -6780,6 +7822,27 @@
         }
       }
     },
+    "这个账号还没有设置应急恢复密钥。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This account has no emergency recovery key yet."
+          }
+        }
+      }
+    },
+    "这个账号还没有设置恢复码。" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This account has no recovery code yet."
+          }
+        }
+      }
+    },
     "这些是目标当天的权威计数；历史窗口只用于趋势对比，不能当作当天记录。" : {
       "localizations" : {
         "en" : {
@@ -6803,6 +7866,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "这台设备已受端到端加密保护"
+          }
+        }
+      }
+    },
+    "这台设备还不能解密云端数据" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This device can't decrypt your cloud data yet"
           }
         }
       }
@@ -6993,6 +8067,16 @@
         }
       }
     },
+    "选中" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Selected"
+          }
+        }
+      }
+    },
     "选择日期" : {
       "localizations" : {
         "en" : {
@@ -7083,7 +8167,24 @@
         }
       }
     },
+    "重新生成 AI 解读" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Regenerate AI insight"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重新生成 AI 解读"
+          }
+        }
+      }
+    },
     "重新生成 AI 评分" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -7095,6 +8196,58 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "重新生成 AI 评分"
+          }
+        }
+      }
+    },
+    "重新生成后，之前的恢复码将失效。" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Creating a new code makes the previous one stop working."
+          }
+        }
+      }
+    },
+    "重新生成恢复码" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Create New Recovery Code"
+          }
+        }
+      }
+    },
+    "重新设置后，之前的应急恢复密钥将失效。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Setting a new key makes the previous one stop working."
+          }
+        }
+      }
+    },
+    "重新设置应急恢复密钥" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reset Emergency Recovery Key"
+          }
+        }
+      }
+    },
+    "重试" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Retry"
           }
         }
       }
@@ -7115,12 +8268,52 @@
         }
       }
     },
+    "阴" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Overcast"
+          }
+        }
+      }
+    },
+    "阵雨" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rain showers"
+          }
+        }
+      }
+    },
+    "阵雪" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Snow showers"
+          }
+        }
+      }
+    },
     "降落机场" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Arrival airport"
+          }
+        }
+      }
+    },
+    "雷暴" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Thunderstorm"
           }
         }
       }
@@ -7216,86 +8409,6 @@
         }
       }
     },
-    "早咖啡" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Morning coffee"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "早咖啡"
-          }
-        }
-      }
-    },
-    "上午茶" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Morning tea"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "上午茶"
-          }
-        }
-      }
-    },
-    "午间加餐" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Midday snack"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "午间加餐"
-          }
-        }
-      }
-    },
-    "下午茶" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Afternoon tea"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "下午茶"
-          }
-        }
-      }
-    },
-    "晚间加餐" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Evening snack"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "晚间加餐"
-          }
-        }
-      }
-    },
     "默认餐次" : {
       "localizations" : {
         "en" : {
@@ -7308,322 +8421,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "默认餐次"
-          }
-        }
-      }
-    },
-    "中文" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Chinese"
-          }
-        }
-      }
-    },
-    "晴朗" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Clear"
-          }
-        }
-      }
-    },
-    "大部晴朗" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Mostly clear"
-          }
-        }
-      }
-    },
-    "局部多云" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Partly cloudy"
-          }
-        }
-      }
-    },
-    "阴" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Overcast"
-          }
-        }
-      }
-    },
-    "有雾" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Foggy"
-          }
-        }
-      }
-    },
-    "毛毛雨" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Drizzle"
-          }
-        }
-      }
-    },
-    "冻毛毛雨" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Freezing drizzle"
-          }
-        }
-      }
-    },
-    "下雨" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Rain"
-          }
-        }
-      }
-    },
-    "冻雨" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Freezing rain"
-          }
-        }
-      }
-    },
-    "下雪" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Snow"
-          }
-        }
-      }
-    },
-    "阵雨" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Rain showers"
-          }
-        }
-      }
-    },
-    "阵雪" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Snow showers"
-          }
-        }
-      }
-    },
-    "雷暴" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Thunderstorm"
-          }
-        }
-      }
-    },
-    "强雷暴" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Severe thunderstorm"
-          }
-        }
-      }
-    },
-    "天气" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Weather"
-          }
-        }
-      }
-    },
-    "平均" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Average"
-          }
-        }
-      }
-    },
-    "日期" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Date"
-          }
-        }
-      }
-    },
-    "选中" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Selected"
-          }
-        }
-      }
-    },
-    "时刻" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Time"
-          }
-        }
-      }
-    },
-    "周" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Week"
-          }
-        }
-      }
-    },
-    "次数" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Count"
-          }
-        }
-      }
-    },
-    "旅行测试面板" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Travel test panel"
-          }
-        }
-      }
-    },
-    "启动假想旅行（现在）" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Start hypothetical trip (now)"
-          }
-        }
-      }
-    },
-    "清除假想旅行" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Clear hypothetical trip"
-          }
-        }
-      }
-    },
-    "开启" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "On"
-          }
-        }
-      }
-    },
-    "启动假想旅行失败：" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Failed to start hypothetical trip: "
-          }
-        }
-      }
-    },
-    "清除假想旅行失败：" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Failed to clear hypothetical trip: "
-          }
-        }
-      }
-    },
-    "BOS-PKX 旅程" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "BOS-PKX trip"
-          }
-        }
-      }
-    },
-    "%@-%@ 旅程" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$@-%2$@ trip"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$@-%2$@ 旅程"
-          }
-        }
-      }
-    },
-    "假想旅行" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Hypothetical trip"
           }
         }
       }

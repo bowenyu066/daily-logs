@@ -32,6 +32,11 @@ struct AIInsightsView: View {
         appViewModel.aiInsightCalendarDateRange
     }
 
+    private var isGeneratingSelection: Bool {
+        guard let resolvedInsightDate, let generatingDate = appViewModel.generatingDailyInsightDate else { return false }
+        return generatingDate.startOfDay == resolvedInsightDate.startOfDay
+    }
+
     private var isDisplayingAIScoreForSelection: Bool {
         guard let resolvedInsightDate else { return false }
         return appViewModel.isDisplayingAIScoredInsight(for: resolvedInsightDate)
@@ -155,7 +160,7 @@ struct AIInsightsView: View {
             }
 
             HStack(spacing: 18) {
-                scoreRing(score: report.overallScore)
+                scoreRing(score: report.overallScore, ruleScore: report.ruleScore)
 
                 VStack(alignment: .leading, spacing: 8) {
                     Text(activeNarrative?.summary ?? report.summary)
@@ -181,7 +186,7 @@ struct AIInsightsView: View {
                         .background(.white.opacity(0.12))
                         .clipShape(Capsule())
 
-                        if appViewModel.isGeneratingDailyInsightNarrative {
+                        if isGeneratingSelection {
                             ProgressView()
                                 .progressViewStyle(.circular)
                                 .tint(.white)
@@ -210,7 +215,7 @@ struct AIInsightsView: View {
         .shadow(color: Color.black.opacity(0.10), radius: 12, x: 0, y: 6)
     }
 
-    private func scoreRing(score: Int) -> some View {
+    private func scoreRing(score: Int, ruleScore: Int?) -> some View {
         ZStack {
             Circle()
                 .stroke(Color.white.opacity(0.16), lineWidth: 12)
@@ -234,9 +239,16 @@ struct AIInsightsView: View {
                 Text("\(score)")
                     .font(.system(size: 30, weight: .bold, design: .rounded))
                     .foregroundStyle(.white)
-                Text(NSLocalizedString("当日分数", comment: ""))
+                Text(ruleScore == nil
+                    ? NSLocalizedString("当日分数", comment: "")
+                    : NSLocalizedString("AI 评分", comment: ""))
                     .font(.system(size: 11, weight: .semibold, design: .rounded))
                     .foregroundStyle(Color.white.opacity(0.72))
+                if let ruleScore {
+                    Text(String(format: NSLocalizedString("规则分 %d", comment: ""), ruleScore))
+                        .font(.system(size: 10, weight: .medium, design: .rounded))
+                        .foregroundStyle(Color.white.opacity(0.6))
+                }
             }
         }
         .frame(width: 112, height: 112)
@@ -262,20 +274,38 @@ struct AIInsightsView: View {
                             .clipShape(Capsule())
                     }
 
-                    ZStack(alignment: .leading) {
-                        Capsule()
-                            .fill(AppTheme.mutedFill)
-                            .frame(height: 8)
-
-                        Capsule()
-                            .fill(componentColor(component))
-                            .frame(width: componentBarWidth(component: component), height: 8)
-                    }
+                    Capsule()
+                        .fill(AppTheme.mutedFill)
+                        .frame(height: 8)
+                        .overlay(alignment: .leading) {
+                            GeometryReader { proxy in
+                                Capsule()
+                                    .fill(componentColor(component))
+                                    .frame(width: componentBarWidth(component: component, trackWidth: proxy.size.width))
+                            }
+                        }
 
                     Text(component.detail)
                         .font(.system(size: 13, weight: .medium, design: .rounded))
                         .foregroundStyle(AppTheme.secondaryText)
                         .fixedSize(horizontal: false, vertical: true)
+
+                    if let reason = component.aiReason {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Label(aiDeltaLabel(component.aiDelta ?? 0), systemImage: "wand.and.stars")
+                                .font(.system(size: 12, weight: .bold, design: .rounded))
+                                .foregroundStyle(componentColor(component))
+
+                            Text(reason)
+                                .font(.system(size: 13, weight: .medium, design: .rounded))
+                                .foregroundStyle(AppTheme.primaryText)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(10)
+                        .background(componentColor(component).opacity(0.08))
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    }
                 }
                 .padding(18)
                 .background(AppTheme.cardBackground)
@@ -288,9 +318,18 @@ struct AIInsightsView: View {
         }
     }
 
-    private func componentBarWidth(component: DailyInsightComponent) -> CGFloat {
-        guard component.isIncluded, component.maxScore > 0 else { return 28 }
-        return max(28, CGFloat(component.scoreRatio) * 120)
+    private func aiDeltaLabel(_ delta: Int) -> String {
+        if delta == 0 {
+            return NSLocalizedString("AI 维持规则分", comment: "")
+        }
+        return String(format: NSLocalizedString("AI 调整 %@", comment: ""), delta > 0 ? "+\(delta)" : "\(delta)")
+    }
+
+    /// Proportional to the score; a short stub keeps excluded and zero scores visible.
+    private func componentBarWidth(component: DailyInsightComponent, trackWidth: CGFloat) -> CGFloat {
+        let stub = min(28, trackWidth)
+        guard component.isIncluded, component.maxScore > 0 else { return stub }
+        return max(min(8, trackWidth), CGFloat(component.scoreRatio) * trackWidth)
     }
 
     private func componentColor(_ component: DailyInsightComponent) -> Color {
@@ -313,7 +352,9 @@ struct AIInsightsView: View {
                 title: NSLocalizedString("这一天的观察", comment: ""),
                 subtitle: appViewModel.canGenerateAIInsights
                     ? (isDisplayingAIScoreForSelection
-                        ? NSLocalizedString("这张卡片的分数和文案都由 AI 给出。", comment: "")
+                        ? (report.ruleScore != nil
+                            ? NSLocalizedString("AI 在规则分的基础上调整了睡眠和餐食，并给出观察和建议。", comment: "")
+                            : NSLocalizedString("这张卡片的分数和文案都由 AI 给出。", comment: ""))
                         : NSLocalizedString("现在还是本地兜底分数；生成后会切换成 AI 评分。", comment: ""))
                     : NSLocalizedString("登录后自动启用云端 AI。", comment: "")
             )
@@ -329,7 +370,27 @@ struct AIInsightsView: View {
             }
 
             VStack(alignment: .leading, spacing: 12) {
-                if let narrative = activeNarrative {
+                if let narrative = activeNarrative, let findings = narrative.findings, !findings.isEmpty {
+                    ForEach(Array(findings.enumerated()), id: \.offset) { _, finding in
+                        insightFinding(finding)
+                    }
+                    if let followUp = nonEmpty(narrative.followUp) {
+                        insightNote(
+                            title: NSLocalizedString("上次的建议", comment: ""),
+                            text: followUp,
+                            systemImage: "arrow.uturn.backward.circle",
+                            tint: Color(red: 0.42, green: 0.48, blue: 0.62)
+                        )
+                    }
+                    if let suggestion = nonEmpty(narrative.suggestion) {
+                        insightNote(
+                            title: NSLocalizedString("明天试试", comment: ""),
+                            text: suggestion,
+                            systemImage: "lightbulb",
+                            tint: Color(red: 0.80, green: 0.52, blue: 0.16)
+                        )
+                    }
+                } else if let narrative = activeNarrative {
                     ForEach(Array(narrative.bullets.enumerated()), id: \.offset) { _, bullet in
                         insightBullet(bullet)
                     }
@@ -345,9 +406,11 @@ struct AIInsightsView: View {
                     guard let resolvedInsightDate else { return }
                     Task { await appViewModel.refreshDailyInsightNarrative(for: resolvedInsightDate, force: true) }
                 } label: {
-                    Text(appViewModel.isGeneratingDailyInsightNarrative
-                        ? NSLocalizedString("正在生成 AI 评分…", comment: "")
-                        : NSLocalizedString("重新生成 AI 评分", comment: ""))
+                    Text(isGeneratingSelection
+                        ? NSLocalizedString("正在生成 AI 解读…", comment: "")
+                        : (appViewModel.isGeneratingDailyInsightNarrative
+                            ? NSLocalizedString("AI 正在分析其他日期…", comment: "")
+                            : NSLocalizedString("重新生成 AI 解读", comment: "")))
                         .font(.system(size: 15, weight: .bold, design: .rounded))
                         .foregroundStyle(.white)
                         .frame(maxWidth: .infinity)
@@ -399,6 +462,55 @@ struct AIInsightsView: View {
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 
+    private func insightFinding(_ finding: DailyInsightNarrative.Finding) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            Circle()
+                .fill(Color(red: 0.18, green: 0.63, blue: 0.65))
+                .frame(width: 8, height: 8)
+                .padding(.top, 7)
+
+            VStack(alignment: .leading, spacing: 5) {
+                Text(finding.title)
+                    .font(.system(size: 15, weight: .bold, design: .rounded))
+                    .foregroundStyle(AppTheme.primaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Text(finding.evidence)
+                    .font(.system(size: 14, weight: .medium, design: .rounded))
+                    .foregroundStyle(AppTheme.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .background(AppTheme.elevatedSurface)
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+    }
+
+    private func insightNote(title: String, text: String, systemImage: String, tint: Color) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Label(title, systemImage: systemImage)
+                .font(.system(size: 13, weight: .bold, design: .rounded))
+                .foregroundStyle(tint)
+
+            Text(text)
+                .font(.system(size: 15, weight: .medium, design: .rounded))
+                .foregroundStyle(AppTheme.primaryText)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .background(tint.opacity(0.10))
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+    }
+
+    private func nonEmpty(_ text: String?) -> String? {
+        let trimmed = text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
     private var privacyCard: some View {
         VStack(alignment: .leading, spacing: 12) {
             SectionHeader(
@@ -411,6 +523,10 @@ struct AIInsightsView: View {
                 .foregroundStyle(AppTheme.secondaryText)
 
             Text(NSLocalizedString("AI 请求会经你的云端代理转发；新评分会固定保存，除非相关记录后来被改动。", comment: ""))
+                .font(.system(size: 14, weight: .medium, design: .rounded))
+                .foregroundStyle(AppTheme.secondaryText)
+
+            Text(NSLocalizedString("AI 会参考你在设置里写的目标、它从过去记录中总结的规律，以及 Apple 健康里的活动数据；餐食照片只有在你开启后才会发送。", comment: ""))
                 .font(.system(size: 14, weight: .medium, design: .rounded))
                 .foregroundStyle(AppTheme.secondaryText)
         }

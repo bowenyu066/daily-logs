@@ -33,6 +33,22 @@ struct AuthGateView: View {
                         .foregroundStyle(AppTheme.secondaryText)
                 }
 
+                if let authNotice = appViewModel.authNotice {
+                    Label {
+                        Text(authNotice)
+                            .font(.system(size: 14, weight: .medium, design: .rounded))
+                            .foregroundStyle(AppTheme.primaryText)
+                            .fixedSize(horizontal: false, vertical: true)
+                    } icon: {
+                        Image(systemName: "person.crop.circle.badge.exclamationmark")
+                            .foregroundStyle(AppTheme.warning)
+                    }
+                    .padding(14)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(AppTheme.warning.opacity(0.10))
+                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                }
+
                 VStack(spacing: 12) {
                     Button {
                         startAppleSignIn()

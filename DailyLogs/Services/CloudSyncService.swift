@@ -26,11 +26,41 @@ protocol CloudSyncService: Sendable {
     ) async throws
     /// Local media file names mapped to the cloud references they were uploaded as.
     func uploadedMediaReferences(for user: UserAccount) async -> [String: String]
+    /// Stores the data key encrypted with a new recovery code and returns the code. A code created
+    /// earlier stops working.
+    func createRecoveryCode(for user: UserAccount) async throws -> String
+    /// Unlocks encrypted sync on this device with a recovery code and saves the key to the keychain.
+    func unlock(withRecoveryCode code: String, user: UserAccount) async throws
 }
 
 extension CloudSyncService {
     func uploadedMediaReferences(for user: UserAccount) async -> [String: String] {
         [:]
+    }
+
+    func createRecoveryCode(for user: UserAccount) async throws -> String {
+        throw CloudSyncSecurityError.firebaseUnavailable
+    }
+
+    func unlock(withRecoveryCode code: String, user: UserAccount) async throws {
+        throw CloudSyncSecurityError.firebaseUnavailable
+    }
+}
+
+/// Requests the security rules rejected because they were not made with the account's own sign-in.
+enum CloudAuthorizationFailure {
+    static func matches(_ error: Error) -> Bool {
+        let nsError = error as NSError
+        switch nsError.domain {
+        case FirestoreErrorDomain:
+            return nsError.code == FirestoreErrorCode.permissionDenied.rawValue
+                || nsError.code == FirestoreErrorCode.unauthenticated.rawValue
+        case StorageErrorDomain:
+            return nsError.code == StorageErrorCode.unauthorized.rawValue
+                || nsError.code == StorageErrorCode.unauthenticated.rawValue
+        default:
+            return false
+        }
     }
 }
 
@@ -136,8 +166,43 @@ final class FirebaseCloudSyncService: CloudSyncService, Sendable {
         return CloudProtectionSnapshot(
             mode: metadata == nil ? .disabled : .enabled,
             localKeyAvailable: try await usableKey(for: user, metadata: metadata) != nil,
-            hasLegacyPlaintextData: try await hasLegacyPlaintextData(for: user)
+            hasLegacyPlaintextData: try await hasLegacyPlaintextData(for: user),
+            hasRecoveryCode: metadata == nil ? false : try await fetchRecoveryEnvelope(for: user) != nil
         )
+    }
+
+    func createRecoveryCode(for user: UserAccount) async throws -> String {
+        guard let db else {
+            throw CloudSyncSecurityError.firebaseUnavailable
+        }
+        guard let metadata = try await fetchEncryptionMetadata(for: user),
+              let key = try await usableKey(for: user, metadata: metadata) else {
+            throw CloudSyncSecurityError.encryptedSyncLocked
+        }
+        let code = crypto.makeRecoveryCode()
+        let envelope = try crypto.wrapKey(key, recoveryCode: code)
+        try await recoveryDocument(in: db, for: user).setData(try encode(envelope))
+        return code
+    }
+
+    func unlock(withRecoveryCode code: String, user: UserAccount) async throws {
+        guard db != nil else {
+            throw CloudSyncSecurityError.firebaseUnavailable
+        }
+        guard let envelope = try await fetchRecoveryEnvelope(for: user) else {
+            throw CloudSyncSecurityError.recoveryCodeNotSet
+        }
+        let key = try crypto.unwrapKey(from: envelope, recoveryCode: code)
+        guard try await canDecryptCloudData(using: key, for: user) else {
+            throw CloudSyncSecurityError.invalidRecoveryCode
+        }
+        // Saved to iCloud Keychain when possible so the user's other devices get it too.
+        do {
+            try keychain.saveKey(key, for: user.userID, synchronizable: true)
+        } catch {
+            try keychain.saveKey(key, for: user.userID, synchronizable: false)
+        }
+        session.storeKey(key, for: user.userID)
     }
 
     func bootstrap(user: UserAccount, localPreferences: UserPreferences, localRecords: [DailyRecord]) async throws -> CloudBootstrapPayload {
@@ -805,6 +870,16 @@ final class FirebaseCloudSyncService: CloudSyncService, Sendable {
         return metadata
     }
 
+    private func recoveryDocument(in db: Firestore, for user: UserAccount) -> DocumentReference {
+        db.collection("users").document(user.userID).collection("secureMeta").document("recovery")
+    }
+
+    private func fetchRecoveryEnvelope(for user: UserAccount) async throws -> CloudRecoveryEnvelope? {
+        guard let db else { return nil }
+        let snapshot = try await recoveryDocument(in: db, for: user).getDocument()
+        return try snapshot.data().map { try decode(CloudRecoveryEnvelope.self, from: $0) }
+    }
+
     private func writeEncryptionMetadata(_ metadata: CloudEncryptionMetadata, for user: UserAccount) async throws {
         guard let db else { return }
         try await db.collection("users").document(user.userID).collection("secureMeta").document("current").setData(try encode(metadata))
@@ -825,7 +900,11 @@ final class FirebaseCloudSyncService: CloudSyncService, Sendable {
         let candidates: [SymmetricKey]
         switch metadata.keyProvider {
         case .synchronizableKeychain:
-            candidates = [keychain.loadSynchronizableKey(for: user.userID)].compactMap { $0 }
+            // The local copy exists when unlocking with a recovery code could not write to iCloud Keychain.
+            candidates = [
+                keychain.loadSynchronizableKey(for: user.userID),
+                keychain.loadLocalKey(for: user.userID)
+            ].compactMap { $0 }
         case .passphrase:
             candidates = [
                 keychain.loadLocalKey(for: user.userID),

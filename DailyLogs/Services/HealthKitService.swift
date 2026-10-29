@@ -5,10 +5,76 @@ import HealthKit
 final class HealthKitService: HealthSyncAdapter {
     private let store = HKHealthStore()
 
+    /// Activity and heart data give AI insights context beyond sleep. iOS asks only for types the
+    /// user has not answered yet, so calling this again after an update prompts just for the new ones.
+    private static let activityQuantityTypes: [HKQuantityTypeIdentifier] = [
+        .stepCount,
+        .activeEnergyBurned,
+        .appleExerciseTime,
+        .restingHeartRate,
+        .heartRateVariabilitySDNN
+    ]
+
     func requestAuthorization() async throws {
         guard HKHealthStore.isHealthDataAvailable() else { return }
         let sleepType = HKCategoryType(.sleepAnalysis)
-        try await store.requestAuthorization(toShare: [], read: [sleepType])
+        let activityTypes = Self.activityQuantityTypes.map { HKQuantityType($0) as HKObjectType }
+        try await store.requestAuthorization(toShare: [], read: Set([sleepType as HKObjectType] + activityTypes))
+    }
+
+    func fetchDailyActivity(for date: Date) async throws -> DailyHealthSummary? {
+        guard HKHealthStore.isHealthDataAvailable() else { return nil }
+        let dayStart = Calendar.current.startOfDay(for: date)
+        guard let dayEnd = Calendar.current.date(byAdding: .day, value: 1, to: dayStart) else { return nil }
+
+        let steps = await statistic(.stepCount, from: dayStart, to: dayEnd, options: .cumulativeSum, unit: .count())
+        let energy = await statistic(.activeEnergyBurned, from: dayStart, to: dayEnd, options: .cumulativeSum, unit: .kilocalorie())
+        let exercise = await statistic(.appleExerciseTime, from: dayStart, to: dayEnd, options: .cumulativeSum, unit: .minute())
+        let restingHeartRate = await statistic(
+            .restingHeartRate,
+            from: dayStart,
+            to: dayEnd,
+            options: .discreteAverage,
+            unit: HKUnit.count().unitDivided(by: .minute())
+        )
+        let heartRateVariability = await statistic(
+            .heartRateVariabilitySDNN,
+            from: dayStart,
+            to: dayEnd,
+            options: .discreteAverage,
+            unit: .secondUnit(with: .milli)
+        )
+
+        let summary = DailyHealthSummary(
+            steps: steps.map { Int($0.rounded()) },
+            activeEnergyKilocalories: energy.map { Int($0.rounded()) },
+            exerciseMinutes: exercise.map { Int($0.rounded()) },
+            restingHeartRate: restingHeartRate.map { Int($0.rounded()) },
+            heartRateVariabilityMilliseconds: heartRateVariability.map { Int($0.rounded()) }
+        )
+        return summary.isEmpty ? nil : summary
+    }
+
+    /// Returns nil when there is no data or read access was not granted (HealthKit does not say which).
+    private func statistic(
+        _ identifier: HKQuantityTypeIdentifier,
+        from start: Date,
+        to end: Date,
+        options: HKStatisticsOptions,
+        unit: HKUnit
+    ) async -> Double? {
+        let predicate = HKQuery.predicateForSamples(withStart: start, end: end, options: .strictStartDate)
+        return await withCheckedContinuation { (continuation: CheckedContinuation<Double?, Never>) in
+            let query = HKStatisticsQuery(
+                quantityType: HKQuantityType(identifier),
+                quantitySamplePredicate: predicate,
+                options: options
+            ) { _, statistics, _ in
+                let quantity = options.contains(.cumulativeSum) ? statistics?.sumQuantity() : statistics?.averageQuantity()
+                continuation.resume(returning: quantity?.doubleValue(for: unit))
+            }
+            store.execute(query)
+        }
     }
 
     func fetchSleepData(for date: Date, after registrationDate: Date) async throws -> SleepRecord? {

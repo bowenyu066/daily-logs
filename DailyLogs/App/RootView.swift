@@ -24,6 +24,12 @@ struct RootView: View {
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
         }
+        .sheet(item: $appViewModel.activeCloudRecoverySheet) { mode in
+            CloudRecoveryCodeSheet(mode: mode)
+                .environmentObject(appViewModel)
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+        }
         .task {
             await appViewModel.bootstrap()
         }

@@ -9,6 +9,7 @@ struct SettingsView: View {
     @State private var isEditingNickname = false
     @State private var nicknameText = ""
     @State private var showingHomeSections = false
+    @State private var showingAIInsightSettings = false
     @State private var showingMidnightModeConfirmation = false
     @State private var showingMidnightModeInfoPopover = false
     @State private var pendingMidnightModeEnabled = false
@@ -41,6 +42,15 @@ struct SettingsView: View {
                     .environmentObject(appViewModel)
                     .presentationDetents([.medium])
                     .presentationDragIndicator(.visible)
+            }
+            .sheet(isPresented: $showingAIInsightSettings) {
+                AIInsightSettingsSheet(
+                    goals: appViewModel.preferences.aiGoals,
+                    includesMealPhotos: appViewModel.preferences.aiIncludesMealPhotos
+                )
+                .environmentObject(appViewModel)
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
             }
             .sheet(isPresented: $showingMealSlots) {
                 DefaultMealSlotsSheet()
@@ -389,21 +399,29 @@ struct SettingsView: View {
     }
 
     private var aiInsightsRow: some View {
-        HStack(spacing: 10) {
-            Text(NSLocalizedString("AI 洞察", comment: ""))
-                .font(.system(size: 16, weight: .semibold, design: .rounded))
-                .foregroundStyle(AppTheme.primaryText)
-            Spacer()
-            Circle()
-                .fill(appViewModel.canGenerateAIInsights ? Color(red: 0.20, green: 0.63, blue: 0.60) : AppTheme.warning)
-                .frame(width: 8, height: 8)
-            Text(aiInsightsStatusText)
-                .font(.system(size: 14, weight: .medium, design: .rounded))
-                .foregroundStyle(AppTheme.secondaryText)
-                .lineLimit(1)
-                .minimumScaleFactor(0.85)
+        Button {
+            showingAIInsightSettings = true
+        } label: {
+            HStack(spacing: 10) {
+                Text(NSLocalizedString("AI 洞察", comment: ""))
+                    .font(.system(size: 16, weight: .semibold, design: .rounded))
+                    .foregroundStyle(AppTheme.primaryText)
+                Spacer()
+                Circle()
+                    .fill(appViewModel.canGenerateAIInsights ? Color(red: 0.20, green: 0.63, blue: 0.60) : AppTheme.warning)
+                    .frame(width: 8, height: 8)
+                Text(aiInsightsStatusText)
+                    .font(.system(size: 14, weight: .medium, design: .rounded))
+                    .foregroundStyle(AppTheme.secondaryText)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(AppTheme.secondaryText)
+            }
+            .padding(.vertical, 2)
         }
-        .padding(.vertical, 2)
+        .buttonStyle(.plain)
     }
 
     @ViewBuilder
@@ -460,15 +478,27 @@ struct SettingsView: View {
             )
             .padding(.top, 6)
         case .locked:
-            secondaryActionButton(
-                title: NSLocalizedString("重新检查同步密钥", comment: ""),
-                action: {
-                    Task { await appViewModel.refreshCloudEncryptionState() }
-                }
-            )
+            VStack(spacing: 10) {
+                primaryActionButton(
+                    title: NSLocalizedString("输入应急恢复密钥", comment: ""),
+                    action: { appViewModel.activeCloudRecoverySheet = .unlock }
+                )
+                secondaryActionButton(
+                    title: NSLocalizedString("重新检查同步密钥", comment: ""),
+                    action: {
+                        Task { await appViewModel.refreshCloudEncryptionState() }
+                    }
+                )
+            }
             .padding(.top, 6)
         case .unlocked:
-            EmptyView()
+            secondaryActionButton(
+                title: appViewModel.hasCloudRecoveryCode
+                    ? NSLocalizedString("重新设置应急恢复密钥", comment: "")
+                    : NSLocalizedString("设置应急恢复密钥", comment: ""),
+                action: { appViewModel.activeCloudRecoverySheet = .create }
+            )
+            .padding(.top, 6)
         }
     }
 
@@ -522,9 +552,11 @@ struct SettingsView: View {
         case .disabled:
             return NSLocalizedString("开启后，数据会先在设备加密，再上传云端。", comment: "")
         case .locked:
-            return NSLocalizedString("请检查同一 Apple ID 和 iCloud 钥匙串。", comment: "")
+            return NSLocalizedString("输入应急恢复密钥即可恢复同步。", comment: "")
         case .unlocked:
-            return ""
+            return appViewModel.hasCloudRecoveryCode
+                ? NSLocalizedString("已设置应急恢复密钥。", comment: "")
+                : NSLocalizedString("还没有设置应急恢复密钥。", comment: "")
         }
     }
 
@@ -764,5 +796,168 @@ struct HomeSectionCustomizationView: View {
             }
         }
         .presentationBackground(AppTheme.background)
+    }
+}
+
+private struct AIInsightSettingsSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var appViewModel: AppViewModel
+    @State private var goals: String
+    @State private var includesMealPhotos: Bool
+    @State private var showingClearMemoryConfirmation = false
+
+    init(goals: String, includesMealPhotos: Bool) {
+        _goals = State(initialValue: goals)
+        _includesMealPhotos = State(initialValue: includesMealPhotos)
+    }
+
+    private var memoryNotes: [String] {
+        appViewModel.preferences.aiMemory.notes
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            headerBar
+                .padding(.top, 26)
+
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 18) {
+                    goalsSection
+                    photosSection
+                    memorySection
+                }
+                .padding(.bottom, 24)
+            }
+        }
+        .padding(.horizontal, 20)
+        .background(AppTheme.background.ignoresSafeArea())
+        .alert(
+            NSLocalizedString("清除 AI 记忆？", comment: ""),
+            isPresented: $showingClearMemoryConfirmation
+        ) {
+            Button(NSLocalizedString("取消", comment: ""), role: .cancel) {}
+            Button(NSLocalizedString("清除", comment: ""), role: .destructive) {
+                Task { await appViewModel.clearAIMemory() }
+            }
+        } message: {
+            Text(NSLocalizedString("AI 会忘掉它总结的规律，之后从新的记录重新学习。", comment: ""))
+        }
+    }
+
+    private var headerBar: some View {
+        ZStack {
+            Text(NSLocalizedString("AI 洞察", comment: ""))
+                .font(.system(size: 24, weight: .bold, design: .rounded))
+                .foregroundStyle(AppTheme.primaryText)
+
+            HStack {
+                Button(NSLocalizedString("取消", comment: "")) { dismiss() }
+                    .font(.system(size: 17, weight: .medium, design: .rounded))
+                    .foregroundStyle(AppTheme.secondaryText)
+                Spacer()
+                Button(NSLocalizedString("完成", comment: "")) {
+                    let goals = goals
+                    let includesMealPhotos = includesMealPhotos
+                    Task { await appViewModel.updateAIInsightSettings(goals: goals, includesMealPhotos: includesMealPhotos) }
+                    dismiss()
+                }
+                .font(.system(size: 17, weight: .semibold, design: .rounded))
+                .foregroundStyle(AppTheme.accent)
+            }
+        }
+    }
+
+    private var goalsSection: some View {
+        settingsBlock(
+            title: NSLocalizedString("我的目标", comment: ""),
+            footnote: NSLocalizedString("AI 会优先围绕这些目标给出观察和建议。", comment: "")
+        ) {
+            TextField(
+                NSLocalizedString("例如：12 点前睡觉，少吃夜宵", comment: ""),
+                text: $goals,
+                axis: .vertical
+            )
+            .lineLimit(2...5)
+            .font(.system(size: 16, weight: .medium, design: .rounded))
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .background(AppTheme.surface)
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .stroke(AppTheme.border, lineWidth: 1)
+            )
+        }
+    }
+
+    private var photosSection: some View {
+        settingsBlock(
+            title: nil,
+            footnote: NSLocalizedString("开启后，生成解读时会把当天最多 6 张餐食照片缩小后随请求发给 AI 服务，用来识别吃了什么。", comment: "")
+        ) {
+            Toggle(isOn: $includesMealPhotos) {
+                Text(NSLocalizedString("让 AI 看餐食照片", comment: ""))
+                    .font(.system(size: 16, weight: .semibold, design: .rounded))
+                    .foregroundStyle(AppTheme.primaryText)
+            }
+            .tint(AppTheme.accent)
+        }
+    }
+
+    private var memorySection: some View {
+        settingsBlock(
+            title: NSLocalizedString("AI 对你的了解", comment: ""),
+            footnote: memoryNotes.isEmpty
+                ? NSLocalizedString("还没有内容。每次生成解读后，AI 会在这里记下它从你的记录里发现的规律。", comment: "")
+                : nil
+        ) {
+            if !memoryNotes.isEmpty {
+                VStack(alignment: .leading, spacing: 10) {
+                    ForEach(Array(memoryNotes.enumerated()), id: \.offset) { _, note in
+                        HStack(alignment: .top, spacing: 10) {
+                            Circle()
+                                .fill(AppTheme.accent)
+                                .frame(width: 6, height: 6)
+                                .padding(.top, 7)
+                            Text(note)
+                                .font(.system(size: 15, weight: .medium, design: .rounded))
+                                .foregroundStyle(AppTheme.primaryText)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+
+                    Button(NSLocalizedString("清除 AI 记忆", comment: "")) {
+                        showingClearMemoryConfirmation = true
+                    }
+                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                    .foregroundStyle(AppTheme.warning)
+                    .padding(.top, 4)
+                }
+            }
+        }
+    }
+
+    private func settingsBlock<Content: View>(
+        title: String?,
+        footnote: String?,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            if let title {
+                Text(title)
+                    .font(.system(size: 17, weight: .bold, design: .rounded))
+                    .foregroundStyle(AppTheme.primaryText)
+            }
+            content()
+            if let footnote {
+                Text(footnote)
+                    .font(.system(size: 13, weight: .medium, design: .rounded))
+                    .foregroundStyle(AppTheme.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(18)
+        .appCardStyle()
     }
 }

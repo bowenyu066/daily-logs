@@ -18,12 +18,28 @@ final class AppViewModel: ObservableObject {
     /// Covers the longest comparison window used by `DailyInsightAnalyzer` (two 30-day windows).
     private static let insightHistoryLookbackDays = 62
     private static let didMigrateTimeDisplayModeDefaultKey = "dailylogs.didMigrateTimeDisplayModeDefault"
+    private static let didRequestHealthActivityAuthorizationKey = "dailylogs.didRequestHealthActivityAuthorization"
 
     enum CloudEncryptionState: Equatable {
         case unavailable
         case disabled
         case locked
         case unlocked
+    }
+
+    /// A background sync problem, shown as a notice that stays until it is resolved or dismissed
+    /// instead of an alert on every sync attempt.
+    enum CloudSyncIssue: Equatable {
+        /// This device does not have the key for the encrypted cloud data.
+        case locked
+        case failed(String)
+    }
+
+    enum CloudRecoverySheet: String, Identifiable {
+        case create
+        case unlock
+
+        var id: String { rawValue }
     }
 
     @Published private(set) var user: UserAccount?
@@ -52,6 +68,12 @@ final class AppViewModel: ObservableObject {
     @Published var errorMessage: String?
     @Published var languageRefreshID = UUID()
     @Published private(set) var cloudEncryptionState: CloudEncryptionState = .unavailable
+    @Published private(set) var cloudSyncIssue: CloudSyncIssue?
+    @Published private(set) var hasCloudRecoveryCode = false
+    @Published var activeCloudRecoverySheet: CloudRecoverySheet?
+    /// Shown on the sign-in screen after a saved sign-in turned out to be gone.
+    @Published private(set) var authNotice: String?
+    @Published private(set) var isRecoveryCodeReminderDismissed = false
     @Published var shouldPresentCloudMigration = false
     @Published private(set) var isCloudMigrationInProgress = false
     @Published private(set) var cloudMigrationProgress: Double = 0
@@ -60,6 +82,7 @@ final class AppViewModel: ObservableObject {
     @Published private(set) var dailyInsightNarrative: DailyInsightNarrative?
     @Published private(set) var dailyInsightNarrativeDate: Date?
     @Published private(set) var isGeneratingDailyInsightNarrative = false
+    @Published private(set) var generatingDailyInsightDate: Date?
     @Published private(set) var canGenerateAIInsights = false
     @Published private(set) var isUsingCloudAIProxy = false
     @Published private(set) var aiInsightErrorMessage: String?
@@ -86,7 +109,6 @@ final class AppViewModel: ObservableObject {
     private var lastAppliedLanguage: AppLanguage?
     private var pendingCloudRecordPushes: [String: DailyRecord] = [:]
     private var cloudRecordPushResults: [String: Bool] = [:]
-    private var lastCloudPushErrorReportedAt: Date?
     private var cloudRecordPushChain: Task<Void, Never>?
     private var remoteMediaCacheRefreshTask: Task<Void, Never>?
 
@@ -276,14 +298,14 @@ final class AppViewModel: ObservableObject {
 
     var displayedDailyInsightReport: DailyInsightReport? {
         guard let baseReport = dailyInsightReport,
-              activeDailyInsightNarrative?.hasAIScoring == true else {
+              activeDailyInsightNarrative?.hasAIContent == true else {
             return dailyInsightReport
         }
         return baseReport.applyingAIOverrides(activeDailyInsightNarrative)
     }
 
     var isDisplayingAIScoredInsight: Bool {
-        activeDailyInsightNarrative?.hasAIScoring == true
+        activeDailyInsightNarrative?.hasAIContent == true
     }
 
     var scoredAIInsightDates: [Date] {
@@ -307,7 +329,8 @@ final class AppViewModel: ObservableObject {
         let report = DailyInsightAnalyzer.buildReport(
             for: mergedRecord(resolvedRecord, with: preferences),
             preferences: preferences,
-            locale: locale
+            locale: locale,
+            history: insightHistory(before: date)
         )
         derivedData.storeInsightReport(report, forDateKey: dateKey)
         return report
@@ -316,20 +339,23 @@ final class AppViewModel: ObservableObject {
     func displayedDailyInsightReport(for date: Date) -> DailyInsightReport? {
         guard let baseReport = insightReport(for: date),
               let narrative = localizedNarrative(validatedNarrative(for: date)),
-              narrative.hasAIScoring else {
+              narrative.hasAIContent else {
             return insightReport(for: date)
         }
         return baseReport.applyingAIOverrides(narrative)
     }
 
     func isDisplayingAIScoredInsight(for date: Date) -> Bool {
-        validatedNarrative(for: date)?.hasAIScoring == true
+        validatedNarrative(for: date)?.hasAIContent == true
     }
 
     func bootstrap() async {
         guard !isBootstrapped else { return }
         isBootstrapped = true
         user = authService.restoreSession()
+        if user == nil, authService.didExpireSession {
+            authNotice = Self.expiredSessionNotice
+        }
         refreshOpenAIConfigurationState()
         do {
             let loadedPreferences = try preferencesStore.loadPreferences(userID: user?.userID)
@@ -414,11 +440,15 @@ final class AppViewModel: ObservableObject {
         guard let payload = canonicalInsightPayload(for: targetDate) else { return }
 
         isGeneratingDailyInsightNarrative = true
+        generatingDailyInsightDate = targetDate.startOfDay
         if !isAutomatic {
             aiInsightErrorMessage = nil
         }
+        var updatedMemory: [String]?
         do {
-            var narrative = try await aiInsightNarrativeService.generateNarrative(from: payload)
+            let context = await insightContext(for: targetDate)
+            let generation = try await aiInsightNarrativeService.generateInsight(from: payload, context: context)
+            var narrative = generation.narrative
             narrative.sourceLanguageCode = AppLanguage.zhHans.aiNarrativeLanguageCode()
             narrative.payloadSignature = try payload.stableSignature()
             narrative.scoringVersion = DailyInsightNarrative.currentScoringVersion
@@ -426,17 +456,69 @@ final class AppViewModel: ObservableObject {
             try persistDailyInsightNarrative(narrative, for: targetDate)
             dailyInsightNarrative = narrative
             dailyInsightNarrativeDate = targetDate.startOfDay
+            updatedMemory = generation.memory
         } catch {
             if !isAutomatic {
                 aiInsightErrorMessage = NSLocalizedString("AI 解读生成失败：", comment: "") + error.localizedDescription
             }
         }
         isGeneratingDailyInsightNarrative = false
+        generatingDailyInsightDate = nil
+        if let updatedMemory {
+            await updateAIMemory(updatedMemory, analyzedDate: targetDate)
+        }
+    }
+
+    /// Everything the model gets besides the day's payload: goals, what earlier analyses learned,
+    /// the previous day's suggestion, Health activity and, when the user allowed it, meal photos.
+    private func insightContext(for date: Date) async -> DailyInsightContext {
+        var context = DailyInsightContext()
+        context.goals = preferences.aiGoals
+        context.memory = preferences.aiMemory.notes
+        context.memoryLanguage = preferences.appLanguage.translationDisplayName
+        context.previousSuggestion = record(for: date.adding(days: -1))?.aiInsightNarrative?.suggestion
+        if preferences.healthKitSyncEnabled {
+            context.health = try? await healthSyncAdapter.fetchDailyActivity(for: date)
+        }
+        if preferences.aiIncludesMealPhotos, let record = record(for: date) {
+            context.photos = await DailyInsightPhotoLoader.photos(for: record)
+        }
+        return context
+    }
+
+    /// Only the newest analyzed day rewrites the memory, so regenerating an old day cannot roll it back.
+    private func updateAIMemory(_ notes: [String], analyzedDate: Date) async {
+        let dateKey = analyzedDate.startOfDay.storageKey()
+        if let latestKey = preferences.aiMemory.updatedThroughDateKey, dateKey < latestKey {
+            return
+        }
+        let memory = AIInsightMemory(notes: notes, updatedThroughDateKey: dateKey)
+        guard memory != preferences.aiMemory else { return }
+        preferences.aiMemory = memory
+        persistPreferences(invalidateInsights: false)
+        await syncPreferencesToCloudIfNeeded()
+    }
+
+    func updateAIInsightSettings(goals: String, includesMealPhotos: Bool) async {
+        let trimmedGoals = goals.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmedGoals != preferences.aiGoals || includesMealPhotos != preferences.aiIncludesMealPhotos else { return }
+        preferences.aiGoals = trimmedGoals
+        preferences.aiIncludesMealPhotos = includesMealPhotos
+        persistPreferences(invalidateInsights: false)
+        await syncPreferencesToCloudIfNeeded()
+    }
+
+    func clearAIMemory() async {
+        guard preferences.aiMemory != .empty else { return }
+        preferences.aiMemory = .empty
+        persistPreferences(invalidateInsights: false)
+        await syncPreferencesToCloudIfNeeded()
     }
 
     func handleAppleSignIn(_ result: Result<ASAuthorization, Error>) async {
         do {
             user = try await authService.handleAppleSignIn(result: result)
+            authNotice = nil
             refreshOpenAIConfigurationState()
             preferences = hydratedPreferences(from: try preferencesStore.loadPreferences(userID: user?.userID))
             persistPreferences()
@@ -465,6 +547,7 @@ final class AppViewModel: ObservableObject {
     func continueAsGuest() async {
         do {
             user = try authService.continueAsGuest()
+            authNotice = nil
             refreshOpenAIConfigurationState()
             preferences = hydratedPreferences(from: try preferencesStore.loadPreferences(userID: user?.userID))
             persistPreferences()
@@ -544,6 +627,9 @@ final class AppViewModel: ObservableObject {
             selectedDate = logicalToday
             dailyRecord = DailyRecord.empty(for: selectedDate, preferences: preferences)
             cloudEncryptionState = .unavailable
+            cloudSyncIssue = nil
+            hasCloudRecoveryCode = false
+            activeCloudRecoverySheet = nil
             shouldPresentCloudMigration = false
             isCloudMigrationInProgress = false
             cloudMigrationProgress = 0
@@ -1385,6 +1471,7 @@ final class AppViewModel: ObservableObject {
         if enabled {
             do {
                 try await healthSyncAdapter.requestAuthorization()
+                UserDefaults.standard.set(true, forKey: Self.didRequestHealthActivityAuthorizationKey)
                 preferences.healthKitSyncEnabled = true
                 persistPreferences()
                 await syncPreferencesToCloudIfNeeded()
@@ -1401,6 +1488,7 @@ final class AppViewModel: ObservableObject {
 
     func syncHealthKitForCurrentDate(overwritingExistingData: Bool = false) async {
         guard preferences.healthKitSyncEnabled, let user else { return }
+        await requestHealthActivityAuthorizationIfNeeded()
         guard overwritingExistingData || shouldAttemptAutomaticHealthKitSync() else { return }
         do {
             guard let hkSleep = try await healthSyncAdapter.fetchSleepData(
@@ -1419,6 +1507,13 @@ final class AppViewModel: ObservableObject {
         } catch {
             errorMessage = NSLocalizedString("HealthKit 同步失败：", comment: "") + error.localizedDescription
         }
+    }
+
+    /// Users who turned on Health sync before activity data was read get asked once for the new types.
+    private func requestHealthActivityAuthorizationIfNeeded() async {
+        guard !UserDefaults.standard.bool(forKey: Self.didRequestHealthActivityAuthorizationKey) else { return }
+        UserDefaults.standard.set(true, forKey: Self.didRequestHealthActivityAuthorizationKey)
+        try? await healthSyncAdapter.requestAuthorization()
     }
 
     func overwriteSleepWithHealthKit() async {
@@ -1771,7 +1866,7 @@ final class AppViewModel: ObservableObject {
 
     private func validatedNarrative(for date: Date) -> DailyInsightNarrative? {
         guard let narrative = currentNarrative(for: date),
-              narrative.hasAIScoring,
+              narrative.hasAIContent,
               narrative.scoringVersion >= DailyInsightNarrative.currentScoringVersion,
               let signature = canonicalInsightSignature(for: date),
               narrative.payloadSignature == signature else {
@@ -1847,10 +1942,11 @@ final class AppViewModel: ObservableObject {
         return yesterday
     }
 
+    /// Only yesterday is scored automatically; older days are scored when the user asks.
     private func ensureAutomaticYesterdayInsightIfNeeded() async {
         guard let targetDate = automaticInsightTargetDate else { return }
         guard hasMeaningfulLogData(for: targetDate) else { return }
-        guard validatedNarrative(for: targetDate)?.hasAIScoring != true else { return }
+        guard validatedNarrative(for: targetDate)?.hasAIContent != true else { return }
         await generateDailyInsightNarrative(for: targetDate, force: false, isAutomatic: true)
     }
 
@@ -2058,17 +2154,9 @@ final class AppViewModel: ObservableObject {
                     user: user
                 )
             }
+            cloudSyncIssue = nil
         } catch {
-            if isConnectivityError(error) {
-                return
-            }
-            if let securityError = error as? CloudSyncSecurityError,
-               securityError == .encryptedSyncLocked {
-                cloudEncryptionState = .locked
-                errorMessage = securityError.localizedDescription
-            } else {
-                errorMessage = NSLocalizedString("云端同步失败：", comment: "") + error.localizedDescription
-            }
+            await handleCloudSyncFailure(error, user: user, prefix: NSLocalizedString("云端同步失败：", comment: ""))
         }
     }
 
@@ -2131,17 +2219,9 @@ final class AppViewModel: ObservableObject {
         guard let user, !user.isGuest, cloudSyncService.isAvailable else { return }
         do {
             try await cloudSyncService.pushPreferences(preferences, user: user)
+            clearFailedCloudSyncIssue()
         } catch {
-            if isConnectivityError(error) {
-                return
-            }
-            if let securityError = error as? CloudSyncSecurityError,
-               securityError == .encryptedSyncLocked {
-                cloudEncryptionState = .locked
-                errorMessage = securityError.localizedDescription
-            } else {
-                errorMessage = NSLocalizedString("云端偏好同步失败：", comment: "") + error.localizedDescription
-            }
+            await handleCloudSyncFailure(error, user: user, prefix: NSLocalizedString("云端偏好同步失败：", comment: ""))
         }
     }
 
@@ -2199,23 +2279,10 @@ final class AppViewModel: ObservableObject {
     private func pushRecordToCloud(_ record: DailyRecord, user: UserAccount) async -> Bool {
         do {
             try await cloudSyncService.pushRecord(record, user: user)
+            clearFailedCloudSyncIssue()
             return true
         } catch {
-            if isConnectivityError(error) {
-                return false
-            }
-            // A batch of queued pushes usually fails for one shared reason; report it once.
-            if let lastReport = lastCloudPushErrorReportedAt, Date().timeIntervalSince(lastReport) < 30 {
-                return false
-            }
-            lastCloudPushErrorReportedAt = Date()
-            if let securityError = error as? CloudSyncSecurityError,
-               securityError == .encryptedSyncLocked {
-                cloudEncryptionState = .locked
-                errorMessage = securityError.localizedDescription
-            } else {
-                errorMessage = NSLocalizedString("云端记录同步失败：", comment: "") + error.localizedDescription
-            }
+            await handleCloudSyncFailure(error, user: user, prefix: NSLocalizedString("云端记录同步失败：", comment: ""))
             return false
         }
     }
@@ -2237,6 +2304,13 @@ final class AppViewModel: ObservableObject {
             case .enabled:
                 cloudEncryptionState = snapshot.localKeyAvailable ? .unlocked : .locked
             }
+            hasCloudRecoveryCode = snapshot.hasRecoveryCode
+            if cloudEncryptionState == .locked {
+                cloudSyncIssue = .locked
+            } else if cloudSyncIssue == .locked {
+                cloudSyncIssue = nil
+            }
+            isRecoveryCodeReminderDismissed = recoveryCodeReminderDismissed(for: user)
             shouldPresentCloudMigration = snapshot.requiresMigration && !isCloudMigrationInProgress
         } catch {
             cloudEncryptionState = .unavailable
@@ -2262,8 +2336,94 @@ final class AppViewModel: ObservableObject {
             ) { _ in }
             await refreshCloudEncryptionState()
         } catch {
-            errorMessage = NSLocalizedString("启用加密同步失败：", comment: "") + error.localizedDescription
+            await handleCloudSyncFailure(error, user: user, prefix: NSLocalizedString("启用加密同步失败：", comment: ""))
         }
+    }
+
+    private static let expiredSessionNotice = NSLocalizedString(
+        "登录状态已失效，请重新登录。这台手机上的记录都还在，用同一个 Apple ID 登录后会继续同步。",
+        comment: ""
+    )
+
+    private func handleCloudSyncFailure(_ error: Error, user: UserAccount, prefix: String) async {
+        if isConnectivityError(error) {
+            return
+        }
+        if let securityError = error as? CloudSyncSecurityError, securityError == .encryptedSyncLocked {
+            cloudEncryptionState = .locked
+            cloudSyncIssue = .locked
+            return
+        }
+        // Rejected because this device is not signed in as the account: signing in again fixes it.
+        if CloudAuthorizationFailure.matches(error), !authService.hasCloudSession(for: user) {
+            guard self.user?.userID == user.userID else { return }
+            await signOut()
+            authNotice = Self.expiredSessionNotice
+            return
+        }
+        cloudSyncIssue = .failed(prefix + error.localizedDescription)
+    }
+
+    private func clearFailedCloudSyncIssue() {
+        if case .failed = cloudSyncIssue {
+            cloudSyncIssue = nil
+        }
+    }
+
+    func retryCloudSync() async {
+        guard let user else { return }
+        cloudSyncIssue = nil
+        await refreshFromCloudIfNeeded(for: user)
+        await refreshCloudEncryptionState()
+        try? loadSelectedRecord()
+    }
+
+    func dismissCloudSyncIssue() {
+        cloudSyncIssue = nil
+    }
+
+    func createCloudRecoveryCode() async throws -> String {
+        guard let user, !user.isGuest else {
+            throw CloudSyncSecurityError.firebaseUnavailable
+        }
+        let code = try await cloudSyncService.createRecoveryCode(for: user)
+        hasCloudRecoveryCode = true
+        return code
+    }
+
+    func unlockCloudSync(withRecoveryCode code: String) async throws {
+        guard let user, !user.isGuest else {
+            throw CloudSyncSecurityError.firebaseUnavailable
+        }
+        try await cloudSyncService.unlock(withRecoveryCode: code, user: user)
+        cloudEncryptionState = .unlocked
+        cloudSyncIssue = nil
+        await refreshFromCloudIfNeeded(for: user)
+        await refreshCloudEncryptionState()
+        try? loadSelectedRecord()
+    }
+
+    /// Users who have the key but no recovery code are reminded to create one; "later" hides the
+    /// reminder for a week.
+    var shouldRemindToCreateRecoveryCode: Bool {
+        cloudEncryptionState == .unlocked && !hasCloudRecoveryCode && !isRecoveryCodeReminderDismissed
+    }
+
+    func dismissRecoveryCodeReminder() {
+        guard let user else { return }
+        UserDefaults.standard.set(Date(), forKey: Self.recoveryCodeReminderKey(for: user))
+        isRecoveryCodeReminderDismissed = true
+    }
+
+    private func recoveryCodeReminderDismissed(for user: UserAccount) -> Bool {
+        guard let dismissedAt = UserDefaults.standard.object(forKey: Self.recoveryCodeReminderKey(for: user)) as? Date else {
+            return false
+        }
+        return Date().timeIntervalSince(dismissedAt) < 7 * 24 * 60 * 60
+    }
+
+    private static func recoveryCodeReminderKey(for user: UserAccount) -> String {
+        "dailylogs.recoveryCodeReminderDismissedAt." + user.userID
     }
 
     private func defaultAnalyticsCustomRange(startingAt start: Date) -> ClosedRange<Date> {
@@ -3292,9 +3452,10 @@ private struct DerivedDataCache {
         recordIndexByDay = nil
         analytics = nil
         let changedDay = day.startOfDay
-        insightReports[changedDay.storageKey()] = nil
         for offset in 0...insightLookbackDays {
-            insightSignatures[changedDay.adding(days: offset).storageKey()] = nil
+            let dateKey = changedDay.adding(days: offset).storageKey()
+            insightReports[dateKey] = nil
+            insightSignatures[dateKey] = nil
         }
     }
 

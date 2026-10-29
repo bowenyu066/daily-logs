@@ -27,7 +27,7 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSHealthShareUsageDescription</key>
-	<string>用于自动同步你的睡眠数据，替代手动输入。</string>
+	<string>用于自动同步你的睡眠数据，并读取步数、运动和心率等活动数据，让 AI 洞察更准确。</string>
 	<key>NSHealthUpdateUsageDescription</key>
 	<string>用于在你手动记录或修正睡眠数据时，与 Apple Health 保持一致。</string>
 	<key>NSCameraUsageDescription</key>

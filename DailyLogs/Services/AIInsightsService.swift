@@ -2,6 +2,7 @@ import Foundation
 import CryptoKit
 @preconcurrency import FirebaseAuth
 import Security
+import UIKit
 
 enum DailyInsightComponentKind: String, CaseIterable, Identifiable {
     case sleep
@@ -10,6 +11,12 @@ enum DailyInsightComponentKind: String, CaseIterable, Identifiable {
     case bowelMovement
 
     var id: String { rawValue }
+
+    /// Shower and bowel movement are minor sections the rule scores on its own: the AI only adjusts
+    /// sleep and meals.
+    var acceptsAIAdjustment: Bool {
+        self == .sleep || self == .meals
+    }
 
     var title: String {
         switch self {
@@ -31,8 +38,21 @@ struct DailyInsightComponent: Identifiable, Equatable {
     var maxScore: Int
     var detail: String
     var isIncluded: Bool
+    /// The rule score before the AI adjusted it; nil when the AI did not score this section.
+    var ruleScore: Int? = nil
+    var aiReason: String? = nil
 
     var id: String { kind.rawValue }
+
+    var aiDelta: Int? {
+        ruleScore.map { score - $0 }
+    }
+
+    /// How far the AI may move a section away from its rule score.
+    static func maxAIAdjustment(for kind: DailyInsightComponentKind, maxScore: Int) -> Int {
+        guard kind.acceptsAIAdjustment else { return 0 }
+        return max(1, Int((Double(maxScore) * 0.2).rounded()))
+    }
 
     var scoreRatio: Double {
         guard isIncluded, maxScore > 0 else { return 0 }
@@ -41,7 +61,9 @@ struct DailyInsightComponent: Identifiable, Equatable {
 }
 
 struct DailyInsightNarrative: Codable, Equatable {
-    static let currentScoringVersion = 4
+    /// Version 6: the app's rubric scores each section and the model adjusts every included section
+    /// within a bounded range, giving a reason, alongside findings, a suggestion and a follow-up.
+    static let currentScoringVersion = 6
 
     struct ComponentScoreOverride: Codable, Equatable {
         var score: Int?
@@ -50,15 +72,33 @@ struct DailyInsightNarrative: Codable, Equatable {
         var included: Bool?
     }
 
+    struct Finding: Codable, Equatable {
+        var title: String
+        var evidence: String
+    }
+
+    struct ScoreAdjustment: Codable, Equatable {
+        var delta: Int
+        var reason: String
+    }
+
     struct LocalizedText: Codable, Equatable {
         var headline: String
         var summary: String
         var bullets: [String]
+        var findings: [Finding]?
+        var suggestion: String?
+        var followUp: String?
+        var scoreReasons: [String: String]?
     }
 
     var headline: String
     var summary: String
     var bullets: [String]
+    var findings: [Finding]?
+    var suggestion: String?
+    var followUp: String?
+    var scoreAdjustments: [String: ScoreAdjustment]?
     var overallScore: Int?
     var components: [String: ComponentScoreOverride]?
     var generatedAt: Date = .now
@@ -72,6 +112,10 @@ struct DailyInsightNarrative: Codable, Equatable {
         case headline
         case summary
         case bullets
+        case findings
+        case suggestion
+        case followUp
+        case scoreAdjustments
         case overallScore
         case components
         case generatedAt
@@ -86,6 +130,10 @@ struct DailyInsightNarrative: Codable, Equatable {
         headline: String,
         summary: String,
         bullets: [String],
+        findings: [Finding]? = nil,
+        suggestion: String? = nil,
+        followUp: String? = nil,
+        scoreAdjustments: [String: ScoreAdjustment]? = nil,
         overallScore: Int? = nil,
         components: [String: ComponentScoreOverride]? = nil,
         generatedAt: Date = .now,
@@ -98,6 +146,10 @@ struct DailyInsightNarrative: Codable, Equatable {
         self.headline = headline
         self.summary = summary
         self.bullets = bullets
+        self.findings = findings
+        self.suggestion = suggestion
+        self.followUp = followUp
+        self.scoreAdjustments = scoreAdjustments
         self.overallScore = overallScore
         self.components = components
         self.generatedAt = generatedAt
@@ -113,6 +165,10 @@ struct DailyInsightNarrative: Codable, Equatable {
         headline = try container.decode(String.self, forKey: .headline)
         summary = try container.decode(String.self, forKey: .summary)
         bullets = try container.decode([String].self, forKey: .bullets)
+        findings = try container.decodeIfPresent([Finding].self, forKey: .findings)
+        suggestion = try container.decodeIfPresent(String.self, forKey: .suggestion)
+        followUp = try container.decodeIfPresent(String.self, forKey: .followUp)
+        scoreAdjustments = try container.decodeIfPresent([String: ScoreAdjustment].self, forKey: .scoreAdjustments)
         overallScore = try container.decodeIfPresent(Int.self, forKey: .overallScore)
         components = try container.decodeIfPresent([String: ComponentScoreOverride].self, forKey: .components)
         generatedAt = try container.decodeIfPresent(Date.self, forKey: .generatedAt) ?? .now
@@ -124,7 +180,12 @@ struct DailyInsightNarrative: Codable, Equatable {
     }
 
     var hasAIScoring: Bool {
-        overallScore != nil || !(components ?? [:]).isEmpty
+        overallScore != nil || !(components ?? [:]).isEmpty || !(scoreAdjustments ?? [:]).isEmpty
+    }
+
+    /// True for narratives the app can show: current ones carry findings, older ones carried scores.
+    var hasAIContent: Bool {
+        hasAIScoring || !(findings ?? []).isEmpty
     }
 
     func localized(for language: AppLanguage, locale: Locale = .autoupdatingCurrent) -> DailyInsightNarrative {
@@ -138,6 +199,21 @@ struct DailyInsightNarrative: Codable, Equatable {
         copy.headline = localized.headline
         copy.summary = localized.summary
         copy.bullets = localized.bullets
+        if let findings = localized.findings {
+            copy.findings = findings
+        }
+        if let suggestion = localized.suggestion {
+            copy.suggestion = suggestion
+        }
+        if let followUp = localized.followUp {
+            copy.followUp = followUp
+        }
+        if let reasons = localized.scoreReasons, var adjustments = copy.scoreAdjustments {
+            for (key, reason) in reasons where adjustments[key] != nil {
+                adjustments[key]?.reason = reason
+            }
+            copy.scoreAdjustments = adjustments
+        }
         return copy
     }
 
@@ -157,6 +233,8 @@ struct DailyInsightReport: Equatable {
     var summary: String
     var components: [DailyInsightComponent]
     var highlights: [String]
+    /// The app's rule-based total when the AI adjusted the section scores.
+    var ruleScore: Int? = nil
 
     var includedComponents: [DailyInsightComponent] {
         components.filter(\.isIncluded)
@@ -191,8 +269,32 @@ struct DailyInsightReport: Equatable {
             return updated
         }
 
-        let included = overriddenComponents.filter(\.isIncluded)
+        let adjustments = narrative.scoreAdjustments ?? [:]
+        let adjustedComponents = overriddenComponents.map { component in
+            guard component.isIncluded, let adjustment = adjustments[component.kind.rawValue] else {
+                return component
+            }
+            let bound = DailyInsightComponent.maxAIAdjustment(for: component.kind, maxScore: component.maxScore)
+            guard bound > 0 else { return component }
+            let delta = max(-bound, min(adjustment.delta, bound))
+            var updated = component
+            updated.ruleScore = component.score
+            updated.score = max(0, min(component.score + delta, component.maxScore))
+            let reason = adjustment.reason.trimmingCharacters(in: .whitespacesAndNewlines)
+            updated.aiReason = reason.isEmpty ? nil : reason
+            return updated
+        }
+        let isAdjusted = adjustedComponents.contains { $0.ruleScore != nil }
+
+        let included = adjustedComponents.filter(\.isIncluded)
         let fallbackOverall: Int = {
+            if isAdjusted {
+                // Same formula as the rule score, so an adjustment of zero keeps the total unchanged.
+                let totalMax = max(included.reduce(0) { $0 + $1.maxScore }, 1)
+                return Int((Double(included.reduce(0) { $0 + $1.score }) / Double(totalMax) * 100).rounded())
+            }
+            // Without score overrides the app's own overall score stands.
+            guard narrative.components?.isEmpty == false else { return overallScore }
             guard !included.isEmpty else { return 0 }
             let averageRatio = included.map(\.scoreRatio).reduce(0, +) / Double(included.count)
             return Int((averageRatio * 100).rounded())
@@ -209,8 +311,9 @@ struct DailyInsightReport: Equatable {
             overallScore: max(0, min(narrative.overallScore ?? fallbackOverall, 100)),
             title: headline.isEmpty ? title : headline,
             summary: summary.isEmpty ? self.summary : summary,
-            components: overriddenComponents,
-            highlights: bullets.isEmpty ? highlights : bullets
+            components: adjustedComponents,
+            highlights: bullets.isEmpty ? highlights : bullets,
+            ruleScore: isAdjusted ? overallScore : nil
         )
     }
 }
@@ -248,12 +351,18 @@ struct DailyInsightPayload: Codable {
 
     struct HistoryDaySnapshot: Codable {
         var date: String
+        var weekday: String
         var sleepDurationHours: Double?
+        var bedtimeLocal: String?
+        var wakeLocal: String?
         var mealCompletionRate: Double
         var timedMealLoggingRate: Double
+        var firstMealLocal: String?
+        var lastMealLocal: String?
         var showerCount: Int?
         var bowelMovementCount: Int?
         var bedtimeDeviationMinutes: Double?
+        var notes: String?
     }
 
     struct HistoryWindowSummary: Codable {
@@ -280,6 +389,13 @@ struct DailyInsightPayload: Codable {
         var dailySnapshots: [HistoryDaySnapshot]
     }
 
+    struct SleepStageMinutes: Codable {
+        var deep: Int
+        var rem: Int
+        var light: Int
+        var awake: Int
+    }
+
     struct SleepSection: Codable {
         var source: String
         var bedtimeISO8601: String?
@@ -289,6 +405,7 @@ struct DailyInsightPayload: Codable {
         var targetBedtime: String?
         var durationHours: Double?
         var hasStageData: Bool
+        var stageMinutes: SleepStageMinutes?
         var timeZoneIdentifier: String?
         var note: String?
     }
@@ -299,7 +416,18 @@ struct DailyInsightPayload: Codable {
         var timeISO8601: String?
         var timeLocal: String?
         var hasPhoto: Bool
+        var photoCount: Int
+        var locationName: String?
         var note: String?
+    }
+
+    struct DayContext: Codable {
+        var weekday: String
+        var locationName: String?
+        var weather: String?
+        var lowTemperatureCelsius: Double?
+        var highTemperatureCelsius: Double?
+        var travelPhase: String?
     }
 
     struct EventSection: Codable {
@@ -320,19 +448,21 @@ struct DailyInsightPayload: Codable {
         var detail: String?
     }
 
-    struct RubricSection: Codable {
-        var key: String
-        var title: String
-        var maxScore: Int
-        var fullCreditRule: String
-        var partialCreditRule: String
-        var cautionRule: String
-    }
+    /// Scores the app computed with its fixed rules. The model treats them as given.
+    struct AppScores: Codable {
+        struct Section: Codable {
+            var key: String
+            var title: String
+            var included: Bool
+            var score: Int
+            var maxScore: Int
+            var maxAdjustment: Int
+            var detail: String
+        }
 
-    struct ScoringRubric: Codable {
-        var sampleCount: Int
-        var overallMethod: String
-        var sections: [RubricSection]
+        var total: Int
+        var method: String
+        var sections: [Section]
     }
 
     var language: String
@@ -348,7 +478,8 @@ struct DailyInsightPayload: Codable {
     var bowelMovementEnabled: Bool
     var bowelMovements: [EventSection]
     var timeline: [TimelineEntry]
-    var scoringRubric: ScoringRubric
+    var dayContext: DayContext
+    var appScores: AppScores
     var comparisonContext: HistoryContext
 }
 
@@ -376,11 +507,20 @@ enum DailyInsightAnalyzer {
             || record.dailyVideo != nil
     }
 
+    /// `history` is used to find the usual shower and bowel movement times; only the 30 days
+    /// before the record's day count.
     static func buildReport(
         for record: DailyRecord,
         preferences: UserPreferences,
-        locale: Locale
+        locale: Locale,
+        history: [DailyRecord] = []
     ) -> DailyInsightReport {
+        let day = record.date.startOfDay
+        let windowStart = day.adding(days: -30)
+        let recentHistory = history.filter {
+            let historyDay = $0.date.startOfDay
+            return historyDay >= windowStart && historyDay < day
+        }
         let sleepResult = sleepComponent(for: record, preferences: preferences)
         let mealResult = mealComponent(for: record)
         let showerEnabled = preferences.visibleHomeSections.contains(.showers)
@@ -388,12 +528,14 @@ enum DailyInsightAnalyzer {
         let showerResult = hygieneComponent(
             kind: .shower,
             enabled: showerEnabled,
-            count: record.showers.count
+            entryMinutes: record.showers.map { clockMinutes($0.time, timeZoneIdentifier: $0.timeZoneIdentifier) },
+            historyMinutes: recentHistory.flatMap(\.showers).compactMap { clockMinutes($0.time, timeZoneIdentifier: $0.timeZoneIdentifier) }
         )
         let bowelResult = hygieneComponent(
             kind: .bowelMovement,
             enabled: bowelEnabled,
-            count: record.bowelMovements.count
+            entryMinutes: record.bowelMovements.map { clockMinutes($0.time, timeZoneIdentifier: $0.timeZoneIdentifier) },
+            historyMinutes: recentHistory.flatMap(\.bowelMovements).compactMap { clockMinutes($0.time, timeZoneIdentifier: $0.timeZoneIdentifier) }
         )
 
         let components = [
@@ -443,6 +585,8 @@ enum DailyInsightAnalyzer {
                 timeISO8601: entry.time?.displayISO8601,
                 timeLocal: localizedClockTime(entry.time, timeZoneIdentifier: entry.timeZoneIdentifier),
                 hasPhoto: entry.hasPhoto,
+                photoCount: entry.photoURLs.count,
+                locationName: trimmedOptional(entry.locationName),
                 note: trimmedOptional(entry.note)
             )
         }
@@ -486,6 +630,7 @@ enum DailyInsightAnalyzer {
                 targetBedtime: record.sleepRecord.targetBedtime?.canonicalDisplayTime,
                 durationHours: record.sleepRecord.duration.map { ($0 / 3600 * 10).rounded() / 10 },
                 hasStageData: record.sleepRecord.hasStageData,
+                stageMinutes: stageMinutes(for: record.sleepRecord),
                 timeZoneIdentifier: record.sleepRecord.timeZoneIdentifier,
                 note: trimmedOptional(record.sleepRecord.note)
             ),
@@ -495,7 +640,10 @@ enum DailyInsightAnalyzer {
             bowelMovementEnabled: preferences.visibleHomeSections.contains(.bowelMovements),
             bowelMovements: bowelMovements,
             timeline: timeline,
-            scoringRubric: scoringRubric(),
+            dayContext: dayContext(for: record),
+            appScores: appScores(
+                from: buildReport(for: record, preferences: preferences, locale: locale, history: history)
+            ),
             comparisonContext: historyContext(
                 for: record,
                 preferences: preferences,
@@ -670,44 +818,76 @@ enum DailyInsightAnalyzer {
         }
     }
 
-    private static func scoringRubric() -> DailyInsightPayload.ScoringRubric {
-        DailyInsightPayload.ScoringRubric(
-            sampleCount: 1,
-            overallMethod: NSLocalizedString("四个部分按固定满分评分后，按总分折算到 0-100。", comment: ""),
-            sections: [
-                .init(
-                    key: "sleep",
-                    title: NSLocalizedString("睡眠", comment: ""),
-                    maxScore: 45,
-                    fullCreditRule: NSLocalizedString("7-9 小时且入睡时间接近目标，记录完整时可拿高分。", comment: ""),
-                    partialCreditRule: NSLocalizedString("时长稍短/稍长，或作息与目标相差 30-120 分钟，拿中间分。", comment: ""),
-                    cautionRule: NSLocalizedString("时长明显不足、严重偏离目标或记录残缺时，才给低分。", comment: "")
-                ),
-                .init(
-                    key: "meals",
-                    title: NSLocalizedString("餐食", comment: ""),
-                    maxScore: 35,
-                    fullCreditRule: NSLocalizedString("三餐记录完整、时间清楚、时间线合理时可拿高分。", comment: ""),
-                    partialCreditRule: NSLocalizedString("仅记录有无但没写时间，仍算完成，只扣少量完整度分。", comment: ""),
-                    cautionRule: NSLocalizedString("必须结合起床时间和整天时间线判断，不能凭空批评用户没吃早餐。若起床已接近中午，跳过早餐只能算轻微影响或合理。", comment: "")
-                ),
-                .init(
-                    key: "shower",
-                    title: NSLocalizedString("洗澡", comment: ""),
-                    maxScore: 10,
-                    fullCreditRule: NSLocalizedString("启用该项目且有明确记录时，可给 8-10 分。", comment: ""),
-                    partialCreditRule: NSLocalizedString("没有记录时给保守中低分，不做重罚。", comment: ""),
-                    cautionRule: NSLocalizedString("如果该项目未启用，必须 excluded，不得纳入总分。", comment: "")
-                ),
-                .init(
-                    key: "bowelMovement",
-                    title: NSLocalizedString("排便", comment: ""),
-                    maxScore: 10,
-                    fullCreditRule: NSLocalizedString("启用该项目且有明确记录时，可给 8-10 分。", comment: ""),
-                    partialCreditRule: NSLocalizedString("没有记录时给保守中低分，不做重罚。", comment: ""),
-                    cautionRule: NSLocalizedString("如果该项目未启用，必须 excluded，不得纳入总分。", comment: "")
+    private static func appScores(from report: DailyInsightReport) -> DailyInsightPayload.AppScores {
+        DailyInsightPayload.AppScores(
+            total: report.overallScore,
+            method: "Fixed rules: sleep 45, meals 35, shower 10, bowel movement 10; sections that are not enabled are excluded and the total is scaled to 0-100. Shower and bowel movement are minor: logged at roughly the user's usual time earns full marks, and the number of entries does not matter.",
+            sections: report.components.map {
+                DailyInsightPayload.AppScores.Section(
+                    key: $0.kind.rawValue,
+                    title: $0.kind.title,
+                    included: $0.isIncluded,
+                    score: $0.score,
+                    maxScore: $0.maxScore,
+                    maxAdjustment: $0.isIncluded ? DailyInsightComponent.maxAIAdjustment(for: $0.kind, maxScore: $0.maxScore) : 0,
+                    detail: $0.detail
                 )
-            ]
+            }
+        )
+    }
+
+    private static func dayContext(for record: DailyRecord) -> DailyInsightPayload.DayContext {
+        let travelPhase = (
+            record.meals.compactMap(\.travelContext)
+                + record.showers.compactMap(\.travelContext)
+                + record.bowelMovements.compactMap(\.travelContext)
+        ).first?.phase.rawValue
+
+        return DailyInsightPayload.DayContext(
+            weekday: weekdayName(for: record.date),
+            locationName: trimmedOptional(record.locationName),
+            weather: trimmedOptional(record.weatherSnapshot?.conditionDescription),
+            lowTemperatureCelsius: record.weatherSnapshot.map { rounded($0.lowTemperatureCelsius, places: 1) },
+            highTemperatureCelsius: record.weatherSnapshot.map { rounded($0.highTemperatureCelsius, places: 1) },
+            travelPhase: travelPhase
+        )
+    }
+
+    private static func stageMinutes(for sleep: SleepRecord) -> DailyInsightPayload.SleepStageMinutes? {
+        guard sleep.hasStageData else { return nil }
+        let durations = sleep.stageDurations
+        func minutes(_ stage: SleepStage) -> Int {
+            Int(((durations[stage] ?? 0) / 60).rounded())
+        }
+        return DailyInsightPayload.SleepStageMinutes(
+            deep: minutes(.deep),
+            rem: minutes(.rem),
+            light: minutes(.light),
+            awake: minutes(.awake)
+        )
+    }
+
+    private static func weekdayName(for date: Date) -> String {
+        let names = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+        return names[(Calendar.current.component(.weekday, from: date) - 1) % 7]
+    }
+
+    private static func dayNotes(for record: DailyRecord) -> String? {
+        let notes = ([record.sleepRecord.note] + record.meals.map(\.note) + record.showers.map(\.note) + record.bowelMovements.map(\.note))
+            .compactMap(trimmedOptional)
+        guard !notes.isEmpty else { return nil }
+        let joined = notes.joined(separator: " / ")
+        return joined.count > 120 ? String(joined.prefix(120)) + "…" : joined
+    }
+
+    private static func loggedMealClockTimes(for record: DailyRecord) -> (first: String?, last: String?) {
+        let timedMeals = record.meals
+            .filter { mealStatusName($0, recordDate: record.date) == "logged_with_time" }
+            .compactMap { meal in meal.time.map { (time: $0, timeZoneIdentifier: meal.timeZoneIdentifier) } }
+            .sorted { $0.time < $1.time }
+        return (
+            timedMeals.first.flatMap { localizedClockTime($0.time, timeZoneIdentifier: $0.timeZoneIdentifier) },
+            timedMeals.last.flatMap { localizedClockTime($0.time, timeZoneIdentifier: $0.timeZoneIdentifier) }
         )
     }
 
@@ -808,14 +988,23 @@ enum DailyInsightAnalyzer {
             }
             .sorted { $0.date < $1.date }
             .map { historicalRecord in
-                DailyInsightPayload.HistoryDaySnapshot(
+                let sleep = historicalRecord.sleepRecord
+                let sleepTimeZoneIdentifier = sleep.timeZoneIdentifier
+                let mealTimes = loggedMealClockTimes(for: historicalRecord)
+                return DailyInsightPayload.HistoryDaySnapshot(
                     date: historicalRecord.date.storageKey(),
-                    sleepDurationHours: historicalRecord.sleepRecord.duration.map { rounded($0 / 3600, places: 1) },
+                    weekday: weekdayName(for: historicalRecord.date),
+                    sleepDurationHours: sleep.duration.map { rounded($0 / 3600, places: 1) },
+                    bedtimeLocal: localizedClockTime(sleep.bedtimePreviousNight, timeZoneIdentifier: sleepTimeZoneIdentifier),
+                    wakeLocal: localizedClockTime(sleep.wakeTimeCurrentDay, timeZoneIdentifier: sleepTimeZoneIdentifier),
                     mealCompletionRate: mealCompletionRate(for: historicalRecord),
                     timedMealLoggingRate: timedMealLoggingRate(for: historicalRecord),
+                    firstMealLocal: mealTimes.first,
+                    lastMealLocal: mealTimes.last,
                     showerCount: showerEnabled ? historicalRecord.showers.count : nil,
                     bowelMovementCount: bowelEnabled ? historicalRecord.bowelMovements.count : nil,
-                    bedtimeDeviationMinutes: bedtimeDeviationMinutes(for: historicalRecord.sleepRecord)
+                    bedtimeDeviationMinutes: bedtimeDeviationMinutes(for: sleep),
+                    notes: dayNotes(for: historicalRecord)
                 )
             }
     }
@@ -1005,10 +1194,13 @@ enum DailyInsightAnalyzer {
         return (Double(timedMeals.count) / Double(loggedMeals.count) * 100).rounded() / 100
     }
 
+    /// Logging one at a time of day the user has used before earns full marks; how many there were
+    /// does not matter. Without enough history to tell what is usual, any entry earns full marks.
     private static func hygieneComponent(
         kind: DailyInsightComponentKind,
         enabled: Bool,
-        count: Int
+        entryMinutes: [Int?],
+        historyMinutes: [Int]
     ) -> (component: DailyInsightComponent, highlights: [String]) {
         let maxScore = 10
         guard enabled else {
@@ -1024,6 +1216,7 @@ enum DailyInsightAnalyzer {
             )
         }
 
+        let count = entryMinutes.count
         if count == 0 {
             return (
                 DailyInsightComponent(
@@ -1037,21 +1230,61 @@ enum DailyInsightAnalyzer {
             )
         }
 
-        let score = min(maxScore, 7 + min(count, 3))
-        let detail = String(
-            format: NSLocalizedString("记录了 %d 次", comment: ""),
-            count
-        )
+        let timedEntries = entryMinutes.compactMap { $0 }
+        if historyMinutes.count >= 3, !timedEntries.isEmpty {
+            // Usual means at least two entries in the window were within the tolerance of it.
+            let isAtUsualTime = timedEntries.contains { entry in
+                historyMinutes.filter { clockDistance($0, entry) <= usualTimeToleranceMinutes }.count >= 2
+            }
+            if !isAtUsualTime {
+                return (
+                    DailyInsightComponent(
+                        kind: kind,
+                        score: 8,
+                        maxScore: maxScore,
+                        detail: String(format: NSLocalizedString("记录了 %d 次，时间和平时不太一样", comment: ""), count),
+                        isIncluded: true
+                    ),
+                    [String(format: NSLocalizedString("%@的时间和平时不太一样，这部分小扣了一点。", comment: ""), kind.title)]
+                )
+            }
+            return (
+                DailyInsightComponent(
+                    kind: kind,
+                    score: maxScore,
+                    maxScore: maxScore,
+                    detail: String(format: NSLocalizedString("记录了 %d 次，时间和平时差不多", comment: ""), count),
+                    isIncluded: true
+                ),
+                [String(format: NSLocalizedString("%@有明确记录，这部分拿到了稳定加分。", comment: ""), kind.title)]
+            )
+        }
+
         return (
             DailyInsightComponent(
                 kind: kind,
-                score: score,
+                score: maxScore,
                 maxScore: maxScore,
-                detail: detail,
+                detail: String(format: NSLocalizedString("记录了 %d 次", comment: ""), count),
                 isIncluded: true
             ),
             [String(format: NSLocalizedString("%@有明确记录，这部分拿到了稳定加分。", comment: ""), kind.title)]
         )
+    }
+
+    private static let usualTimeToleranceMinutes = 150
+
+    private static func clockMinutes(_ date: Date?, timeZoneIdentifier: String?) -> Int? {
+        guard let date else { return nil }
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: timeZoneIdentifier ?? "") ?? .autoupdatingCurrent
+        let components = calendar.dateComponents([.hour, .minute], from: date)
+        return (components.hour ?? 0) * 60 + (components.minute ?? 0)
+    }
+
+    private static func clockDistance(_ lhs: Int, _ rhs: Int) -> Int {
+        let difference = abs(lhs - rhs) % 1440
+        return min(difference, 1440 - difference)
     }
 
     private static func bedtimeAlignmentScore(
@@ -1306,10 +1539,110 @@ struct OpenAIKeychainStore: OpenAIKeyStoring, Sendable {
     }
 }
 
+/// Inputs for one insight request that stay out of the payload signature: they are gathered when
+/// the request is made (photos, Health data) or legitimately change from day to day (memory).
+struct DailyInsightContext: Sendable {
+    struct Photo: Sendable {
+        var mealTitle: String
+        var timeLocal: String?
+        var jpegData: Data
+    }
+
+    var goals: String?
+    var memory: [String] = []
+    var memoryLanguage = "Simplified Chinese"
+    var previousSuggestion: String?
+    var health: DailyHealthSummary?
+    var photos: [Photo] = []
+
+    static let empty = DailyInsightContext()
+}
+
+struct DailyHealthSummary: Codable, Equatable, Sendable {
+    var steps: Int?
+    var activeEnergyKilocalories: Int?
+    var exerciseMinutes: Int?
+    var restingHeartRate: Int?
+    var heartRateVariabilityMilliseconds: Int?
+
+    var isEmpty: Bool {
+        steps == nil
+            && activeEnergyKilocalories == nil
+            && exerciseMinutes == nil
+            && restingHeartRate == nil
+            && heartRateVariabilityMilliseconds == nil
+    }
+}
+
+struct DailyInsightGeneration: Sendable {
+    var narrative: DailyInsightNarrative
+    /// The model's updated observations about the user, or nil when the service returned none.
+    var memory: [String]?
+}
+
 protocol AIInsightNarrativeGenerating: Sendable {
     var isConfigured: Bool { get }
     func generateNarrative(from payload: DailyInsightPayload) async throws -> DailyInsightNarrative
+    func generateInsight(from payload: DailyInsightPayload, context: DailyInsightContext) async throws -> DailyInsightGeneration
     func translateNarrative(_ narrative: DailyInsightNarrative, to language: AppLanguage) async throws -> DailyInsightNarrative.LocalizedText
+}
+
+extension AIInsightNarrativeGenerating {
+    func generateInsight(from payload: DailyInsightPayload, context: DailyInsightContext) async throws -> DailyInsightGeneration {
+        DailyInsightGeneration(narrative: try await generateNarrative(from: payload), memory: nil)
+    }
+}
+
+/// Loads a day's meal photos, downscaled, so the model can see what was eaten.
+enum DailyInsightPhotoLoader {
+    static func photos(
+        for record: DailyRecord,
+        limit: Int = 6,
+        perMeal: Int = 2,
+        maxPixelSide: CGFloat = 768
+    ) async -> [DailyInsightContext.Photo] {
+        var photos: [DailyInsightContext.Photo] = []
+        for meal in record.meals where meal.hasPhoto {
+            for reference in meal.photoURLs.prefix(perMeal) {
+                guard photos.count < limit else { return photos }
+                guard let image = await image(for: reference),
+                      let jpegData = downscaledJPEG(image, maxPixelSide: maxPixelSide) else { continue }
+                let timeZone = TimeZone(identifier: meal.timeZoneIdentifier ?? "") ?? .autoupdatingCurrent
+                photos.append(
+                    DailyInsightContext.Photo(
+                        mealTitle: meal.displayTitle,
+                        timeLocal: meal.time?.displayClockTime(in: timeZone),
+                        jpegData: jpegData
+                    )
+                )
+            }
+        }
+        return photos
+    }
+
+    private static func image(for reference: String) async -> UIImage? {
+        if let url = LocalPhotoStorageService.resolvedURL(for: reference),
+           let data = try? Data(contentsOf: url) {
+            return UIImage(data: data)
+        }
+        return await RemotePhotoCache.shared.image(for: reference)
+    }
+
+    private static func downscaledJPEG(_ image: UIImage, maxPixelSide: CGFloat) -> Data? {
+        let longestSide = max(image.size.width, image.size.height)
+        guard longestSide > 0 else { return nil }
+        let scale = min(1, maxPixelSide / longestSide)
+        let targetSize = CGSize(
+            width: (image.size.width * scale).rounded(.down),
+            height: (image.size.height * scale).rounded(.down)
+        )
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        let resized = UIGraphicsImageRenderer(size: targetSize, format: format).image { _ in
+            image.draw(in: CGRect(origin: .zero, size: targetSize))
+        }
+        return resized.jpegData(compressionQuality: 0.6)
+    }
 }
 
 struct NoopAIInsightNarrativeService: AIInsightNarrativeGenerating, Sendable {
@@ -1331,7 +1664,6 @@ enum AIInsightServiceError: LocalizedError {
     case missingProxyURL
     case invalidResponse
     case emptyResponse
-    case missingScores
     case dailyLimitReached(limit: Int?)
     case providerError(String)
     case requestFailed(statusCode: Int, message: String?)
@@ -1350,8 +1682,6 @@ enum AIInsightServiceError: LocalizedError {
             return NSLocalizedString("AI 返回的数据格式无法识别。", comment: "")
         case .emptyResponse:
             return NSLocalizedString("AI 这次没有返回可用内容。", comment: "")
-        case .missingScores:
-            return NSLocalizedString("AI 返回了文案，但没有返回分数。", comment: "")
         case .dailyLimitReached(let limit):
             if let limit, limit > 0 {
                 return String(
@@ -1418,14 +1748,19 @@ struct OpenAIResponsesInsightService: AIInsightNarrativeGenerating, Sendable {
     }
 
     func generateNarrative(from payload: DailyInsightPayload) async throws -> DailyInsightNarrative {
+        try await generateInsight(from: payload, context: .empty).narrative
+    }
+
+    func generateInsight(from payload: DailyInsightPayload, context: DailyInsightContext) async throws -> DailyInsightGeneration {
         guard let apiKey = keyStore.loadAPIKey(), !apiKey.isEmpty else {
             throw AIInsightServiceError.missingAPIKey
         }
 
-        return try await performNarrativeRequest(
+        return try await performInsightRequest(
             endpointURL: URL(string: "https://api.openai.com/v1/responses")!,
             authorizationHeader: "Bearer \(apiKey)",
             payload: payload,
+            context: context,
             model: model,
             session: session
         )
@@ -1472,6 +1807,10 @@ struct CloudAIInsightService: AIInsightNarrativeGenerating, Sendable {
     }
 
     func generateNarrative(from payload: DailyInsightPayload) async throws -> DailyInsightNarrative {
+        try await generateInsight(from: payload, context: .empty).narrative
+    }
+
+    func generateInsight(from payload: DailyInsightPayload, context: DailyInsightContext) async throws -> DailyInsightGeneration {
         guard let endpointURL = configuration.endpointURL else {
             throw AIInsightServiceError.missingProxyURL
         }
@@ -1479,10 +1818,11 @@ struct CloudAIInsightService: AIInsightNarrativeGenerating, Sendable {
             throw AIInsightServiceError.missingAuthToken
         }
 
-        return try await performNarrativeRequest(
+        return try await performInsightRequest(
             endpointURL: endpointURL,
             authorizationHeader: "Bearer \(idToken)",
             payload: payload,
+            context: context,
             model: model,
             session: session
         )
@@ -1530,6 +1870,13 @@ struct HybridAIInsightNarrativeService: AIInsightNarrativeGenerating, Sendable {
         return try await cloudService.generateNarrative(from: payload)
     }
 
+    func generateInsight(from payload: DailyInsightPayload, context: DailyInsightContext) async throws -> DailyInsightGeneration {
+        if customKeyService.isConfigured {
+            return try await customKeyService.generateInsight(from: payload, context: context)
+        }
+        return try await cloudService.generateInsight(from: payload, context: context)
+    }
+
     func translateNarrative(_ narrative: DailyInsightNarrative, to language: AppLanguage) async throws -> DailyInsightNarrative.LocalizedText {
         if customKeyService.isConfigured {
             return try await customKeyService.translateNarrative(narrative, to: language)
@@ -1538,13 +1885,14 @@ struct HybridAIInsightNarrativeService: AIInsightNarrativeGenerating, Sendable {
     }
 }
 
-private func performNarrativeRequest(
+private func performInsightRequest(
     endpointURL: URL,
     authorizationHeader: String,
     payload: DailyInsightPayload,
+    context: DailyInsightContext,
     model: String,
     session: URLSession
-) async throws -> DailyInsightNarrative {
+) async throws -> DailyInsightGeneration {
     var request = URLRequest(url: endpointURL)
     request.httpMethod = "POST"
     request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -1553,7 +1901,7 @@ private func performNarrativeRequest(
     let encoder = JSONEncoder()
     encoder.outputFormatting = [.sortedKeys]
     encoder.dateEncodingStrategy = .iso8601
-    request.httpBody = try encoder.encode(makeRequestBody(from: payload, model: model))
+    request.httpBody = try encoder.encode(makeInsightRequestBody(from: payload, context: context, model: model))
 
     let (data, response) = try await session.data(for: request)
     guard let httpResponse = response as? HTTPURLResponse,
@@ -1562,11 +1910,12 @@ private func performNarrativeRequest(
         throw parseNarrativeRequestError(statusCode: statusCode, data: data)
     }
 
-    var narrative = try parseNarrative(from: data)
-    narrative.generatedAt = .now
-    narrative.scoringVersion = DailyInsightNarrative.currentScoringVersion
-    narrative.sampleCount = 1
-    return narrative
+    let insight = try parseStructuredResponse(InsightResponse.self, from: data) { !$0.zh.findings.isEmpty }
+    var generation = insight.generation()
+    generation.narrative.generatedAt = .now
+    generation.narrative.scoringVersion = DailyInsightNarrative.currentScoringVersion
+    generation.narrative.sampleCount = 1
+    return generation
 }
 
 private func performTranslationRequest(
@@ -1621,65 +1970,42 @@ private func fetchFirebaseIDToken() async throws -> String? {
     }
 }
 
-private func parseNarrative(from data: Data) throws -> DailyInsightNarrative {
-    if let narrative = tryDirectNarrative(from: data) {
-        return narrative
-    }
-
-    let decoded = try JSONDecoder().decode(OpenAIResponseEnvelope.self, from: data)
-    if let narrative = decoded.extractedNarrative {
-        return narrative
-    }
-
-    if let refusal = decoded.extractedRefusal, !refusal.isEmpty {
-        throw AIInsightServiceError.providerError(refusal)
-    }
-
-    guard let text = decoded.extractedText, !text.isEmpty else {
-        throw AIInsightServiceError.emptyResponse
-    }
-
-    let jsonText = extractJSONObject(from: text)
-    guard let jsonData = jsonText.data(using: .utf8) else {
-        throw AIInsightServiceError.invalidResponse
-    }
-
-    let narrative = try JSONDecoder().decode(DailyInsightNarrative.self, from: jsonData)
-    guard narrative.hasAIScoring else {
-        #if DEBUG
-        print("AI insight response missing scores:", jsonText)
-        #endif
-        throw AIInsightServiceError.missingScores
-    }
-    return narrative
+private func parseLocalizedNarrativeText(from data: Data) throws -> DailyInsightNarrative.LocalizedText {
+    try parseStructuredResponse(DailyInsightNarrative.LocalizedText.self, from: data)
 }
 
-private func parseLocalizedNarrativeText(from data: Data) throws -> DailyInsightNarrative.LocalizedText {
+/// Accepts the structured value directly, as `parsed` content, or as JSON text inside a Responses
+/// API envelope.
+private func parseStructuredResponse<Value: Decodable>(
+    _ type: Value.Type,
+    from data: Data,
+    isUsable: (Value) -> Bool = { _ in true }
+) throws -> Value {
     let decoder = JSONDecoder()
-    if let localizedText = try? decoder.decode(DailyInsightNarrative.LocalizedText.self, from: data) {
-        return localizedText
+    if let direct = try? decoder.decode(Value.self, from: data), isUsable(direct) {
+        return direct
     }
 
-    if let envelope = try? decoder.decode(OpenAIResponseEnvelope.self, from: data) {
-        if let parsed = envelope.output?
-            .flatMap({ $0.content ?? [] })
-            .compactMap(\.parsedLocalizedText)
-            .first {
-            return parsed
-        }
-        if let text = envelope.extractedText, !text.isEmpty {
-            let jsonText = extractJSONObject(from: text)
-            if let jsonData = jsonText.data(using: .utf8),
-               let localizedText = try? decoder.decode(DailyInsightNarrative.LocalizedText.self, from: jsonData) {
-                return localizedText
-            }
-        }
-        if let refusal = envelope.extractedRefusal, !refusal.isEmpty {
-            throw AIInsightServiceError.providerError(refusal)
-        }
+    guard let envelope = try? decoder.decode(OpenAIResponseEnvelope<Value>.self, from: data) else {
+        throw AIInsightServiceError.invalidResponse
     }
-
-    throw AIInsightServiceError.invalidResponse
+    if let parsed = envelope.parsedValues.first(where: isUsable) {
+        return parsed
+    }
+    if let refusal = envelope.extractedRefusal, !refusal.isEmpty {
+        throw AIInsightServiceError.providerError(refusal)
+    }
+    guard let text = envelope.extractedText, !text.isEmpty else {
+        throw AIInsightServiceError.emptyResponse
+    }
+    guard let jsonData = extractJSONObject(from: text).data(using: .utf8),
+          let value = try? decoder.decode(Value.self, from: jsonData) else {
+        throw AIInsightServiceError.invalidResponse
+    }
+    guard isUsable(value) else {
+        throw AIInsightServiceError.emptyResponse
+    }
+    return value
 }
 
 private func parseNarrativeRequestError(statusCode: Int, data: Data) -> AIInsightServiceError {
@@ -1722,72 +2048,153 @@ private func parseNarrativeRequestError(statusCode: Int, data: Data) -> AIInsigh
     }
 }
 
-private func tryDirectNarrative(from data: Data) -> DailyInsightNarrative? {
-    let decoder = JSONDecoder()
+private let insightInstructions = """
+You are the analyst inside DailyLogs, a personal journaling app. The user logs sleep, meals (sometimes with photos), showers and bowel movements. This is lifestyle reflection, not medical advice: never diagnose, never name conditions.
 
-    if let narrative = try? decoder.decode(DailyInsightNarrative.self, from: data),
-       narrative.hasAIScoring {
-        return narrative
-    }
+The app scores each section with fixed rules (day.appScores); each section's detail says what the rule counted. You give the final score by adjusting each included section by at most its maxAdjustment points, up or down, for what the rule cannot see: how the day compares with this user's own baseline and recent days, progress on context.goals, sleep stages and timing regularity, what the meal photos show, and context such as travel, weekday or weather. Do not adjust again for what the rule already counted. Beyond the score, notice what the user would not notice on their own, show the evidence from their data, and give one concrete thing to try next.
 
-    guard let rawText = String(data: data, encoding: .utf8) else {
-        return nil
-    }
+How to work:
+1. Rebuild the target day: previous-night bedtime, wake time, meals, other events, in order (day.timeline). Note day.dayContext (weekday, place, weather, travel) and context.health when present.
+2. Compare the day with the user's own baseline: day.comparisonContext has 7/30-day statistics, trends and one snapshot per recent day (bedtime, wake time, first/last meal times, notes). Look for links across days (late last meal and late bedtime, short sleep and a skipped meal the next day, weekday vs weekend drift), streaks, rebounds, and anything unusual for this user.
+3. Use context.memory (what earlier analyses learned about this user) and context.goals (what the user wants to improve). Prefer findings that bear on the goals.
+4. When photos are attached, look at what was eaten (rough composition, vegetables, protein, staple carbs, drinks, portion) and use it. Do not estimate calories precisely, and never describe a meal you were not shown.
+5. When context.previousSuggestion is present, judge from this day's data whether it was followed and say so in followUp, briefly and kindly; say so if the data cannot tell. Use an empty string when there is no previous suggestion.
 
-    let jsonText = extractJSONObject(from: rawText)
-    guard let jsonData = jsonText.data(using: .utf8),
-          let narrative = try? decoder.decode(DailyInsightNarrative.self, from: jsonData),
-          narrative.hasAIScoring else {
-        return nil
-    }
+Rules:
+- scoreAdjustments: exactly one entry per section whose maxAdjustment is above 0 (sleep and meals when included), none for any other section. Shower and bowel movement are minor sections the rule already scores on whether they were logged at the usual time. delta is an integer within plus or minus that section's maxAdjustment; the final section score stays between 0 and its maxScore, so a section already at full marks can only stay or go down. Use 0 when the rule got it right. reasonZh and reasonEn: one short sentence each, citing the concrete evidence behind the delta (or why the rule score stands). Be consistent: the same behavior should earn a similar adjustment on different days.
+- findings: 1 to 3. Each is specific to this user's data and cites concrete times, numbers or dates as evidence. No generic advice ("sleep matters"). If the data is thin, write fewer findings rather than padding.
+- The target-day arrays and day.targetDay counts are the only source of truth for the target day. History is for comparison; never infer a target-day meal, shower or bowel movement from history. Unrecorded is not the same as skipped.
+- suggestion: exactly one, small and concrete enough to do tomorrow (a time, an amount or an action), and tied to a finding.
+- headline: specific to this day, at most 16 Chinese characters / 8 English words. summary: one or two sentences.
+- Tone: warm and direct, like a perceptive friend; light humor is fine; no moralizing.
+- zh is natural Simplified Chinese and en is natural English, with the same content; do not translate word for word.
+- memory: return the full updated list of durable observations about this user, at most 12 short sentences, written in context.memoryLanguage. Keep items that still hold, refine or drop ones the data contradicts, and add a pattern only when several days support it. Never store one-off events or guesses about health conditions.
+"""
 
-    return narrative
-}
-
-private func makeRequestBody(from payload: DailyInsightPayload, model: String) throws -> OpenAIResponsesRequestBody {
+private func makeInsightRequestBody(
+    from payload: DailyInsightPayload,
+    context: DailyInsightContext,
+    model: String
+) throws -> OpenAIResponsesRequestBody {
     let encoder = JSONEncoder()
     encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
     encoder.dateEncodingStrategy = .iso8601
-    let payloadData = try encoder.encode(payload)
-    let payloadString = String(decoding: payloadData, as: UTF8.self)
+    let input = InsightRequestInput(
+        day: payload,
+        context: InsightRequestInput.Context(
+            goals: context.goals?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty,
+            memory: context.memory,
+            memoryLanguage: context.memoryLanguage,
+            previousSuggestion: context.previousSuggestion?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty,
+            health: context.health?.isEmpty == false ? context.health : nil,
+            attachedPhotos: context.photos.enumerated().map { index, photo in
+                InsightRequestInput.PhotoLabel(index: index + 1, meal: photo.mealTitle, timeLocal: photo.timeLocal)
+            }
+        )
+    )
+    var content = [
+        OpenAIResponsesInput.ContentPart.text(String(decoding: try encoder.encode(input), as: UTF8.self))
+    ]
+    for (index, photo) in context.photos.enumerated() {
+        content.append(.text("Photo \(index + 1): \(photo.mealTitle)\(photo.timeLocal.map { " \($0)" } ?? "")"))
+        content.append(.image(jpegData: photo.jpegData))
+    }
 
     return OpenAIResponsesRequestBody(
         model: model,
-        instructions: """
-        You are scoring one complete day of lifestyle logs for a journaling app.
-        This is fun lifestyle analysis only, not medical advice, diagnosis, or treatment.
-        Use only the provided JSON.
-        First reconstruct the user's full day timeline from the previous-night bedtime through wake time, meals, showers, and bowel events.
-        Use the timeline to avoid contradictions. Example: if wake time is near noon, skipping breakfast is not automatically a serious problem.
-        The payload includes an authoritative targetDay summary, detailed target-day sections, an ordered timeline, a fixed scoring rubric, trailing 7-day/30-day statistics, trend summaries, volatility labels, and recent daily snapshots.
-        Treat targetDay counts and the target-day arrays as the source of truth for the day being scored. Historical averages, trends, and snapshots are comparison context only; never infer a target-day shower, bowel event, or meal from history.
-        Use the target day as the scoring baseline, the 7-day summary for short-term trend context, the 30-day summary for habit stability context, and dailySnapshots to notice streaks, rebounds, and volatility.
-        The payload does not include any precomputed score. Compute every score yourself from the raw data and the provided rubric.
-        Respect whether a section is excluded, skipped, logged without time, or simply unrecorded.
-        Logged without time still counts as completed logging. It should lose only a small amount of completeness credit, not be treated as missing.
-        Follow the fixed section maxima exactly: sleep 45, meals 35, shower 10, bowelMovement 10.
-        If a section is not enabled, set included=false, score=0, and explain that it was not included.
-        If targetDay.showerCount is 0, do not say or imply that the target day had a shower record even when historical shower averages are above zero.
-        Avoid single-point scoring. In headline, summary, bullets, and component details, mention meaningful trend/stability context when it changes the interpretation of the target day.
-        Never invent habits or judge a meal pattern without timeline support.
-        Be concrete about times and counts when present.
-        Keep the tone warm, brief, lightly playful, and non-judgmental.
-        You must return an overallScore from 0 to 100.
-        You must return a score for every section.
-        Do not omit score fields. Do not return null score fields.
-        Return valid JSON that matches the schema exactly.
-        """,
-        input: payloadString,
+        instructions: insightInstructions,
+        input: .userContent(content),
         store: false,
-        reasoning: OpenAIResponsesRequestBody.ReasoningConfiguration(effort: "high"),
+        reasoning: OpenAIResponsesRequestBody.ReasoningConfiguration(effort: "medium"),
         text: OpenAIResponsesRequestBody.TextConfiguration(
             verbosity: "medium",
             format: OpenAIResponsesRequestBody.SchemaConfiguration(
-                name: "daily_insight_narrative",
-                schema: makeNarrativeSchema()
+                name: "daily_insight",
+                schema: makeInsightSchema()
             )
         )
     )
+}
+
+private struct InsightRequestInput: Encodable {
+    struct PhotoLabel: Encodable {
+        var index: Int
+        var meal: String
+        var timeLocal: String?
+    }
+
+    struct Context: Encodable {
+        var goals: String?
+        var memory: [String]
+        var memoryLanguage: String
+        var previousSuggestion: String?
+        var health: DailyHealthSummary?
+        var attachedPhotos: [PhotoLabel]
+    }
+
+    var day: DailyInsightPayload
+    var context: Context
+}
+
+private struct InsightResponse: Codable {
+    struct Text: Codable {
+        var headline: String
+        var summary: String
+        var findings: [DailyInsightNarrative.Finding]
+        var suggestion: String
+        var followUp: String
+    }
+
+    struct ScoreAdjustment: Codable {
+        var section: String
+        var delta: Int
+        var reasonZh: String
+        var reasonEn: String
+    }
+
+    var scoreAdjustments: [ScoreAdjustment]
+    var zh: Text
+    var en: Text
+    var memory: [String]
+
+    func generation() -> DailyInsightGeneration {
+        let knownSections = Set(DailyInsightComponentKind.allCases.map(\.rawValue))
+        var adjustments: [String: DailyInsightNarrative.ScoreAdjustment] = [:]
+        var englishReasons: [String: String] = [:]
+        for adjustment in scoreAdjustments where knownSections.contains(adjustment.section) {
+            adjustments[adjustment.section] = DailyInsightNarrative.ScoreAdjustment(
+                delta: adjustment.delta,
+                reason: adjustment.reasonZh
+            )
+            englishReasons[adjustment.section] = adjustment.reasonEn
+        }
+        let english = DailyInsightNarrative.LocalizedText(
+            headline: en.headline,
+            summary: en.summary,
+            bullets: en.findings.map(\.title),
+            findings: en.findings,
+            suggestion: en.suggestion,
+            followUp: en.followUp,
+            scoreReasons: englishReasons.isEmpty ? nil : englishReasons
+        )
+        let narrative = DailyInsightNarrative(
+            headline: zh.headline,
+            summary: zh.summary,
+            bullets: zh.findings.map(\.title),
+            findings: zh.findings,
+            suggestion: zh.suggestion,
+            followUp: zh.followUp,
+            scoreAdjustments: adjustments.isEmpty ? nil : adjustments,
+            sourceLanguageCode: AppLanguage.zhHans.aiNarrativeLanguageCode(),
+            localizedTexts: [AppLanguage.en.aiNarrativeLanguageCode(): english]
+        )
+        let cleanedMemory = memory
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .prefix(12)
+            .map { $0.count > 120 ? String($0.prefix(120)) : $0 }
+        return DailyInsightGeneration(narrative: narrative, memory: Array(cleanedMemory))
+    }
 }
 
 private func makeTranslationRequestBody(
@@ -1812,10 +2219,10 @@ private func makeTranslationRequestBody(
         Do not add new information, do not remove information, and do not change the number of bullets.
         Return valid JSON that matches the schema exactly.
         """,
-        input: String(
+        input: .text(String(
             data: (try? JSONEncoder().encode(input)) ?? Data(),
             encoding: .utf8
-        ) ?? "{}",
+        ) ?? "{}"),
         store: false,
         reasoning: OpenAIResponsesRequestBody.ReasoningConfiguration(effort: "low"),
         text: OpenAIResponsesRequestBody.TextConfiguration(
@@ -1828,54 +2235,76 @@ private func makeTranslationRequestBody(
     )
 }
 
-private func makeNarrativeSchema() -> JSONValue {
-    .object([
+private func makeInsightSchema() -> JSONValue {
+    func nonEmptyString() -> JSONValue {
+        .object(["type": .string("string"), "minLength": .number(1)])
+    }
+
+    let finding: JSONValue = .object([
         "type": .string("object"),
         "properties": .object([
-            "headline": .object([
-                "type": .string("string"),
-                "minLength": .number(1)
-            ]),
-            "summary": .object([
-                "type": .string("string"),
-                "minLength": .number(1)
-            ]),
-            "bullets": .object([
+            "title": nonEmptyString(),
+            "evidence": nonEmptyString()
+        ]),
+        "required": .array([.string("title"), .string("evidence")]),
+        "additionalProperties": .bool(false)
+    ])
+    let text: JSONValue = .object([
+        "type": .string("object"),
+        "properties": .object([
+            "headline": nonEmptyString(),
+            "summary": nonEmptyString(),
+            "findings": .object([
                 "type": .string("array"),
-                "items": .object([
-                    "type": .string("string"),
-                    "minLength": .number(1)
-                ]),
-                "minItems": .number(2),
-                "maxItems": .number(4)
+                "items": finding,
+                "minItems": .number(1),
+                "maxItems": .number(3)
             ]),
-            "overallScore": .object([
-                "type": .string("integer")
-            ]),
-            "components": .object([
-                "type": .string("object"),
-                "properties": .object([
-                    "sleep": componentSchema(),
-                    "meals": componentSchema(),
-                    "shower": componentSchema(),
-                    "bowelMovement": componentSchema()
-                ]),
-                "required": .array([
-                    .string("sleep"),
-                    .string("meals"),
-                    .string("shower"),
-                    .string("bowelMovement")
-                ]),
-                "additionalProperties": .bool(false)
-            ])
+            "suggestion": nonEmptyString(),
+            "followUp": .object(["type": .string("string")])
         ]),
         "required": .array([
             .string("headline"),
             .string("summary"),
-            .string("bullets"),
-            .string("overallScore"),
-            .string("components")
+            .string("findings"),
+            .string("suggestion"),
+            .string("followUp")
         ]),
+        "additionalProperties": .bool(false)
+    ])
+
+    let scoreAdjustment: JSONValue = .object([
+        "type": .string("object"),
+        "properties": .object([
+            "section": .object([
+                "type": .string("string"),
+                "enum": .array(DailyInsightComponentKind.allCases.map { .string($0.rawValue) })
+            ]),
+            "delta": .object(["type": .string("integer")]),
+            "reasonZh": nonEmptyString(),
+            "reasonEn": nonEmptyString()
+        ]),
+        "required": .array([.string("section"), .string("delta"), .string("reasonZh"), .string("reasonEn")]),
+        "additionalProperties": .bool(false)
+    ])
+
+    return .object([
+        "type": .string("object"),
+        "properties": .object([
+            "scoreAdjustments": .object([
+                "type": .string("array"),
+                "items": scoreAdjustment,
+                "maxItems": .number(Double(DailyInsightComponentKind.allCases.count))
+            ]),
+            "zh": text,
+            "en": text,
+            "memory": .object([
+                "type": .string("array"),
+                "items": nonEmptyString(),
+                "maxItems": .number(12)
+            ])
+        ]),
+        "required": .array([.string("scoreAdjustments"), .string("zh"), .string("en"), .string("memory")]),
         "additionalProperties": .bool(false)
     ])
 }
@@ -1911,40 +2340,57 @@ private func makeLocalizedNarrativeSchema() -> JSONValue {
     ])
 }
 
-private func componentSchema() -> JSONValue {
-    .object([
-        "type": .string("object"),
-        "properties": .object([
-            "included": .object([
-                "type": .string("boolean")
-            ]),
-            "score": .object([
-                "type": .string("integer")
-            ]),
-            "maxScore": .object([
-                "type": .string("integer")
-            ]),
-            "detail": .object([
-                "type": .string("string"),
-                "minLength": .number(1)
-            ])
-        ]),
-        "required": .array([
-            .string("included"),
-            .string("score"),
-            .string("maxScore"),
-            .string("detail")
-        ]),
-        "additionalProperties": .bool(false)
-    ])
-}
-
 private func extractJSONObject(from text: String) -> String {
     guard let start = text.firstIndex(of: "{"),
           let end = text.lastIndex(of: "}") else {
         return text
     }
     return String(text[start...end])
+}
+
+private enum OpenAIResponsesInput: Encodable {
+    enum ContentPart: Encodable {
+        case text(String)
+        case image(jpegData: Data)
+
+        private enum CodingKeys: String, CodingKey {
+            case type
+            case text
+            case imageURL = "image_url"
+            case detail
+        }
+
+        func encode(to encoder: Encoder) throws {
+            var container = encoder.container(keyedBy: CodingKeys.self)
+            switch self {
+            case .text(let text):
+                try container.encode("input_text", forKey: .type)
+                try container.encode(text, forKey: .text)
+            case .image(let jpegData):
+                try container.encode("input_image", forKey: .type)
+                try container.encode("data:image/jpeg;base64,\(jpegData.base64EncodedString())", forKey: .imageURL)
+                try container.encode("low", forKey: .detail)
+            }
+        }
+    }
+
+    case text(String)
+    case userContent([ContentPart])
+
+    private struct Message: Encodable {
+        var role = "user"
+        var content: [ContentPart]
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        switch self {
+        case .text(let text):
+            try container.encode(text)
+        case .userContent(let content):
+            try container.encode([Message(content: content)])
+        }
+    }
 }
 
 private struct OpenAIResponsesRequestBody: Encodable {
@@ -1966,19 +2412,18 @@ private struct OpenAIResponsesRequestBody: Encodable {
 
     var model: String
     var instructions: String
-    var input: String
+    var input: OpenAIResponsesInput
     var store: Bool
     var reasoning: ReasoningConfiguration
     var text: TextConfiguration
 }
 
-private struct OpenAIResponseEnvelope: Decodable {
+private struct OpenAIResponseEnvelope<Parsed: Decodable>: Decodable {
     struct OutputItem: Decodable {
         struct ContentItem: Decodable {
             var type: String?
             var text: String?
-            var parsed: DailyInsightNarrative?
-            var parsedLocalizedText: DailyInsightNarrative.LocalizedText?
+            var parsed: Parsed?
             var refusal: String?
 
             private enum CodingKeys: String, CodingKey {
@@ -1992,8 +2437,7 @@ private struct OpenAIResponseEnvelope: Decodable {
                 let container = try decoder.container(keyedBy: CodingKeys.self)
                 type = try container.decodeIfPresent(String.self, forKey: .type)
                 text = try container.decodeIfPresent(String.self, forKey: .text)
-                parsed = try container.decodeIfPresent(DailyInsightNarrative.self, forKey: .parsed)
-                parsedLocalizedText = try container.decodeIfPresent(DailyInsightNarrative.LocalizedText.self, forKey: .parsed)
+                parsed = (try? container.decodeIfPresent(Parsed.self, forKey: .parsed)) ?? nil
                 refusal = try container.decodeIfPresent(String.self, forKey: .refusal)
             }
         }
@@ -2002,7 +2446,7 @@ private struct OpenAIResponseEnvelope: Decodable {
     }
 
     var outputText: String?
-    var outputParsed: DailyInsightNarrative?
+    var outputParsed: Parsed?
     var output: [OutputItem]?
     var refusal: String?
 
@@ -2013,15 +2457,16 @@ private struct OpenAIResponseEnvelope: Decodable {
         case refusal
     }
 
-    var extractedNarrative: DailyInsightNarrative? {
-        if let outputParsed, outputParsed.hasAIScoring {
-            return outputParsed
-        }
+    init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        outputText = try container.decodeIfPresent(String.self, forKey: .outputText)
+        outputParsed = (try? container.decodeIfPresent(Parsed.self, forKey: .outputParsed)) ?? nil
+        output = try container.decodeIfPresent([OutputItem].self, forKey: .output)
+        refusal = try container.decodeIfPresent(String.self, forKey: .refusal)
+    }
 
-        return output?
-            .flatMap { $0.content ?? [] }
-            .compactMap(\.parsed)
-            .first(where: \.hasAIScoring)
+    var parsedValues: [Parsed] {
+        [outputParsed].compactMap { $0 } + (output ?? []).flatMap { $0.content ?? [] }.compactMap(\.parsed)
     }
 
     var extractedText: String? {
@@ -2145,6 +2590,7 @@ extension DailyInsightPayload {
                 targetBedtime: sleep.targetBedtime,
                 durationHours: sleep.durationHours,
                 hasStageData: sleep.hasStageData,
+                stageMinutes: sleep.stageMinutes.map { [$0.deep, $0.rem, $0.light, $0.awake] },
                 timeZoneIdentifier: sleep.timeZoneIdentifier,
                 note: sleep.note
             ),
@@ -2154,6 +2600,7 @@ extension DailyInsightPayload {
                     status: meal.status,
                     timeISO8601: meal.timeISO8601,
                     hasPhoto: meal.hasPhoto,
+                    photoCount: meal.photoCount,
                     note: meal.note
                 )
             },
@@ -2178,12 +2625,6 @@ extension DailyInsightPayload {
                 trailing30Days: SignatureSeed.HistoryWindowSummary(from: comparisonContext.trailing30Days),
                 dailySnapshots: comparisonContext.dailySnapshots.map {
                     SignatureSeed.HistoryDaySnapshot(from: $0)
-                }
-            ),
-            scoringRubric: SignatureSeed.ScoringRubric(
-                sampleCount: scoringRubric.sampleCount,
-                sections: scoringRubric.sections.map {
-                    SignatureSeed.RubricSection(key: $0.key, maxScore: $0.maxScore)
                 }
             )
         )
@@ -2225,6 +2666,7 @@ extension DailyInsightPayload {
             var targetBedtime: String?
             var durationHours: Double?
             var hasStageData: Bool
+            var stageMinutes: [Int]?
             var timeZoneIdentifier: String?
             var note: String?
         }
@@ -2234,6 +2676,7 @@ extension DailyInsightPayload {
             var status: String
             var timeISO8601: String?
             var hasPhoto: Bool
+            var photoCount: Int
             var note: String?
         }
 
@@ -2273,18 +2716,24 @@ extension DailyInsightPayload {
             var sleepDurationHours: Double?
             var mealCompletionRate: Double
             var timedMealLoggingRate: Double
+            var firstMealLocal: String?
+            var lastMealLocal: String?
             var showerCount: Int?
             var bowelMovementCount: Int?
             var bedtimeDeviationMinutes: Double?
+            var notes: String?
 
             init(from source: DailyInsightPayload.HistoryDaySnapshot) {
                 date = source.date
                 sleepDurationHours = source.sleepDurationHours
                 mealCompletionRate = source.mealCompletionRate
                 timedMealLoggingRate = source.timedMealLoggingRate
+                firstMealLocal = source.firstMealLocal
+                lastMealLocal = source.lastMealLocal
                 showerCount = source.showerCount
                 bowelMovementCount = source.bowelMovementCount
                 bedtimeDeviationMinutes = source.bedtimeDeviationMinutes
+                notes = source.notes
             }
         }
 
@@ -2346,16 +2795,6 @@ extension DailyInsightPayload {
             var dailySnapshots: [HistoryDaySnapshot]
         }
 
-        struct RubricSection: Encodable {
-            var key: String
-            var maxScore: Int
-        }
-
-        struct ScoringRubric: Encodable {
-            var sampleCount: Int
-            var sections: [RubricSection]
-        }
-
         var analysisDate: String
         var appTimeZoneIdentifier: String
         var targetDay: TargetDaySummary
@@ -2366,7 +2805,6 @@ extension DailyInsightPayload {
         var bowelMovementEnabled: Bool
         var bowelMovements: [Event]
         var comparisonContext: HistoryContext
-        var scoringRubric: ScoringRubric
     }
 }
 
@@ -2417,5 +2855,11 @@ private extension Sequence where Element: Hashable {
     func uniqued() -> [Element] {
         var seen = Set<Element>()
         return filter { seen.insert($0).inserted }
+    }
+}
+
+private extension String {
+    var nilIfEmpty: String? {
+        isEmpty ? nil : self
     }
 }
